@@ -759,7 +759,7 @@ app.whenReady().then(() => {
     updateLaunchOnLogin(next);
     syncWindowTheme(next);
     updateHud({
-      visible: pushToTalkActive || next.alwaysShowPill,
+      visible: currentHudState.visible || pushToTalkActive || next.alwaysShowPill,
       level: 0,
       label: pushToTalkActive ? "Listening" : "Ready",
       soundEnabled: !next.muteDictationSounds,

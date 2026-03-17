@@ -704,6 +704,8 @@ function ElasticSettingSlider(props: {
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   onChange: (value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 }) {
   const {
     value,
@@ -713,7 +715,9 @@ function ElasticSettingSlider(props: {
     ariaLabel,
     leftIcon = <Volume1 size={18} />,
     rightIcon = <Volume2 size={18} />,
-    onChange
+    onChange,
+    onInteractionStart,
+    onInteractionEnd
   } = props;
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const [region, setRegion] = useState<"left" | "middle" | "right">("middle");
@@ -755,6 +759,7 @@ function ElasticSettingSlider(props: {
   }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+    onInteractionStart?.();
     updateValue(event.clientX);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -768,6 +773,7 @@ function ElasticSettingSlider(props: {
   function handlePointerUp() {
     animate(overflow, 0, { type: "spring", bounce: 0.5 });
     setRegion("middle");
+    onInteractionEnd?.();
   }
 
   function nudge(delta: number) {
@@ -1561,8 +1567,20 @@ export default function App() {
     }
   }
 
-  function previewHudScale() {
+  function startHudScalePreview() {
+    if (hudPreviewTimeoutRef.current) {
+      window.clearTimeout(hudPreviewTimeoutRef.current);
+      hudPreviewTimeoutRef.current = null;
+    }
     setIsPreviewingHudScale(true);
+  }
+
+  function finishHudScalePreview() {
+    if (settingsRef.current.alwaysShowPill) {
+      setIsPreviewingHudScale(false);
+      return;
+    }
+
     if (hudPreviewTimeoutRef.current) {
       window.clearTimeout(hudPreviewTimeoutRef.current);
     }
@@ -3528,12 +3546,13 @@ export default function App() {
                     max={160}
                     leftIcon={<Minimize2 size={18} />}
                     rightIcon={<Maximize2 size={18} />}
-                    onChange={(nextValue) => {
-                      previewHudScale();
+                    onInteractionStart={startHudScalePreview}
+                    onInteractionEnd={finishHudScalePreview}
+                    onChange={(nextValue) =>
                       void patchSettings({
                         hudScale: clampHudScale(nextValue)
-                      });
-                    }}
+                      })
+                    }
                   />
                 </div>
               </div>

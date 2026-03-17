@@ -16,6 +16,7 @@ import {
   deleteVoiceProfile,
   readData,
   saveManualDictionaryEntry,
+  saveNotes,
   saveVoiceProfile,
   saveTranscriptHistory,
   updateSettings,
@@ -436,7 +437,7 @@ function getPasteModifier() {
 
 async function pasteText(text: string) {
   clipboard.writeText(text);
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  await new Promise((resolve) => setTimeout(resolve, 20));
   uIOhook.keyTap(UiohookKey.V, [getPasteModifier()]);
 }
 
@@ -469,7 +470,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("voice-profile:save", (_event, input: SaveVoiceProfileInput) => saveVoiceProfile(input));
   ipcMain.handle("voice-profile:delete", (_event, id: string) => deleteVoiceProfile(id));
-  ipcMain.handle("dictionary:save", (_event, input: { id?: string; spoken: string; replacement: string }) =>
+  ipcMain.handle("dictionary:save", (_event, input: { id?: string; term: string }) =>
     saveManualDictionaryEntry(input)
   );
   ipcMain.handle("dictionary:delete", (_event, id: string) => deleteManualDictionaryEntry(id));
@@ -507,6 +508,9 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("history:save", (_event, history: string[], limit: number) => {
     return saveTranscriptHistory(history, limit);
+  });
+  ipcMain.handle("notes:save", (_event, notes: string) => {
+    return saveNotes(notes);
   });
   ipcMain.handle("dialog:pick-file", async () => {
     const result = await dialog.showOpenDialog({

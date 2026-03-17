@@ -16,7 +16,7 @@ import {
   WhisperConfigStatus
 } from "../shared/types";
 
-type TabKey = "dictation" | "profiles" | "stats" | "settings" | "help";
+type TabKey = "dictation" | "profiles" | "dictionary" | "notes" | "stats" | "settings" | "help";
 type MicDevice = { deviceId: string; label: string };
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
@@ -398,6 +398,16 @@ const modifierLabels: Record<ShortcutModifier, string> = {
 const trainingParagraph =
   "Hello, this is my voice training sample for WhispARR. I speak clearly and naturally so the app can recognize my voice, pacing, and pronunciation. Today I am reading a short paragraph with numbers like twenty three and names like Chicago, Windows, and macOS to give the model a better sense of how I sound in everyday use.";
 
+const navItems: Array<{ key: TabKey; label: string; icon: string }> = [
+  { key: "dictation", label: "Dictation", icon: "M" },
+  { key: "profiles", label: "Voice Profiles", icon: "V" },
+  { key: "dictionary", label: "Dictionary", icon: "D" },
+  { key: "notes", label: "Notes", icon: "N" },
+  { key: "stats", label: "Statistics", icon: "S" },
+  { key: "settings", label: "System", icon: "G" },
+  { key: "help", label: "Help", icon: "?" }
+];
+
 function isModifierCode(code: string) {
   return ["ControlLeft", "ControlRight", "MetaLeft", "MetaRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(code);
 }
@@ -455,8 +465,8 @@ export default function App() {
   const [manualDictionary, setManualDictionary] = useState<ManualDictionaryEntry[]>([]);
   const [devices, setDevices] = useState<MicDevice[]>([]);
   const [profileName, setProfileName] = useState("");
-  const [dictionarySpoken, setDictionarySpoken] = useState("");
-  const [dictionaryReplacement, setDictionaryReplacement] = useState("");
+  const [dictionaryTerm, setDictionaryTerm] = useState("");
+  const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -473,6 +483,7 @@ export default function App() {
   const [draftShortcut, setDraftShortcut] = useState<ActivationShortcut | null>(null);
   const [isTrainingProfile, setIsTrainingProfile] = useState(false);
   const transcriptHistoryRef = useRef<string[]>([]);
+  const notesRef = useRef("");
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -538,6 +549,10 @@ export default function App() {
   }, [transcriptHistory]);
 
   useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  useEffect(() => {
     activeProfileRef.current = activeProfile;
   }, [activeProfile]);
 
@@ -551,6 +566,20 @@ export default function App() {
     setTranscriptHistory(trimmedHistory);
     void window.wisprApi.saveTranscriptHistory(trimmedHistory, settings.transcriptHistoryLimit);
   }, [settings.transcriptHistoryLimit]);
+
+  useEffect(() => {
+    if (!hasLoadedInitialDataRef.current) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void window.wisprApi.saveNotes(notesRef.current);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [notes]);
 
   useEffect(() => {
     const visible = recorder.state === "recording";
@@ -632,6 +661,7 @@ export default function App() {
     setManualDictionary(data.manualDictionary);
     setStats(data.stats);
     setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
+    setNotes(data.notes);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
@@ -660,6 +690,7 @@ export default function App() {
     setManualDictionary(data.manualDictionary);
     setStats(data.stats);
     setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
+    setNotes(data.notes);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
@@ -923,20 +954,44 @@ export default function App() {
     setStatus("Training paragraph copied to clipboard.");
   }
 
+  async function copyNotes() {
+    await navigator.clipboard.writeText(notes);
+    setStatus("Notes copied to clipboard.");
+  }
+
+  async function pasteIntoNotes() {
+    const clipboardText = await navigator.clipboard.readText();
+    setNotes((current) => {
+      if (!current.trim()) {
+        return clipboardText;
+      }
+
+      if (!clipboardText.trim()) {
+        return current;
+      }
+
+      return `${current}${current.endsWith("\n") ? "" : "\n"}${clipboardText}`;
+    });
+    setStatus("Clipboard pasted into notes.");
+  }
+
+  async function saveNotesNow() {
+    await window.wisprApi.saveNotes(notes);
+    setStatus("Notes saved locally.");
+  }
+
   async function saveDictionaryEntry() {
-    if (!dictionarySpoken.trim() || !dictionaryReplacement.trim()) {
-      setStatus("Add both the heard phrase and the corrected replacement before saving.");
+    if (!dictionaryTerm.trim()) {
+      setStatus("Add the word or phrase you want WhispARR to learn before saving.");
       return;
     }
 
     const entry = await window.wisprApi.saveManualDictionaryEntry({
-      spoken: dictionarySpoken,
-      replacement: dictionaryReplacement
+      term: dictionaryTerm
     });
     setManualDictionary((current) => [entry, ...current.filter((item) => item.id !== entry.id)]);
-    setDictionarySpoken("");
-    setDictionaryReplacement("");
-    setStatus(`Saved dictionary rule for "${entry.spoken}".`);
+    setDictionaryTerm("");
+    setStatus(`Saved "${entry.term}" to your local dictionary.`);
   }
 
   return (
@@ -955,28 +1010,18 @@ export default function App() {
           </p>
         </div>
         <nav className="nav">
-          {[
-            ["dictation", "Dictation"],
-            ["profiles", "Voice Profiles"],
-            ["stats", "Statistics"],
-            ["settings", "System"],
-            ["help", "Help"]
-          ].map(([key, label]) => (
+          {navItems.map(({ key, label, icon }) => (
             <button
               key={key}
               className={tab === key ? "nav-button active" : "nav-button"}
-              onClick={() => setTab(key as TabKey)}
+              onClick={() => setTab(key)}
             >
-              {key === "help" ? (
-                <span className="nav-button-content">
-                  <span className="help-nav-icon" aria-hidden="true">
-                    ?
-                  </span>
-                  <span>{label}</span>
+              <span className="nav-button-content">
+                <span className="nav-icon" aria-hidden="true">
+                  {icon}
                 </span>
-              ) : (
-                label
-              )}
+                <span>{label}</span>
+              </span>
             </button>
           ))}
         </nav>
@@ -1270,59 +1315,62 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <div className="panel-header dictionary-header">
+            </section>
+          </section>
+        )}
+        {tab === "dictionary" && (
+          <section className="panel-grid settings-grid">
+            <section className="panel">
+              <div className="panel-header">
                 <div>
-                  <p className="eyebrow">Manual Dictionary</p>
-                  <h3>Teach Corrections</h3>
+                  <p className="eyebrow">Dictionary</p>
+                  <h3>Known Words And Phrases</h3>
                 </div>
               </div>
               <p className="supporting">
-                Add phrases the model tends to hear incorrectly, then tell WhispARR what they
-                should become after transcription. Everything stays local on this device.
+                Add names, brands, terms, or phrases you want WhispARR to learn. You only need to
+                enter the preferred word or phrase itself. The app keeps this list locally and uses
+                it as a preferred vocabulary during transcript cleanup.
               </p>
-              <div className="dictionary-form">
-                <label className="field">
-                  <span>What it hears</span>
-                  <input
-                    value={dictionarySpoken}
-                    onChange={(event) => setDictionarySpoken(event.target.value)}
-                    placeholder="Example: whisper"
-                  />
-                </label>
-                <label className="field">
-                  <span>Replace with</span>
-                  <input
-                    value={dictionaryReplacement}
-                    onChange={(event) => setDictionaryReplacement(event.target.value)}
-                    placeholder="Example: WhispARR"
-                  />
-                </label>
-              </div>
+              <label className="field">
+                <span>Word or phrase to learn</span>
+                <input
+                  value={dictionaryTerm}
+                  onChange={(event) => setDictionaryTerm(event.target.value)}
+                  placeholder="Example: WhispARR"
+                />
+              </label>
               <div className="button-row">
                 <button className="primary-button" onClick={() => void saveDictionaryEntry()}>
-                  Save dictionary rule
+                  Save to dictionary
                 </button>
+              </div>
+            </section>
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Saved Terms</p>
+                  <h3>Your Local Dictionary</h3>
+                </div>
               </div>
               <div className="dictionary-list">
                 {manualDictionary.length === 0 && (
                   <p className="supporting">
-                    No dictionary rules yet. Add words, names, or phrases you want corrected automatically.
+                    No dictionary entries yet. Add words, names, or phrases you want WhispARR to keep in mind.
                   </p>
                 )}
                 {manualDictionary.map((entry) => (
                   <div key={entry.id} className="dictionary-card">
                     <div>
-                      <strong>{entry.replacement}</strong>
-                      <p>
-                        Heard as <span className="dictionary-chip">{entry.spoken}</span>
-                      </p>
+                      <strong>{entry.term}</strong>
+                      <p>Preferred local term</p>
                     </div>
                     <button
                       className="ghost-button danger"
                       onClick={async () => {
                         const next = await window.wisprApi.deleteManualDictionaryEntry(entry.id);
                         setManualDictionary(next);
-                        setStatus(`Removed dictionary rule for "${entry.spoken}".`);
+                        setStatus(`Removed "${entry.term}" from your local dictionary.`);
                       }}
                     >
                       Delete

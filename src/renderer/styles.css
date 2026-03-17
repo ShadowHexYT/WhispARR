@@ -171,9 +171,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
 }
 
-.help-nav-icon {
+.nav-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -186,6 +187,12 @@ textarea {
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1;
+  flex: 0 0 22px;
+}
+
+.nav-button.active .nav-icon {
+  border-color: color-mix(in srgb, var(--accent-soft) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .nav-button.active {

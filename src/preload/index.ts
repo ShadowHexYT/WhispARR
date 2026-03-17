@@ -21,8 +21,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.invoke("voice-profile:delete", id),
   saveManualDictionaryEntry: (input: {
     id?: string;
-    spoken: string;
-    replacement: string;
+    term: string;
   }) => ipcRenderer.invoke("dictionary:save", input) as Promise<ManualDictionaryEntry>,
   deleteManualDictionaryEntry: (id: string) =>
     ipcRenderer.invoke("dictionary:delete", id) as Promise<ManualDictionaryEntry[]>,
@@ -34,6 +33,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.invoke("stats:track-transcript", transcript) as Promise<UserStats>,
   saveTranscriptHistory: (history: string[], limit: number) =>
     ipcRenderer.invoke("history:save", history, limit) as Promise<string[]>,
+  saveNotes: (notes: string) => ipcRenderer.invoke("notes:save", notes) as Promise<string>,
   pickFile: () => ipcRenderer.invoke("dialog:pick-file") as Promise<string | null>,
   pasteText: (text: string) => ipcRenderer.invoke("paste:text", text) as Promise<boolean>,
   showWindow: () => ipcRenderer.invoke("app:show-window") as Promise<boolean>,

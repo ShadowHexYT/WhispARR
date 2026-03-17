@@ -13,17 +13,76 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function applyManualDictionary(
-  transcript: string,
-  manualDictionary: ManualDictionaryEntry[]
-) {
-  return [...manualDictionary]
-    .filter((entry) => entry.spoken.trim() && entry.replacement.trim())
-    .sort((left, right) => right.spoken.length - left.spoken.length)
-    .reduce((current, entry) => {
-      const pattern = new RegExp(`\\b${escapeRegExp(entry.spoken.trim())}\\b`, "gi");
-      return current.replace(pattern, entry.replacement.trim());
-    }, transcript);
+function normalizeForCompare(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function levenshteinDistance(left: string, right: string) {
+  const rows = left.length + 1;
+  const cols = right.length + 1;
+  const dp = Array.from({ length: rows }, () => new Array<number>(cols).fill(0));
+
+  for (let row = 0; row < rows; row += 1) {
+    dp[row][0] = row;
+  }
+
+  for (let col = 0; col < cols; col += 1) {
+    dp[0][col] = col;
+  }
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let col = 1; col < cols; col += 1) {
+      const cost = left[row - 1] === right[col - 1] ? 0 : 1;
+      dp[row][col] = Math.min(
+        dp[row - 1][col] + 1,
+        dp[row][col - 1] + 1,
+        dp[row - 1][col - 1] + cost
+      );
+    }
+  }
+
+  return dp[left.length][right.length];
+}
+
+function shouldReplaceWithDictionaryTerm(word: string, term: string) {
+  const normalizedWord = normalizeForCompare(word);
+  const normalizedTerm = normalizeForCompare(term);
+
+  if (!normalizedWord || !normalizedTerm || normalizedWord === normalizedTerm) {
+    return normalizedWord !== "" && normalizedWord !== normalizedTerm ? false : true;
+  }
+
+  if (normalizedWord[0] !== normalizedTerm[0]) {
+    return false;
+  }
+
+  const distance = levenshteinDistance(normalizedWord, normalizedTerm);
+  const allowedDistance = normalizedTerm.length >= 8 ? 2 : 1;
+  return distance <= allowedDistance;
+}
+
+function applyManualDictionary(transcript: string, manualDictionary: ManualDictionaryEntry[]) {
+  let updatedTranscript = transcript;
+
+  for (const entry of manualDictionary) {
+    const term = entry.term.trim();
+    if (!term) {
+      continue;
+    }
+
+    // Exact phrase matches are normalized to the preferred dictionary spelling/casing.
+    const exactPattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
+    updatedTranscript = updatedTranscript.replace(exactPattern, term);
+
+    // Single-word entries also act as preferred spellings for close transcript matches.
+    if (!term.includes(" ")) {
+      updatedTranscript = updatedTranscript.replace(/\b[\w'-]+\b/g, (word) =>
+        shouldReplaceWithDictionaryTerm(word, term) ? term : word
+      );
+    }
+  }
+
+  return updatedTranscript;
 }
 
 function normalizeTranscript(transcript: string) {
@@ -106,6 +165,7 @@ export async function transcribeLocally(args: {
   const audioPath = path.join(tempDir, "input.wav");
   const outputBase = path.join(tempDir, "output");
   const outputPath = `${outputBase}.txt`;
+  const threadCount = Math.max(1, Math.min(os.cpus().length || 1, 8));
 
   writeWavFile(audioPath, args.pcm, args.sampleRate);
 
@@ -117,6 +177,8 @@ export async function transcribeLocally(args: {
         args.settings.whisperModelPath,
         "-f",
         audioPath,
+        "-t",
+        String(threadCount),
         "-otxt",
         "-of",
         outputBase,

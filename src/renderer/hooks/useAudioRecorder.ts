@@ -51,7 +51,7 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
 
       const context = new AudioContext();
       const source = context.createMediaStreamSource(stream);
-      const processor = context.createScriptProcessor(4096, 1, 1);
+      const processor = context.createScriptProcessor(1024, 1, 1);
 
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
@@ -80,12 +80,26 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
   }
 
   async function stop() {
-    await cleanup();
+    const pcm = Float32Array.from(chunksRef.current);
+    const sampleRate = sampleRateRef.current;
+    const context = contextRef.current;
+
+    processorRef.current?.disconnect();
+    processorRef.current = null;
+
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+
+    contextRef.current = null;
+    if (context) {
+      void context.close().catch(() => {});
+    }
+
     setState("stopped");
     setLevel(0);
     return {
-      pcm: Float32Array.from(chunksRef.current),
-      sampleRate: sampleRateRef.current
+      pcm,
+      sampleRate
     };
   }
 

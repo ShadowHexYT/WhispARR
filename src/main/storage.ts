@@ -52,7 +52,8 @@ const defaultData: LocalData = {
     currentStreakDays: 0,
     lastUsedOn: null
   },
-  transcriptHistory: []
+  transcriptHistory: [],
+  notes: ""
 };
 
 function toDateKey(date = new Date()) {
@@ -108,13 +109,36 @@ export function readData(): LocalData {
             (entry): entry is ManualDictionaryEntry =>
               Boolean(entry) &&
               typeof entry.id === "string" &&
-              typeof entry.spoken === "string" &&
-              typeof entry.replacement === "string"
+              typeof entry.createdAt === "string" &&
+              typeof entry.updatedAt === "string" &&
+              (typeof (entry as { term?: unknown }).term === "string" ||
+                typeof (entry as { spoken?: unknown }).spoken === "string" ||
+                typeof (entry as { replacement?: unknown }).replacement === "string")
           )
+            .map((entry) => {
+              const legacyEntry = entry as ManualDictionaryEntry & {
+                spoken?: string;
+                replacement?: string;
+              };
+
+              return {
+                id: entry.id,
+                term:
+                  typeof legacyEntry.term === "string"
+                    ? (legacyEntry.term.trim() || "")
+                    : typeof legacyEntry.replacement === "string"
+                      ? (legacyEntry.replacement.trim() || "")
+                      : (legacyEntry.spoken?.trim() || ""),
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt
+              };
+            })
+            .filter((entry) => entry.term.length > 0)
         : [],
       transcriptHistory: Array.isArray(parsed.transcriptHistory)
         ? parsed.transcriptHistory.filter((entry): entry is string => typeof entry === "string")
-        : []
+        : [],
+      notes: typeof parsed.notes === "string" ? parsed.notes : ""
     };
   } catch {
     return defaultData;
@@ -197,13 +221,11 @@ export function deleteVoiceProfile(id: string) {
 
 export function saveManualDictionaryEntry(input: {
   id?: string;
-  spoken: string;
-  replacement: string;
+  term: string;
 }): ManualDictionaryEntry {
   const current = readData();
   const now = new Date().toISOString();
-  const normalizedSpoken = input.spoken.trim();
-  const normalizedReplacement = input.replacement.trim();
+  const normalizedTerm = input.term.trim();
   const existing = current.manualDictionary.find((entry) => entry.id === input.id);
 
   let entry: ManualDictionaryEntry;
@@ -211,8 +233,7 @@ export function saveManualDictionaryEntry(input: {
   if (existing) {
     entry = {
       ...existing,
-      spoken: normalizedSpoken,
-      replacement: normalizedReplacement,
+      term: normalizedTerm,
       updatedAt: now
     };
     current.manualDictionary = current.manualDictionary.map((item) =>
@@ -221,8 +242,7 @@ export function saveManualDictionaryEntry(input: {
   } else {
     entry = {
       id: randomUUID(),
-      spoken: normalizedSpoken,
-      replacement: normalizedReplacement,
+      term: normalizedTerm,
       createdAt: now,
       updatedAt: now
     };
@@ -287,4 +307,11 @@ export function saveTranscriptHistory(history: string[], limit: number) {
     .slice(0, Math.max(1, limit));
   writeData(current);
   return current.transcriptHistory;
+}
+
+export function saveNotes(notes: string) {
+  const current = readData();
+  current.notes = notes;
+  writeData(current);
+  return current.notes;
 }

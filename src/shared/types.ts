@@ -61,8 +61,7 @@ export type VoiceProfile = {
 
 export type ManualDictionaryEntry = {
   id: string;
-  spoken: string;
-  replacement: string;
+  term: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -93,6 +92,7 @@ export type LocalData = {
   manualDictionary: ManualDictionaryEntry[];
   stats: UserStats;
   transcriptHistory: string[];
+  notes: string;
 };
 
 export type WhisperConfigStatus = {

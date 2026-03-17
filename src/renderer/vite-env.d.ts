@@ -24,8 +24,7 @@ declare global {
       deleteVoiceProfile: (id: string) => Promise<VoiceProfile[]>;
       saveManualDictionaryEntry: (input: {
         id?: string;
-        spoken: string;
-        replacement: string;
+        term: string;
       }) => Promise<ManualDictionaryEntry>;
       deleteManualDictionaryEntry: (id: string) => Promise<ManualDictionaryEntry[]>;
       getWhisperStatus: () => Promise<WhisperConfigStatus>;
@@ -34,6 +33,7 @@ declare global {
       transcribe: (sample: TrainingSample) => Promise<DictationResult>;
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
       saveTranscriptHistory: (history: string[], limit: number) => Promise<string[]>;
+      saveNotes: (notes: string) => Promise<string>;
       pickFile: () => Promise<string | null>;
       pasteText: (text: string) => Promise<boolean>;
       showWindow: () => Promise<boolean>;

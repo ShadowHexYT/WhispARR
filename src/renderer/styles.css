@@ -1122,16 +1122,26 @@ select option:disabled {
 
 .achievements-modal {
   width: min(100%, 760px);
+  height: min(82vh, 900px);
   max-height: min(82vh, 900px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 18px;
-  padding: 24px;
+  gap: 12px;
+  padding: 20px 24px 24px;
   border-radius: 28px;
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.achievements-modal .panel-header {
+  margin-bottom: 0;
+}
+
+.achievements-header-copy {
+  display: grid;
+  gap: 12px;
 }
 
 .achievements-list {
@@ -1142,11 +1152,32 @@ select option:disabled {
   padding-right: 6px;
 }
 
+.achievement-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.achievement-filter {
+  padding: 10px 14px;
+}
+
+.achievement-filter.active {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
 .achievement-card {
   padding: 16px 18px;
   border-radius: 18px;
   background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.achievement-card-unlocked {
+  border-color: #d4a017;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #f7d774 70%, transparent);
 }
 
 .achievement-card-header {
@@ -1173,6 +1204,14 @@ select option:disabled {
   color: var(--text);
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+.achievement-empty-state {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px dashed color-mix(in srgb, var(--line) 88%, transparent);
+  color: var(--muted);
+  text-align: center;
 }
 
 .training-example {

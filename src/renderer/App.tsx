@@ -586,6 +586,7 @@ export default function App() {
   const [savedNoteDraft, setSavedNoteDraft] = useState("");
   const [isSavedNoteComposerOpen, setIsSavedNoteComposerOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [achievementFilter, setAchievementFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -1393,8 +1394,8 @@ export default function App() {
   const microphoneReady = devices.length > 0;
   const shortcutReady = Boolean(settings.activationShortcut.key);
   const profileReady = profiles.length > 0;
-  const unlockedAchievementCount = achievements.filter((achievement) => {
-    switch (achievement.title) {
+  const isAchievementUnlocked = (achievementTitle: string) => {
+    switch (achievementTitle) {
       case "First Words":
         return stats.totalWords >= 100;
       case "Warm Up":
@@ -1468,7 +1469,23 @@ export default function App() {
       default:
         return false;
     }
-  }).length;
+  };
+
+  const unlockedAchievementCount = achievements.filter((achievement) =>
+    isAchievementUnlocked(achievement.title)
+  ).length;
+  const filteredAchievements = achievements.filter((achievement) => {
+    const isUnlocked = isAchievementUnlocked(achievement.title);
+
+    switch (achievementFilter) {
+      case "unlocked":
+        return isUnlocked;
+      case "locked":
+        return !isUnlocked;
+      default:
+        return true;
+    }
+  });
 
   async function copyTranscript(text: string) {
     await navigator.clipboard.writeText(text);
@@ -2204,9 +2221,32 @@ export default function App() {
               <div className="achievements-backdrop" role="presentation">
                 <section className="achievements-modal" aria-label="Achievements list">
                   <div className="panel-header">
-                    <div>
+                    <div className="achievements-header-copy">
                       <p className="eyebrow">Achievements</p>
                       <h3>50 possible goals</h3>
+                      <div className="achievement-filters" role="tablist" aria-label="Achievement filters">
+                        <button
+                          className={achievementFilter === "all" ? "ghost-button achievement-filter active" : "ghost-button achievement-filter"}
+                          type="button"
+                          onClick={() => setAchievementFilter("all")}
+                        >
+                          All
+                        </button>
+                        <button
+                          className={achievementFilter === "unlocked" ? "ghost-button achievement-filter active" : "ghost-button achievement-filter"}
+                          type="button"
+                          onClick={() => setAchievementFilter("unlocked")}
+                        >
+                          Unlocked
+                        </button>
+                        <button
+                          className={achievementFilter === "locked" ? "ghost-button achievement-filter active" : "ghost-button achievement-filter"}
+                          type="button"
+                          onClick={() => setAchievementFilter("locked")}
+                        >
+                          Locked
+                        </button>
+                      </div>
                     </div>
                     <button
                       className="icon-button"
@@ -2219,15 +2259,28 @@ export default function App() {
                     </button>
                   </div>
                   <div className="achievements-list">
-                    {achievements.map((achievement, index) => (
-                      <article key={achievement.title} className="achievement-card">
-                        <div className="achievement-card-header">
-                          <strong>{index + 1}. {achievement.title}</strong>
-                          <span className="achievement-tier">{achievement.difficulty}</span>
-                        </div>
-                        <p>{achievement.description}</p>
-                      </article>
-                    ))}
+                    {filteredAchievements.length > 0 ? (
+                      filteredAchievements.map((achievement) => (
+                        <article
+                          key={achievement.title}
+                          className={
+                            isAchievementUnlocked(achievement.title)
+                              ? "achievement-card achievement-card-unlocked"
+                              : "achievement-card"
+                          }
+                        >
+                          <div className="achievement-card-header">
+                            <strong>{achievement.title}</strong>
+                            <span className="achievement-tier">{achievement.difficulty}</span>
+                          </div>
+                          <p>{achievement.description}</p>
+                        </article>
+                      ))
+                    ) : (
+                      <div className="achievement-empty-state">
+                        No {achievementFilter} achievements to show yet.
+                      </div>
+                    )}
                   </div>
                   <div className="button-row">
                     <button

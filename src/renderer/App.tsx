@@ -1812,6 +1812,10 @@ export default function App() {
         pcm: Array.from(sample.pcm),
         sampleRate: sample.sampleRate
       });
+      if (!result.transcript.trim()) {
+        recorderRef.current.reset();
+        return;
+      }
       const speakerScore = profile
         ? scoreVoiceMatch(profile.averageEmbedding, embedding)
         : undefined;

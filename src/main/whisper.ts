@@ -110,6 +110,10 @@ function normalizeTranscript(transcript: string) {
     .replace(/\s+/g, " ")
     .trim();
 
+  if (!/[a-z0-9]/i.test(simplified)) {
+    return "";
+  }
+
   const silentPhrases = new Set([
     "silence",
     "blank audio",
@@ -176,9 +180,8 @@ function applySmartFormatting(transcript: string) {
     .join("\n");
 
   formatted = formatted.replace(/([a-z0-9])([.!?])([A-Za-z])/g, "$1$2 $3");
-
-  if (!/[\n.!?]$/.test(formatted)) {
-    formatted += ".";
+  if (!formatted.trim()) {
+    return "";
   }
 
   return formatted

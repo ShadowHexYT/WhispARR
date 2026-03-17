@@ -1,6 +1,6 @@
 {
   "name": "whisparr",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A fully local desktop dictation app with microphone selection and voice profile training.",
   "main": "dist-electron/main/main.js",
@@ -45,11 +45,26 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "target": "dmg",
       "icon": "build/icon.png"
     },
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ShadowHexYT",
+        "repo": "WhispARR"
+      }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "dmg": {
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-windows-${arch}.${ext}"
     }
   },
   "dependencies": {

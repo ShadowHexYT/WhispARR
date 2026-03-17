@@ -790,6 +790,74 @@ select option:disabled {
   transition: width 0.25s ease;
 }
 
+.achievements-panel {
+  margin-top: 20px;
+}
+
+.achievements-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 11, 14, 0.56);
+  backdrop-filter: blur(10px);
+  z-index: 30;
+}
+
+.achievements-modal {
+  width: min(100%, 760px);
+  max-height: min(82vh, 900px);
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.achievements-list {
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.achievement-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.achievement-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.achievement-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.achievement-tier {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .training-example {
   margin-top: 18px;
   padding: 16px;

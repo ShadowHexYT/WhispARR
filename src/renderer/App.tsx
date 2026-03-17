@@ -413,6 +413,59 @@ const navItems: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: "help", label: "Help", icon: "?" }
 ];
 
+const achievements = [
+  { title: "First Words", description: "Dictate your first 100 words.", difficulty: "Easy" },
+  { title: "Warm Up", description: "Reach 250 total words.", difficulty: "Easy" },
+  { title: "Short Session", description: "Complete 3 dictation sessions in one day.", difficulty: "Easy" },
+  { title: "Getting Comfortable", description: "Reach 500 total words.", difficulty: "Easy" },
+  { title: "Day One Done", description: "Use WhispARR on 2 different days.", difficulty: "Easy" },
+  { title: "Quick Notes", description: "Save 3 notes in the notes workspace.", difficulty: "Easy" },
+  { title: "Clean Start", description: "Create your first voice profile.", difficulty: "Easy" },
+  { title: "Ready To Roll", description: "Install the runtime and complete a successful dictation.", difficulty: "Easy" },
+  { title: "Routine Builder", description: "Reach a 3-day streak.", difficulty: "Easy" },
+  { title: "One Thousand Club", description: "Reach 1,000 total words.", difficulty: "Easy" },
+  { title: "Clipboard Captain", description: "Copy notes or transcripts 10 times.", difficulty: "Easy" },
+  { title: "Local Legend", description: "Save 5 dictionary entries.", difficulty: "Easy" },
+  { title: "Weekender", description: "Use WhispARR on 5 different days.", difficulty: "Easy" },
+  { title: "Double Take", description: "Finish 2 dictation sessions back to back.", difficulty: "Easy" },
+  { title: "Focused Voice", description: "Complete a dictation with no edits afterward.", difficulty: "Easy" },
+  { title: "First Level Up", description: "Reach Level 2.", difficulty: "Easy" },
+  { title: "Steady Flow", description: "Reach 2,500 total words.", difficulty: "Easy" },
+  { title: "Helpful Habit", description: "Save 10 local notes.", difficulty: "Easy" },
+  { title: "Seven Day Rhythm", description: "Reach a 7-day streak.", difficulty: "Easy" },
+  { title: "Daily Driver", description: "Use WhispARR on 10 different days.", difficulty: "Easy" },
+  { title: "Word Worker", description: "Reach 5,000 total words.", difficulty: "Medium" },
+  { title: "Snippet Saver", description: "Save 15 separate notes.", difficulty: "Medium" },
+  { title: "Correction Coach", description: "Add 15 learned words to the dictionary.", difficulty: "Medium" },
+  { title: "Two Level Lead", description: "Reach Level 3.", difficulty: "Medium" },
+  { title: "Quiet Consistency", description: "Dictate on 12 different days in one month.", difficulty: "Medium" },
+  { title: "Meeting Ready", description: "Finish 10 dictation sessions in a single day.", difficulty: "Medium" },
+  { title: "Ten Thousand Strong", description: "Reach 10,000 total words.", difficulty: "Medium" },
+  { title: "Reliable Voice", description: "Train 2 separate voice profiles.", difficulty: "Medium" },
+  { title: "Workspace Pro", description: "Keep 1,000 characters or more in notes for a full week.", difficulty: "Medium" },
+  { title: "Long Form", description: "Complete one dictation over 1,000 words.", difficulty: "Medium" },
+  { title: "Two Week Run", description: "Reach a 14-day streak.", difficulty: "Medium" },
+  { title: "Frequent Flyer", description: "Use WhispARR on 20 different days.", difficulty: "Medium" },
+  { title: "Level Climber", description: "Reach Level 5.", difficulty: "Medium" },
+  { title: "Twenty K", description: "Reach 20,000 total words.", difficulty: "Medium" },
+  { title: "Daily Notes", description: "Save at least 1 note on 10 different days.", difficulty: "Medium" },
+  { title: "Power Session", description: "Dictate 5,000 words in a single day.", difficulty: "Hard" },
+  { title: "Iron Streak", description: "Reach a 21-day streak.", difficulty: "Hard" },
+  { title: "Thirty Thousand", description: "Reach 30,000 total words.", difficulty: "Hard" },
+  { title: "Voice Vault", description: "Maintain 25 saved notes at the same time.", difficulty: "Hard" },
+  { title: "Level Seven", description: "Reach Level 7.", difficulty: "Hard" },
+  { title: "Always On", description: "Use WhispARR on 25 different days in one month.", difficulty: "Hard" },
+  { title: "Marathon Dictator", description: "Complete 20 dictation sessions in one day.", difficulty: "Hard" },
+  { title: "Forty Thousand", description: "Reach 40,000 total words.", difficulty: "Hard" },
+  { title: "Perfect Three Weeks", description: "Use the app every day for 21 straight days.", difficulty: "Hard" },
+  { title: "Level Nine", description: "Reach Level 9.", difficulty: "Hard" },
+  { title: "Fifty Thousand", description: "Reach 50,000 total words.", difficulty: "Hard" },
+  { title: "Month Of Motion", description: "Use WhispARR on all 30 days of a month.", difficulty: "Hard" },
+  { title: "Dictation Machine", description: "Dictate 10,000 words in a single day.", difficulty: "Hard" },
+  { title: "Century Session", description: "Complete 100 successful dictation sessions in one month.", difficulty: "Hard" },
+  { title: "Orbital", description: "Reach 250,000 total words in a single month.", difficulty: "Almost Impossible" }
+] as const;
+
 function isModifierCode(code: string) {
   return ["ControlLeft", "ControlRight", "MetaLeft", "MetaRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(code);
 }
@@ -475,6 +528,7 @@ export default function App() {
   const [savedNotes, setSavedNotes] = useState<string[]>([]);
   const [savedNoteDraft, setSavedNoteDraft] = useState("");
   const [isSavedNoteComposerOpen, setIsSavedNoteComposerOpen] = useState(false);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -1532,74 +1586,128 @@ export default function App() {
           </section>
         )}
         {tab === "stats" && (
-          <section className="panel-grid stats-grid">
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Progress</p>
-                  <h3>Level {stats.currentLevel}</h3>
+          <>
+            <section className="panel-grid stats-grid">
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Progress</p>
+                    <h3>Level {stats.currentLevel}</h3>
+                  </div>
                 </div>
-              </div>
-              <div className="stats-cards">
-                <div className="stat-card">
-                  <span>Total words</span>
-                  <strong>{stats.totalWords.toLocaleString()}</strong>
+                <div className="stats-cards">
+                  <div className="stat-card">
+                    <span>Total words</span>
+                    <strong>{stats.totalWords.toLocaleString()}</strong>
+                  </div>
+                  <div className="stat-card">
+                    <span>Total XP</span>
+                    <strong>{stats.totalXp.toLocaleString()}</strong>
+                  </div>
+                  <div className="stat-card">
+                    <span>Current streak</span>
+                    <strong>{stats.currentStreakDays} days</strong>
+                  </div>
                 </div>
-                <div className="stat-card">
-                  <span>Total XP</span>
-                  <strong>{stats.totalXp.toLocaleString()}</strong>
+                <div className="level-progress">
+                  <div className="level-progress-bar">
+                    <div
+                      className="level-progress-fill"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (xpIntoCurrentLevel / xpNeededForCurrentLevel) * 100
+                        )}%`
+                      }}
+                    />
+                  </div>
+                  <p className="supporting">
+                    {xpIntoCurrentLevel.toLocaleString()} / {xpNeededForCurrentLevel.toLocaleString()} XP toward level{" "}
+                    {stats.currentLevel + 1}
+                  </p>
+                  <p className="supporting progress-meta">
+                    Next level at <strong>{nextLevelThreshold.toLocaleString()} XP</strong>
+                  </p>
+                  <p className="supporting progress-meta">
+                    <strong>{xpRemainingToNextLevel.toLocaleString()} XP remaining</strong>
+                  </p>
                 </div>
-                <div className="stat-card">
-                  <span>Current streak</span>
-                  <strong>{stats.currentStreakDays} days</strong>
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Leveling</p>
+                    <h3>How XP Works</h3>
+                  </div>
                 </div>
-              </div>
-              <div className="level-progress">
-                <div className="level-progress-bar">
-                  <div
-                    className="level-progress-fill"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (xpIntoCurrentLevel / xpNeededForCurrentLevel) * 100
-                      )}%`
-                    }}
-                  />
-                </div>
+                <ul className="plain-list">
+                  <li>Every dictated word gives 1 XP</li>
+                  <li>Everyone starts at Level 1</li>
+                  <li>Level 2 unlocks at 1,000 total XP</li>
+                  <li>Each level after that unlocks every additional 500 XP</li>
+                </ul>
                 <p className="supporting">
-                  {xpIntoCurrentLevel.toLocaleString()} / {xpNeededForCurrentLevel.toLocaleString()} XP toward level{" "}
-                  {stats.currentLevel + 1}
+                  The streak increases when you use the app on consecutive days. Missing a day resets
+                  the streak back to 1 on your next session.
                 </p>
-                <p className="supporting progress-meta">
-                  Next level at <strong>{nextLevelThreshold.toLocaleString()} XP</strong>
+                <p className="supporting">
+                  Last active day: <strong>{stats.lastUsedOn ?? "No usage yet"}</strong>
                 </p>
-                <p className="supporting progress-meta">
-                  <strong>{xpRemainingToNextLevel.toLocaleString()} XP remaining</strong>
-                </p>
-              </div>
+              </section>
             </section>
-            <section className="panel">
+            <section className="panel achievements-panel">
               <div className="panel-header">
                 <div>
-                  <p className="eyebrow">Leveling</p>
-                  <h3>How XP Works</h3>
+                  <p className="eyebrow">Achievements</p>
+                  <h3>Goals To Chase</h3>
                 </div>
               </div>
-              <ul className="plain-list">
-                <li>Every dictated word gives 1 XP</li>
-                <li>Everyone starts at Level 1</li>
-                <li>Level 2 unlocks at 1,000 total XP</li>
-                <li>Each level after that unlocks every additional 500 XP</li>
-              </ul>
               <p className="supporting">
-                The streak increases when you use the app on consecutive days. Missing a day resets
-                the streak back to 1 on your next session.
+                Browse 50 possible achievements ranging from easy wins to a near-impossible monthly challenge.
               </p>
-              <p className="supporting">
-                Last active day: <strong>{stats.lastUsedOn ?? "No usage yet"}</strong>
-              </p>
+              <div className="button-row">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => setIsAchievementsOpen(true)}
+                >
+                  View achievements
+                </button>
+              </div>
             </section>
-          </section>
+            {isAchievementsOpen && (
+              <div className="achievements-backdrop" role="presentation">
+                <section className="achievements-modal" aria-label="Achievements list">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Achievements</p>
+                      <h3>50 possible goals</h3>
+                    </div>
+                  </div>
+                  <div className="achievements-list">
+                    {achievements.map((achievement, index) => (
+                      <article key={achievement.title} className="achievement-card">
+                        <div className="achievement-card-header">
+                          <strong>{index + 1}. {achievement.title}</strong>
+                          <span className="achievement-tier">{achievement.difficulty}</span>
+                        </div>
+                        <p>{achievement.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="button-row">
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => setIsAchievementsOpen(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
+          </>
         )}
         {tab === "settings" && (
           <section className="panel-grid settings-grid">

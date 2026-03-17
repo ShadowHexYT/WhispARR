@@ -124,6 +124,68 @@ function normalizeTranscript(transcript: string) {
   return silentPhrases.has(simplified) ? "" : trimmed;
 }
 
+function applySmartFormatting(transcript: string) {
+  const numberWords: Record<string, string> = {
+    zero: "0",
+    one: "1",
+    two: "2",
+    three: "3",
+    four: "4",
+    five: "5",
+    six: "6",
+    seven: "7",
+    eight: "8",
+    nine: "9",
+    ten: "10"
+  };
+
+  let formatted = transcript
+    .replace(/\bnew paragraph\b/gi, "\n\n")
+    .replace(/\bnew line\b/gi, "\n")
+    .replace(/\bbullet point\b/gi, "\n- ")
+    .replace(/\bbullet\b/gi, "\n- ")
+    .replace(/\bdash\b/gi, "\n- ");
+
+  formatted = formatted.replace(
+    /\b(?:number|item)\s+(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/gi,
+    (_match, word: string) => `\n${numberWords[word.toLowerCase()] ?? word}.`
+  );
+
+  formatted = formatted
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
+  const lines = formatted.split("\n").map((line) => line.trim());
+  formatted = lines
+    .map((line) => {
+      if (!line) {
+        return "";
+      }
+
+      const bulletMatch = line.match(/^(-\s+|\d+\.\s*)(.+)$/);
+      if (bulletMatch) {
+        const prefix = bulletMatch[1] ?? "";
+        const content = bulletMatch[2] ?? "";
+        return `${prefix}${content.charAt(0).toUpperCase()}${content.slice(1)}`;
+      }
+
+      return `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
+    })
+    .join("\n");
+
+  formatted = formatted.replace(/([a-z0-9])([.!?])([A-Za-z])/g, "$1$2 $3");
+
+  if (!/[\n.!?]$/.test(formatted)) {
+    formatted += ".";
+  }
+
+  return formatted
+    .replace(/(^|[.!?]\s+)([a-z])/g, (_, prefix: string, char: string) => `${prefix}${char.toUpperCase()}`)
+    .replace(/\n([a-z])/g, (_, char: string) => `\n${char.toUpperCase()}`);
+}
+
 function writeWavFile(filePath: string, pcm: number[], sampleRate: number) {
   const numChannels = 1;
   const bitsPerSample = 16;
@@ -213,9 +275,12 @@ export async function transcribeLocally(args: {
   const rawTranscript = fs.existsSync(outputPath)
     ? fs.readFileSync(outputPath, "utf8").trim()
     : "";
-  const transcript = normalizeTranscript(
+  const normalizedTranscript = normalizeTranscript(
     applyManualDictionary(rawTranscript, args.manualDictionary)
   );
+  const transcript = args.settings.smartFormatting
+    ? applySmartFormatting(normalizedTranscript)
+    : normalizedTranscript;
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 

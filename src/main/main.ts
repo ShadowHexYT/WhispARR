@@ -126,6 +126,9 @@ let pushToTalkActive = false;
 let currentSettings = readData().settings;
 const pressedKeys = new Set<number>();
 let didToggleMediaForDictation = false;
+let clipboardLearningInterval: NodeJS.Timeout | null = null;
+let clipboardLearningDeadline: NodeJS.Timeout | null = null;
+let lastObservedClipboardText = "";
 
 const windowsOverlayColors: Record<AppThemeName, string> = {
   aurora: "#061018",
@@ -282,6 +285,115 @@ function updateLaunchOnLogin(settings: AppSettings) {
   app.setLoginItemSettings({
     openAtLogin: settings.launchOnLogin
   });
+}
+
+function clearClipboardLearningWatch() {
+  if (clipboardLearningInterval) {
+    clearInterval(clipboardLearningInterval);
+    clipboardLearningInterval = null;
+  }
+
+  if (clipboardLearningDeadline) {
+    clearTimeout(clipboardLearningDeadline);
+    clipboardLearningDeadline = null;
+  }
+
+  lastObservedClipboardText = "";
+}
+
+function normalizeWordForLearning(word: string) {
+  return word.toLowerCase().replace(/[^a-z0-9'-]+/g, "");
+}
+
+function getLearnableWords(originalTranscript: string, correctedTranscript: string) {
+  const originalWords = originalTranscript.match(/[A-Za-z0-9'-]+/g) ?? [];
+  const correctedWords = correctedTranscript.match(/[A-Za-z0-9'-]+/g) ?? [];
+
+  if (
+    originalWords.length === 0 ||
+    correctedWords.length === 0 ||
+    Math.abs(originalWords.length - correctedWords.length) >
+      Math.max(4, Math.floor(originalWords.length * 0.35))
+  ) {
+    return [];
+  }
+
+  const learnableTerms = new Set<string>();
+  const comparisons = Math.min(originalWords.length, correctedWords.length);
+
+  for (let index = 0; index < comparisons; index += 1) {
+    const originalWord = originalWords[index] ?? "";
+    const correctedWord = correctedWords[index] ?? "";
+    const normalizedOriginal = normalizeWordForLearning(originalWord);
+    const normalizedCorrected = normalizeWordForLearning(correctedWord);
+
+    if (
+      !normalizedOriginal ||
+      !normalizedCorrected ||
+      normalizedOriginal === normalizedCorrected ||
+      normalizedCorrected.length < 3
+    ) {
+      continue;
+    }
+
+    const samePrefix = normalizedOriginal[0] === normalizedCorrected[0];
+    const similarLength = Math.abs(normalizedOriginal.length - normalizedCorrected.length) <= 3;
+
+    if (samePrefix && similarLength) {
+      learnableTerms.add(correctedWord);
+    }
+  }
+
+  return [...learnableTerms];
+}
+
+function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedClipboardText: string) {
+  const learnableTerms = getLearnableWords(sourceTranscript, correctedClipboardText);
+  if (learnableTerms.length === 0) {
+    return;
+  }
+
+  const data = readData();
+  const knownTerms = new Set(data.manualDictionary.map((entry) => entry.term.toLowerCase()));
+
+  for (const term of learnableTerms) {
+    if (knownTerms.has(term.toLowerCase())) {
+      continue;
+    }
+
+    saveManualDictionaryEntry({ term });
+    knownTerms.add(term.toLowerCase());
+  }
+}
+
+function startClipboardLearningWatch(sourceTranscript: string) {
+  clearClipboardLearningWatch();
+
+  if (!currentSettings.autoLearnDictionary || !sourceTranscript.trim()) {
+    return;
+  }
+
+  lastObservedClipboardText = clipboard.readText();
+
+  clipboardLearningInterval = setInterval(() => {
+    const nextClipboardText = clipboard.readText();
+    if (!nextClipboardText || nextClipboardText === lastObservedClipboardText) {
+      return;
+    }
+
+    lastObservedClipboardText = nextClipboardText;
+
+    if (nextClipboardText.trim() === sourceTranscript.trim()) {
+      return;
+    }
+
+    maybeLearnDictionaryFromClipboard(sourceTranscript, nextClipboardText);
+    clearClipboardLearningWatch();
+  }, 1000);
+
+  clipboardLearningDeadline = setTimeout(() => {
+    clearClipboardLearningWatch();
+  }, 45000);
 }
 
 function sendMediaPlayPauseKey() {
@@ -490,6 +602,7 @@ async function pasteText(text: string) {
   clipboard.writeText(text);
   await new Promise((resolve) => setTimeout(resolve, 20));
   uIOhook.keyTap(UiohookKey.V, [getPasteModifier()]);
+  startClipboardLearningWatch(text);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -515,6 +628,9 @@ app.whenReady().then(() => {
   ipcMain.handle("settings:update", (_event, patch: Partial<AppSettings>) => {
     const next = updateSettings(patch);
     currentSettings = next;
+    if (!next.autoLearnDictionary) {
+      clearClipboardLearningWatch();
+    }
     updateLaunchOnLogin(next);
     syncWindowTheme(next);
     updateHud({
@@ -607,6 +723,7 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   isQuitting = true;
   resumeMediaAfterDictationIfNeeded();
+  clearClipboardLearningWatch();
   pressedKeys.clear();
   uIOhook.stop();
 });

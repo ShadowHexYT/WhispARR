@@ -38,6 +38,8 @@ const defaultSettings: AppSettings = {
   alwaysShowPill: false,
   muteDictationSounds: false,
   muteMusicWhileDictating: false,
+  autoLearnDictionary: false,
+  smartFormatting: true,
   activationShortcut: defaultShortcut,
   appTheme: "aurora",
   customTheme: {
@@ -1711,6 +1713,26 @@ export default function App() {
                 >
                   {settings.muteMusicWhileDictating ? "Mute music while dictating on" : "Mute music while dictating off"}
                 </button>
+                <button
+                  className={settings.autoLearnDictionary ? "primary-button" : "secondary-button"}
+                  onClick={() =>
+                    void patchSettings({
+                      autoLearnDictionary: !settings.autoLearnDictionary
+                    })
+                  }
+                >
+                  {settings.autoLearnDictionary ? "Auto dictionary learning on" : "Auto dictionary learning off"}
+                </button>
+                <button
+                  className={settings.smartFormatting ? "primary-button" : "secondary-button"}
+                  onClick={() =>
+                    void patchSettings({
+                      smartFormatting: !settings.smartFormatting
+                    })
+                  }
+                >
+                  {settings.smartFormatting ? "Smart formatting on" : "Smart formatting off"}
+                </button>
               </div>
               <p className="supporting">
                 Auto-paste uses the system clipboard plus a local paste keystroke so the dictated
@@ -1724,6 +1746,15 @@ export default function App() {
                 `Dictation sounds` controls WhispARR sound cues like the pill pop and level-up
                 sound. `Mute music while dictating` uses a best-effort media pause/resume approach
                 during push-to-talk.
+              </p>
+              <p className="supporting">
+                `Auto dictionary learning` watches for a copied corrected version of the last pasted
+                transcript and adds likely corrected words to your local dictionary so future
+                dictation is less likely to miss them.
+              </p>
+              <p className="supporting">
+                `Smart formatting` auto-capitalizes text and cleans up common spoken structure cues
+                like lists, bullets, numbered items, and line breaks before the text is pasted.
               </p>
               <div className="panel-header">
                 <div>

@@ -1979,6 +1979,26 @@ export default function App() {
         )}
         {tab === "stats" && (
           <>
+            <section className="panel achievements-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Achievements</p>
+                  <h3>Goals To Chase</h3>
+                </div>
+              </div>
+              <p className="supporting">
+                Browse 50 possible achievements ranging from easy wins to a near-impossible monthly challenge.
+              </p>
+              <div className="button-row">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => setIsAchievementsOpen(true)}
+                >
+                  View achievements
+                </button>
+              </div>
+            </section>
             <section className="panel-grid stats-grid">
               <section className="panel">
                 <div className="panel-header">
@@ -2046,26 +2066,6 @@ export default function App() {
                   Last active day: <strong>{stats.lastUsedOn ?? "No usage yet"}</strong>
                 </p>
               </section>
-            </section>
-            <section className="panel achievements-panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Achievements</p>
-                  <h3>Goals To Chase</h3>
-                </div>
-              </div>
-              <p className="supporting">
-                Browse 50 possible achievements ranging from easy wins to a near-impossible monthly challenge.
-              </p>
-              <div className="button-row">
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => setIsAchievementsOpen(true)}
-                >
-                  View achievements
-                </button>
-              </div>
             </section>
             {isAchievementsOpen && (
               <div className="achievements-backdrop" role="presentation">

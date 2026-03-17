@@ -199,6 +199,12 @@ textarea {
   flex: 0 0 22px;
 }
 
+.nav-icon-glyph {
+  width: 14px;
+  height: 14px;
+  transform-origin: center;
+}
+
 .nav-button.active .nav-icon {
   border-color: color-mix(in srgb, var(--accent-soft) 38%, transparent);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
@@ -213,6 +219,79 @@ textarea {
   );
   border-color: color-mix(in srgb, var(--accent) 24%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.nav-button:hover .nav-icon-dictation {
+  animation: nav-pulse 0.8s ease;
+}
+
+.nav-button:hover .nav-icon-profiles {
+  animation: nav-bob 0.75s ease;
+}
+
+.nav-button:hover .nav-icon-dictionary {
+  animation: nav-open 0.75s ease;
+}
+
+.nav-button:hover .nav-icon-notes {
+  animation: nav-tilt 0.75s ease;
+}
+
+.nav-button:hover .nav-icon-stats {
+  animation: nav-rise 0.75s ease;
+}
+
+.nav-button:hover .nav-icon-settings {
+  animation: nav-spin 0.85s ease;
+}
+
+.nav-button:hover .nav-icon-help {
+  animation: nav-pop 0.7s ease;
+}
+
+@keyframes nav-pulse {
+  0%,
+  100% { transform: scale(1); }
+  40% { transform: scale(1.16); }
+}
+
+@keyframes nav-bob {
+  0%,
+  100% { transform: translateY(0); }
+  35% { transform: translateY(-1.5px); }
+  70% { transform: translateY(0.8px); }
+}
+
+@keyframes nav-open {
+  0%,
+  100% { transform: rotate(0deg); }
+  40% { transform: rotate(-10deg); }
+  70% { transform: rotate(4deg); }
+}
+
+@keyframes nav-tilt {
+  0%,
+  100% { transform: rotate(0deg); }
+  35% { transform: rotate(-8deg); }
+  70% { transform: rotate(5deg); }
+}
+
+@keyframes nav-rise {
+  0%,
+  100% { transform: translateY(0); }
+  40% { transform: translateY(-1.6px) scaleY(1.05); }
+}
+
+@keyframes nav-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(90deg); }
+}
+
+@keyframes nav-pop {
+  0%,
+  100% { transform: scale(1); }
+  45% { transform: scale(1.2); }
+  75% { transform: scale(0.94); }
 }
 
 .privacy-card,

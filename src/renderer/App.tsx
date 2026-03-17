@@ -1,4 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  BookText,
+  ChartColumnBig,
+  CircleHelp,
+  FileText,
+  Mic,
+  Settings2,
+  UserRound
+} from "lucide-react";
 import { computeVoiceEmbedding, hasAudibleSpeech, scoreVoiceMatch } from "./lib/audio";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import {
@@ -405,14 +414,19 @@ const modifierLabels: Record<ShortcutModifier, string> = {
 const trainingParagraph =
   "Hello, this is my voice training sample for WhispARR. I speak clearly and naturally so the app can recognize my voice, pacing, and pronunciation. Today I am reading a short paragraph with numbers like twenty three and names like Chicago, Windows, and macOS to give the model a better sense of how I sound in everyday use.";
 
-const navItems: Array<{ key: TabKey; label: string; icon: string }> = [
-  { key: "dictation", label: "Dictation", icon: "M" },
-  { key: "profiles", label: "Voice Profiles", icon: "V" },
-  { key: "dictionary", label: "Dictionary", icon: "D" },
-  { key: "notes", label: "Notes", icon: "N" },
-  { key: "stats", label: "Statistics", icon: "S" },
-  { key: "settings", label: "System", icon: "G" },
-  { key: "help", label: "Help", icon: "?" }
+const navItems: Array<{
+  key: TabKey;
+  label: string;
+  Icon: typeof Mic;
+  iconClassName: string;
+}> = [
+  { key: "dictation", label: "Dictation", Icon: Mic, iconClassName: "nav-icon-dictation" },
+  { key: "profiles", label: "Voice Profiles", Icon: UserRound, iconClassName: "nav-icon-profiles" },
+  { key: "dictionary", label: "Dictionary", Icon: BookText, iconClassName: "nav-icon-dictionary" },
+  { key: "notes", label: "Notes", Icon: FileText, iconClassName: "nav-icon-notes" },
+  { key: "stats", label: "Statistics", Icon: ChartColumnBig, iconClassName: "nav-icon-stats" },
+  { key: "settings", label: "System", Icon: Settings2, iconClassName: "nav-icon-settings" },
+  { key: "help", label: "Help", Icon: CircleHelp, iconClassName: "nav-icon-help" }
 ];
 
 const achievements = [
@@ -1281,7 +1295,7 @@ export default function App() {
           </div>
         </div>
         <nav className="nav">
-          {navItems.map(({ key, label, icon }) => (
+          {navItems.map(({ key, label, Icon, iconClassName }) => (
             <button
               key={key}
               className={tab === key ? "nav-button active" : "nav-button"}
@@ -1289,7 +1303,7 @@ export default function App() {
             >
               <span className="nav-button-content">
                 <span className="nav-icon" aria-hidden="true">
-                  {icon}
+                  <Icon className={`nav-icon-glyph ${iconClassName}`} strokeWidth={1.8} />
                 </span>
                 <span>{label}</span>
               </span>

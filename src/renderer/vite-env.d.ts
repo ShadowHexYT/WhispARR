@@ -34,6 +34,7 @@ declare global {
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
       saveTranscriptHistory: (history: string[], limit: number) => Promise<string[]>;
       saveNotes: (notes: string) => Promise<string>;
+      saveSavedNotes: (savedNotes: string[]) => Promise<string[]>;
       pickFile: () => Promise<string | null>;
       pasteText: (text: string) => Promise<boolean>;
       showWindow: () => Promise<boolean>;

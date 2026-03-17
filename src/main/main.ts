@@ -18,6 +18,7 @@ import {
   readData,
   saveManualDictionaryEntry,
   saveNotes,
+  saveSavedNotes,
   saveVoiceProfile,
   saveTranscriptHistory,
   updateSettings,
@@ -567,6 +568,9 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("notes:save", (_event, notes: string) => {
     return saveNotes(notes);
+  });
+  ipcMain.handle("notes:saved-list:save", (_event, savedNotes: string[]) => {
+    return saveSavedNotes(savedNotes);
   });
   ipcMain.handle("dialog:pick-file", async () => {
     const result = await dialog.showOpenDialog({

@@ -56,7 +56,8 @@ const defaultData: LocalData = {
     lastUsedOn: null
   },
   transcriptHistory: [],
-  notes: ""
+  notes: "",
+  savedNotes: []
 };
 
 function toDateKey(date = new Date()) {
@@ -141,7 +142,10 @@ export function readData(): LocalData {
       transcriptHistory: Array.isArray(parsed.transcriptHistory)
         ? parsed.transcriptHistory.filter((entry): entry is string => typeof entry === "string")
         : [],
-      notes: typeof parsed.notes === "string" ? parsed.notes : ""
+      notes: typeof parsed.notes === "string" ? parsed.notes : "",
+      savedNotes: Array.isArray(parsed.savedNotes)
+        ? parsed.savedNotes.filter((entry): entry is string => typeof entry === "string")
+        : []
     };
   } catch {
     return defaultData;
@@ -317,4 +321,11 @@ export function saveNotes(notes: string) {
   current.notes = notes;
   writeData(current);
   return current.notes;
+}
+
+export function saveSavedNotes(savedNotes: string[]) {
+  const current = readData();
+  current.savedNotes = savedNotes.map((entry) => entry.trim()).filter(Boolean);
+  writeData(current);
+  return current.savedNotes;
 }

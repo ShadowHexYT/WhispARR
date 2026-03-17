@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld("wisprApi", {
   saveTranscriptHistory: (history: string[], limit: number) =>
     ipcRenderer.invoke("history:save", history, limit) as Promise<string[]>,
   saveNotes: (notes: string) => ipcRenderer.invoke("notes:save", notes) as Promise<string>,
+  saveSavedNotes: (savedNotes: string[]) =>
+    ipcRenderer.invoke("notes:saved-list:save", savedNotes) as Promise<string[]>,
   pickFile: () => ipcRenderer.invoke("dialog:pick-file") as Promise<string | null>,
   pasteText: (text: string) => ipcRenderer.invoke("paste:text", text) as Promise<boolean>,
   showWindow: () => ipcRenderer.invoke("app:show-window") as Promise<boolean>,

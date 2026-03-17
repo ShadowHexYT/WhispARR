@@ -96,6 +96,7 @@ export type LocalData = {
   stats: UserStats;
   transcriptHistory: string[];
   notes: string;
+  savedNotes: string[];
 };
 
 export type WhisperConfigStatus = {

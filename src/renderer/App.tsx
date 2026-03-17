@@ -470,6 +470,9 @@ export default function App() {
   const [profileName, setProfileName] = useState("");
   const [dictionaryTerm, setDictionaryTerm] = useState("");
   const [notes, setNotes] = useState("");
+  const [savedNotes, setSavedNotes] = useState<string[]>([]);
+  const [savedNoteDraft, setSavedNoteDraft] = useState("");
+  const [showNotesInfo, setShowNotesInfo] = useState(false);
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -666,6 +669,7 @@ export default function App() {
     setStats(data.stats);
     setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
     setNotes(data.notes);
+    setSavedNotes(data.savedNotes);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
@@ -695,6 +699,7 @@ export default function App() {
     setStats(data.stats);
     setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
     setNotes(data.notes);
+    setSavedNotes(data.savedNotes);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
@@ -982,6 +987,32 @@ export default function App() {
   async function saveNotesNow() {
     await window.wisprApi.saveNotes(notes);
     setStatus("Notes saved locally.");
+  }
+
+  async function addSavedNote() {
+    const nextNote = savedNoteDraft.trim();
+    if (!nextNote) {
+      setStatus("Add a note before saving it to the right-side list.");
+      return;
+    }
+
+    const nextSavedNotes = [nextNote, ...savedNotes];
+    await window.wisprApi.saveSavedNotes(nextSavedNotes);
+    setSavedNotes(nextSavedNotes);
+    setSavedNoteDraft("");
+    setStatus("Saved a local note item.");
+  }
+
+  async function removeSavedNote(index: number) {
+    const nextSavedNotes = savedNotes.filter((_, noteIndex) => noteIndex !== index);
+    await window.wisprApi.saveSavedNotes(nextSavedNotes);
+    setSavedNotes(nextSavedNotes);
+    setStatus("Removed the saved note item.");
+  }
+
+  async function copySavedNote(note: string) {
+    await navigator.clipboard.writeText(note);
+    setStatus("Saved note copied to clipboard.");
   }
 
   async function saveDictionaryEntry() {
@@ -1394,6 +1425,15 @@ export default function App() {
                   <h3>Local Notes Workspace</h3>
                 </div>
                 <div className="button-row compact">
+                  <button
+                    className="notes-info-button"
+                    onClick={() => setShowNotesInfo((current) => !current)}
+                    type="button"
+                    aria-label="More information about notes"
+                    title="More information"
+                  >
+                    i
+                  </button>
                   <button className="ghost-button" onClick={() => void pasteIntoNotes()}>
                     Paste from clipboard
                   </button>
@@ -1409,6 +1449,15 @@ export default function App() {
                 Keep personal notes inside WhispARR and come back to them later. Notes are saved
                 locally on this device and auto-save while you type.
               </p>
+              {showNotesInfo && (
+                <div className="notes-info-popover">
+                  <p className="supporting">
+                    Your main notes area is a scratchpad for anything you want to keep nearby while
+                    dictating. It auto-saves locally. The right side is for shorter saved note items
+                    you want to keep as separate pieces you can copy or remove individually.
+                  </p>
+                </div>
+              )}
               <label className="field">
                 <span>Your notes</span>
                 <textarea
@@ -1422,16 +1471,53 @@ export default function App() {
             <section className="panel">
               <div className="panel-header">
                 <div>
-                  <p className="eyebrow">Tips</p>
-                  <h3>Using Notes</h3>
+                  <p className="eyebrow">Saved Notes</p>
+                  <h3>Stored Local Note Items</h3>
                 </div>
               </div>
-              <ul className="plain-list">
-                <li>Type directly into the notes area and it will auto-save locally</li>
-                <li>Use `Paste from clipboard` to append copied text into your notes</li>
-                <li>Use `Copy notes` any time to move your current notes elsewhere</li>
-                <li>Your notes stay on this device and reload when you open WhispARR again</li>
-              </ul>
+              <label className="field">
+                <span>Add a saved note</span>
+                <textarea
+                  className="saved-note-input"
+                  value={savedNoteDraft}
+                  onChange={(event) => setSavedNoteDraft(event.target.value)}
+                  placeholder="Save a short note, reminder, or snippet here."
+                />
+              </label>
+              <div className="button-row">
+                <button className="primary-button" onClick={() => void addSavedNote()}>
+                  Add saved note
+                </button>
+              </div>
+              <div className="dictionary-list">
+                {savedNotes.length === 0 && (
+                  <p className="supporting">
+                    No saved note items yet. Add one here and it will stay on this device locally.
+                  </p>
+                )}
+                {savedNotes.map((note, index) => (
+                  <div key={`${index}-${note.slice(0, 24)}`} className="dictionary-card">
+                    <div>
+                      <strong>Saved note {index + 1}</strong>
+                      <p>{note}</p>
+                    </div>
+                    <div className="button-row compact">
+                      <button
+                        className="ghost-button"
+                        onClick={() => void copySavedNote(note)}
+                      >
+                        Copy
+                      </button>
+                      <button
+                        className="ghost-button danger"
+                        onClick={() => void removeSavedNote(index)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </section>
           </section>
         )}
@@ -1584,6 +1670,103 @@ export default function App() {
 
               <div className="panel-header">
                 <div>
+                  <p className="eyebrow">System</p>
+                  <h3>Background Behavior</h3>
+                </div>
+              </div>
+              <div className="button-row">
+                <button
+                  className={settings.autoPaste ? "primary-button" : "secondary-button"}
+                  onClick={() => void patchSettings({ autoPaste: !settings.autoPaste })}
+                >
+                  {settings.autoPaste ? "Auto-paste on" : "Auto-paste off"}
+                </button>
+                <button
+                  className={settings.launchOnLogin ? "primary-button" : "secondary-button"}
+                  onClick={() => void patchSettings({ launchOnLogin: !settings.launchOnLogin })}
+                >
+                  {settings.launchOnLogin ? "Launch at login on" : "Launch at login off"}
+                </button>
+                <button
+                  className={settings.alwaysShowPill ? "primary-button" : "secondary-button"}
+                  onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
+                >
+                  {settings.alwaysShowPill ? "Pill always visible" : "Pill only while dictating"}
+                </button>
+                <button
+                  className={settings.muteDictationSounds ? "secondary-button" : "primary-button"}
+                  onClick={() =>
+                    void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
+                  }
+                >
+                  {settings.muteDictationSounds ? "Dictation sounds muted" : "Dictation sounds on"}
+                </button>
+                <button
+                  className={settings.muteMusicWhileDictating ? "primary-button" : "secondary-button"}
+                  onClick={() =>
+                    void patchSettings({
+                      muteMusicWhileDictating: !settings.muteMusicWhileDictating
+                    })
+                  }
+                >
+                  {settings.muteMusicWhileDictating ? "Mute music while dictating on" : "Mute music while dictating off"}
+                </button>
+              </div>
+              <p className="supporting">
+                Auto-paste uses the system clipboard plus a local paste keystroke so the dictated
+                text lands back in the app you were using.
+              </p>
+              <p className="supporting">
+                `Launch at login` keeps WhispARR ready after restart. `Pill always visible` leaves
+                the bottom HUD on screen in a ready state even when you are not dictating.
+              </p>
+              <p className="supporting">
+                `Dictation sounds` controls WhispARR sound cues like the pill pop and level-up
+                sound. `Mute music while dictating` uses a best-effort media pause/resume approach
+                during push-to-talk.
+              </p>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Engine</p>
+                  <h3>whisper.cpp Paths</h3>
+                </div>
+              </div>
+              <label className="field">
+                <span>Local binary</span>
+                <div className="path-field">
+                  <input
+                    value={settings.whisperBinaryPath}
+                    readOnly
+                    placeholder="Path to main binary"
+                  />
+                  <button
+                    className="ghost-button"
+                    onClick={() => void chooseFile("whisperBinaryPath")}
+                  >
+                    Browse
+                  </button>
+                </div>
+              </label>
+              <label className="field">
+                <span>Local model</span>
+                <div className="path-field">
+                  <input
+                    value={settings.whisperModelPath}
+                    readOnly
+                    placeholder="Path to GGML model"
+                  />
+                  <button
+                    className="ghost-button"
+                    onClick={() => void chooseFile("whisperModelPath")}
+                  >
+                    Browse
+                  </button>
+                </div>
+              </label>
+            </section>
+            <section className="panel">
+              <div className="panel-header">
+                <div>
                   <p className="eyebrow">Themes</p>
                   <h3>Application Look</h3>
                 </div>
@@ -1702,102 +1885,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">System</p>
-                  <h3>Background Behavior</h3>
-                </div>
-              </div>
-              <div className="button-row">
-                <button
-                  className={settings.autoPaste ? "primary-button" : "secondary-button"}
-                  onClick={() => void patchSettings({ autoPaste: !settings.autoPaste })}
-                >
-                  {settings.autoPaste ? "Auto-paste on" : "Auto-paste off"}
-                </button>
-                <button
-                  className={settings.launchOnLogin ? "primary-button" : "secondary-button"}
-                  onClick={() => void patchSettings({ launchOnLogin: !settings.launchOnLogin })}
-                >
-                  {settings.launchOnLogin ? "Launch at login on" : "Launch at login off"}
-                </button>
-                <button
-                  className={settings.alwaysShowPill ? "primary-button" : "secondary-button"}
-                  onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
-                >
-                  {settings.alwaysShowPill ? "Pill always visible" : "Pill only while dictating"}
-                </button>
-                <button
-                  className={settings.muteDictationSounds ? "secondary-button" : "primary-button"}
-                  onClick={() =>
-                    void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
-                  }
-                >
-                  {settings.muteDictationSounds ? "Dictation sounds muted" : "Dictation sounds on"}
-                </button>
-                <button
-                  className={settings.muteMusicWhileDictating ? "primary-button" : "secondary-button"}
-                  onClick={() =>
-                    void patchSettings({
-                      muteMusicWhileDictating: !settings.muteMusicWhileDictating
-                    })
-                  }
-                >
-                  {settings.muteMusicWhileDictating ? "Mute music while dictating on" : "Mute music while dictating off"}
-                </button>
-              </div>
-              <p className="supporting">
-                Auto-paste uses the system clipboard plus a local paste keystroke so the dictated
-                text lands back in the app you were using.
-              </p>
-              <p className="supporting">
-                `Launch at login` keeps WhispARR ready after restart. `Pill always visible` leaves
-                the bottom HUD on screen in a ready state even when you are not dictating.
-              </p>
-              <p className="supporting">
-                `Dictation sounds` controls WhispARR sound cues like the pill pop and level-up
-                sound. `Mute music while dictating` uses a best-effort media pause/resume approach
-                during push-to-talk.
-              </p>
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Engine</p>
-                  <h3>whisper.cpp Paths</h3>
-                </div>
-              </div>
-              <label className="field">
-                <span>Local binary</span>
-                <div className="path-field">
-                  <input
-                    value={settings.whisperBinaryPath}
-                    readOnly
-                    placeholder="Path to main binary"
-                  />
-                  <button
-                    className="ghost-button"
-                    onClick={() => void chooseFile("whisperBinaryPath")}
-                  >
-                    Browse
-                  </button>
-                </div>
-              </label>
-              <label className="field">
-                <span>Local model</span>
-                <div className="path-field">
-                  <input
-                    value={settings.whisperModelPath}
-                    readOnly
-                    placeholder="Path to GGML model"
-                  />
-                  <button
-                    className="ghost-button"
-                    onClick={() => void chooseFile("whisperModelPath")}
-                  >
-                    Browse
-                  </button>
-                </div>
-              </label>
             </section>
           </section>
         )}

@@ -31,6 +31,7 @@ import {
 type TabKey = "dictation" | "profiles" | "dictionary" | "notes" | "stats" | "settings" | "developer" | "help";
 type MicDevice = { deviceId: string; label: string };
 type StatusLogEntry = { timestamp: string; message: string };
+type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
@@ -635,6 +636,12 @@ export default function App() {
   const [runtimeDiscovery, setRuntimeDiscovery] = useState<RuntimeDiscoveryResult | null>(null);
   const [runtimeInstallMessage, setRuntimeInstallMessage] = useState("");
   const [isInstallingRuntime, setIsInstallingRuntime] = useState(false);
+  const [runtimeInstallProgress, setRuntimeInstallProgress] = useState(0);
+  const [runtimeInstallStage, setRuntimeInstallStage] = useState("Waiting to start.");
+  const [runtimeInstallTone, setRuntimeInstallTone] = useState<RuntimeFeedbackTone>("idle");
+  const [runtimeAutoFindMessage, setRuntimeAutoFindMessage] = useState("");
+  const [runtimeAutoFindTone, setRuntimeAutoFindTone] = useState<RuntimeFeedbackTone>("idle");
+  const [isAutoFindingRuntime, setIsAutoFindingRuntime] = useState(false);
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
@@ -651,6 +658,7 @@ export default function App() {
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
+  const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
@@ -950,6 +958,9 @@ export default function App() {
       if (devUnlockTimeoutRef.current) {
         window.clearTimeout(devUnlockTimeoutRef.current);
       }
+      if (runtimeInstallProgressIntervalRef.current) {
+        window.clearInterval(runtimeInstallProgressIntervalRef.current);
+      }
     };
   }, []);
 
@@ -1126,25 +1137,76 @@ export default function App() {
   }
 
   async function autoConfigureRuntime() {
-    const result = await window.wisprApi.discoverRuntime();
-    setRuntimeDiscovery(result);
-    await refreshLocalData();
+    setIsAutoFindingRuntime(true);
+    setRuntimeAutoFindTone("working");
+    setRuntimeAutoFindMessage("Scanning common runtime locations...");
 
-    if (result.selected) {
-      setStatus(`Configured local runtime from ${result.selected.source}.`);
-    } else {
-      setStatus("No bundled or local runtime was found yet.");
+    try {
+      const result = await window.wisprApi.discoverRuntime();
+      setRuntimeDiscovery(result);
+      await refreshLocalData();
+
+      if (result.selected) {
+        setRuntimeAutoFindTone("success");
+        setRuntimeAutoFindMessage(`Runtime found and configured from ${result.selected.source}.`);
+        setStatus(`Configured local runtime from ${result.selected.source}.`);
+      } else {
+        setRuntimeAutoFindTone("error");
+        setRuntimeAutoFindMessage("No local engine was found. Try Install everything instead.");
+        setStatus("No bundled or local runtime was found yet.");
+      }
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Runtime auto-find failed.";
+      setRuntimeAutoFindTone("error");
+      setRuntimeAutoFindMessage(message);
+      setStatus(message);
+    } finally {
+      setIsAutoFindingRuntime(false);
     }
   }
 
   async function installEverything() {
     setIsInstallingRuntime(true);
+    setRuntimeInstallTone("working");
+    setRuntimeInstallProgress(8);
+    setRuntimeInstallStage("Preparing local engine download...");
     setRuntimeInstallMessage("Installing local runtime, configuring paths, and verifying the engine...");
+    setRuntimeAutoFindMessage("");
+    setRuntimeAutoFindTone("idle");
+
+    if (runtimeInstallProgressIntervalRef.current) {
+      window.clearInterval(runtimeInstallProgressIntervalRef.current);
+    }
+
+    const stagedProgress = [
+      { progress: 22, stage: "Downloading the local speech runtime..." },
+      { progress: 46, stage: "Downloading the speech model..." },
+      { progress: 68, stage: "Configuring runtime files..." },
+      { progress: 86, stage: "Running a local verification check..." }
+    ];
+    let stageIndex = 0;
+    runtimeInstallProgressIntervalRef.current = window.setInterval(() => {
+      const nextStage = stagedProgress[stageIndex];
+      if (!nextStage) {
+        if (runtimeInstallProgressIntervalRef.current) {
+          window.clearInterval(runtimeInstallProgressIntervalRef.current);
+          runtimeInstallProgressIntervalRef.current = null;
+        }
+        return;
+      }
+
+      setRuntimeInstallProgress((current) => Math.max(current, nextStage.progress));
+      setRuntimeInstallStage(nextStage.stage);
+      stageIndex += 1;
+    }, 900);
 
     try {
       const result: RuntimeInstallResult = await window.wisprApi.installRuntime();
       setRuntimeDiscovery(result.discovery);
       setRuntimeInstallMessage(result.message);
+      setRuntimeInstallProgress(100);
+      setRuntimeInstallStage(result.ready ? "Local engine verified and ready." : "Install finished.");
+      setRuntimeInstallTone(result.ready ? "success" : "error");
       await refreshLocalData();
       setStatus(
         result.ready
@@ -1154,8 +1216,15 @@ export default function App() {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Runtime installation failed.";
       setRuntimeInstallMessage(message);
+      setRuntimeInstallProgress(100);
+      setRuntimeInstallStage("Install failed.");
+      setRuntimeInstallTone("error");
       setStatus(message);
     } finally {
+      if (runtimeInstallProgressIntervalRef.current) {
+        window.clearInterval(runtimeInstallProgressIntervalRef.current);
+        runtimeInstallProgressIntervalRef.current = null;
+      }
       setIsInstallingRuntime(false);
     }
   }
@@ -2769,8 +2838,12 @@ export default function App() {
                 >
                   {isInstallingRuntime ? "Installing..." : "Install everything"}
                 </button>
-                <button className="primary-button" onClick={() => void autoConfigureRuntime()}>
-                  Auto-find runtime
+                <button
+                  className="primary-button"
+                  onClick={() => void autoConfigureRuntime()}
+                  disabled={isAutoFindingRuntime || isInstallingRuntime}
+                >
+                  {isAutoFindingRuntime ? "Scanning..." : "Auto-find runtime"}
                 </button>
               </div>
               <p className="supporting">
@@ -2779,7 +2852,53 @@ export default function App() {
                 reporting success. Packaged builds can also ship the runtime already embedded, and
                 the app will auto-detect it on launch.
               </p>
-              {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
+              {(isInstallingRuntime || runtimeInstallMessage) && (
+                <div
+                  className={
+                    runtimeInstallTone === "success"
+                      ? "runtime-feedback-card success"
+                      : runtimeInstallTone === "error"
+                        ? "runtime-feedback-card error"
+                        : "runtime-feedback-card"
+                  }
+                >
+                  <div className="runtime-feedback-header">
+                    <strong>Install everything</strong>
+                    <span>{runtimeInstallProgress}%</span>
+                  </div>
+                  <div className="runtime-progress-track" aria-hidden="true">
+                    <div
+                      className="runtime-progress-fill"
+                      style={{ width: `${Math.max(6, runtimeInstallProgress)}%` }}
+                    />
+                  </div>
+                  <p className="supporting">{runtimeInstallStage}</p>
+                  {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
+                </div>
+              )}
+              {(isAutoFindingRuntime || runtimeAutoFindMessage) && (
+                <div
+                  className={
+                    runtimeAutoFindTone === "success"
+                      ? "runtime-feedback-card success"
+                      : runtimeAutoFindTone === "error"
+                        ? "runtime-feedback-card error"
+                        : "runtime-feedback-card"
+                  }
+                >
+                  <div className="runtime-feedback-header">
+                    <strong>Auto-find runtime</strong>
+                    <span>
+                      {runtimeAutoFindTone === "success"
+                        ? "Success"
+                        : runtimeAutoFindTone === "error"
+                          ? "Failed"
+                          : "Working"}
+                    </span>
+                  </div>
+                  <p className="supporting">{runtimeAutoFindMessage}</p>
+                </div>
+              )}
               {runtimeDiscovery?.selected && (
                 <p className="supporting">
                   Active match: <strong>{runtimeDiscovery.selected.source}</strong>

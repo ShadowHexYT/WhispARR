@@ -615,6 +615,76 @@ function clampTranscriptHistoryLimit(value: number) {
   return Math.max(1, Math.min(500, Math.round(value)));
 }
 
+function compactStatus(message: string) {
+  const normalized = message.trim();
+  const lower = normalized.toLowerCase();
+
+  const mappedStatuses: Array<[RegExp, string]> = [
+    [/loading local workspace/, "Loading workspace"],
+    [/hold .* anywhere to dictate/, "Ready to dictate"],
+    [/activation shortcut updated/, "Shortcut updated"],
+    [/configured local runtime/, "Engine configured"],
+    [/no bundled or local runtime/, "Engine not found"],
+    [/installed and verified/, "Engine ready"],
+    [/installation finished, but readiness could not be confirmed/, "Engine needs attention"],
+    [/install failed/, "Install failed"],
+    [/update installer launched/, "Installing update"],
+    [/you are up to date/, "No updates available"],
+    [/version .* is available/, "Update available"],
+    [/update check failed/, "Update check failed"],
+    [/setup complete/, "Setup complete"],
+    [/pill location saved/, "Pill location saved"],
+    [/drag the pill where you want it/, "Move the pill"],
+    [/pill location reset/, "Pill recentered"],
+    [/developer mode unlocked/, "Developer mode unlocked"],
+    [/listening\.\.\. release/, "Listening"],
+    [/no speech detected/, "No speech detected"],
+    [/speaker mismatch detected/, "Speaker mismatch"],
+    [/running local transcription/, "Transcribing"],
+    [/local dictation completed/, "Dictation complete"],
+    [/local transcription failed/, "Transcription failed"],
+    [/microphone test is live/, "Testing microphone"],
+    [/microphone test stopped/, "Mic test stopped"],
+    [/choose a profile name/, "Enter profile name"],
+    [/voice profile recording is live/, "Recording profile"],
+    [/saved a local voice sample/, "Voice profile saved"],
+    [/pronunciation capture failed/, "Pronunciation failed"],
+    [/say \".*\" clearly, then press stop/, "Recording pronunciation"],
+    [/transcript copied/, "Transcript copied"],
+    [/notes copied/, "Notes copied"],
+    [/clipboard pasted into notes/, "Pasted into notes"],
+    [/notes saved locally/, "Notes saved"],
+    [/saved a local note item/, "Note saved"],
+    [/removed the saved note item/, "Saved note removed"],
+    [/saved note copied/, "Saved note copied"],
+    [/saved \".*\" to your local dictionary and checked how it was heard/, "Dictionary updated"],
+    [/saved \".*\" to your local dictionary, but no speech was detected/, "Dictionary updated"],
+    [/saved \".*\" to your local dictionary/, "Dictionary saved"],
+    [/removed \".*\" from your local dictionary/, "Dictionary removed"],
+    [/choose or type the word you want whisparr to learn first/, "Choose a word"],
+    [/add the word or phrase you want whisparr to learn before saving/, "Enter a dictionary term"],
+    [/auto dictionary learning saved .* new terms/, "Dictionary auto-saved"],
+    [/auto dictionary learning saved /, "Dictionary auto-saved"],
+    [/achievement unlocked:/, "Achievement unlocked"],
+    [/unlocked \d+ achievements/, "Achievements unlocked"],
+    [/retro mode unlocked/, "Retro mode unlocked"],
+    [/retro mode disabled/, "Retro mode off"]
+  ];
+
+  for (const [pattern, replacement] of mappedStatuses) {
+    if (pattern.test(lower)) {
+      return replacement;
+    }
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length <= 10) {
+    return normalized;
+  }
+
+  return words.slice(0, 10).join(" ");
+}
+
 function decayOverflow(value: number, max: number) {
   if (max === 0) {
     return 0;
@@ -919,6 +989,7 @@ export default function App() {
       : themeMap[settings.appTheme] ?? themeMap.aurora),
     [settings.appTheme, settings.customTheme]
   );
+  const visibleStatus = compactStatus(status);
   const transcriptHistoryOptions = [3, 5, 10, 20];
 
   useEffect(() => {
@@ -2140,7 +2211,7 @@ export default function App() {
           </button>
           <div className="sidebar-status">
             <p className="eyebrow">Status</p>
-            <h1>{status}</h1>
+            <h1>{visibleStatus}</h1>
             <div className="status-pill">
               <span
                 className={

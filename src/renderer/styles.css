@@ -1329,13 +1329,29 @@ select option:disabled {
   backdrop-filter: blur(12px);
 }
 
+.bottom-level-bar.retro-active {
+  z-index: 45;
+}
+
 .bottom-level-bar-fill-wrap {
+  position: relative;
   width: 100%;
   height: 14px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--progress-track);
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.bottom-level-bar-fill-wrap.retro-active {
+  height: 18px;
+  border-color: color-mix(in srgb, #86ff5d 44%, white 18%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    color-mix(in srgb, var(--progress-track) 84%, rgba(134, 255, 93, 0.14));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 24px rgba(134, 255, 93, 0.18);
 }
 
 .bottom-level-bar-fill {
@@ -1366,6 +1382,17 @@ select option:disabled {
   padding-top: 8px;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.bottom-level-bar-runner-scene {
+  position: fixed;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  height: 64px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 47;
 }
 
 .level-up-backdrop {
@@ -1455,6 +1482,150 @@ select option:disabled {
   color: color-mix(in srgb, #fff 85%, var(--accent) 15%);
 }
 
+.retro-mode-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 10, 18, 0.46);
+  backdrop-filter: blur(12px);
+  z-index: 44;
+  pointer-events: none;
+  animation: retro-mode-fade 5.2s ease both;
+}
+
+.retro-mode-modal {
+  width: min(100%, 860px);
+  padding: 28px 28px 24px;
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, #86ff5d 34%, transparent);
+  background:
+    radial-gradient(circle at top, rgba(134, 255, 93, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(25, 27, 39, 0.94), rgba(10, 12, 21, 0.94));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.32),
+    0 0 36px rgba(134, 255, 93, 0.12);
+  text-align: center;
+  overflow: hidden;
+  position: relative;
+  z-index: 46;
+  animation: retro-mode-pop 5.2s ease both;
+}
+
+.retro-mode-modal .eyebrow {
+  color: #86ff5d;
+}
+
+.retro-mode-modal h3 {
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+}
+
+.retro-mode-modal p {
+  margin: 0 auto;
+  max-width: 620px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.retro-sprite {
+  position: absolute;
+  bottom: 6px;
+  width: 36px;
+  height: 56px;
+  image-rendering: pixelated;
+  filter:
+    drop-shadow(0 0 10px rgba(0, 0, 0, 0.48))
+    drop-shadow(0 0 14px rgba(255, 255, 255, 0.12));
+}
+
+.retro-sprite span {
+  position: absolute;
+  inset: 0;
+}
+
+.retro-survivor {
+  left: -18%;
+  animation: retro-survivor-run 3.2s linear forwards;
+  z-index: 3;
+}
+
+.retro-zombie {
+  left: -24%;
+  opacity: 1;
+}
+
+.retro-zombie-one {
+  animation: retro-zombie-chase-one 4.3s linear forwards;
+  z-index: 2;
+}
+
+.retro-zombie-two {
+  bottom: 8px;
+  transform: scale(0.9);
+  opacity: 0.92;
+  animation: retro-zombie-chase-two 4.8s linear forwards;
+  z-index: 1;
+}
+
+.retro-survivor span:nth-child(1) {
+  background:
+    linear-gradient(#ffd94d 0 0) 12px 0 / 12px 10px no-repeat,
+    linear-gradient(#fff0b3 0 0) 12px 10px / 12px 10px no-repeat,
+    linear-gradient(#4de3ff 0 0) 7px 20px / 22px 14px no-repeat,
+    linear-gradient(#2d6bff 0 0) 10px 34px / 7px 12px no-repeat,
+    linear-gradient(#2d6bff 0 0) 19px 34px / 7px 12px no-repeat,
+    linear-gradient(#ffffff 0 0) 4px 22px / 5px 5px no-repeat,
+    linear-gradient(#ffffff 0 0) 27px 22px / 5px 5px no-repeat;
+}
+
+.retro-survivor span:nth-child(2) {
+  background:
+    linear-gradient(#ff6d5f 0 0) 7px 20px / 7px 7px no-repeat,
+    linear-gradient(#ff6d5f 0 0) 22px 20px / 7px 7px no-repeat,
+    linear-gradient(#12151f 0 0) 12px 46px / 7px 10px no-repeat,
+    linear-gradient(#12151f 0 0) 21px 46px / 7px 10px no-repeat;
+  animation: retro-leg-step-a 0.26s steps(1) infinite;
+}
+
+.retro-survivor span:nth-child(3) {
+  background:
+    linear-gradient(#12151f 0 0) 9px 46px / 7px 10px no-repeat,
+    linear-gradient(#12151f 0 0) 23px 46px / 7px 10px no-repeat;
+  animation: retro-leg-step-b 0.26s steps(1) infinite;
+}
+
+.retro-zombie span:nth-child(1) {
+  background:
+    linear-gradient(#77ff73 0 0) 12px 0 / 12px 10px no-repeat,
+    linear-gradient(#d6ffb2 0 0) 12px 10px / 12px 10px no-repeat,
+    linear-gradient(#8f78ff 0 0) 7px 20px / 22px 14px no-repeat,
+    linear-gradient(#5d39bf 0 0) 10px 34px / 7px 12px no-repeat,
+    linear-gradient(#5d39bf 0 0) 19px 34px / 7px 12px no-repeat,
+    linear-gradient(#10131a 0 0) 8px 22px / 5px 5px no-repeat,
+    linear-gradient(#10131a 0 0) 22px 22px / 5px 5px no-repeat;
+}
+
+.retro-zombie span:nth-child(2) {
+  background:
+    linear-gradient(#10131a 0 0) 4px 22px / 7px 7px no-repeat,
+    linear-gradient(#10131a 0 0) 24px 22px / 7px 7px no-repeat,
+    linear-gradient(#10131a 0 0) 12px 46px / 7px 10px no-repeat,
+    linear-gradient(#10131a 0 0) 21px 46px / 7px 10px no-repeat;
+  animation: retro-leg-step-a 0.34s steps(1) infinite;
+}
+
+.retro-zombie span:nth-child(3) {
+  background:
+    linear-gradient(#2ff3ba 0 0) 2px 22px / 7px 7px no-repeat,
+    linear-gradient(#2ff3ba 0 0) 27px 22px / 7px 7px no-repeat,
+    linear-gradient(#10131a 0 0) 9px 46px / 7px 10px no-repeat,
+    linear-gradient(#10131a 0 0) 23px 46px / 7px 10px no-repeat;
+  animation: retro-leg-step-b 0.34s steps(1) infinite;
+}
+
 @media (max-width: 1100px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1518,4 +1689,54 @@ select option:disabled {
   10% { opacity: 1; }
   86% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+@keyframes retro-mode-pop {
+  0% { transform: scale(0.92); opacity: 0; }
+  10% { transform: scale(1.02); opacity: 1; }
+  82% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.99); opacity: 0; }
+}
+
+@keyframes retro-mode-fade {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes retro-ground-scroll {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: -22px 0, 0 0; }
+}
+
+@keyframes retro-survivor-run {
+  0% { transform: translateX(0) translateY(0); }
+  18% { transform: translateX(28vw) translateY(-4px); }
+  55% { transform: translateX(58vw) translateY(3px); }
+  100% { transform: translateX(148vw) translateY(-2px); }
+}
+
+@keyframes retro-zombie-chase-one {
+  0% { transform: translateX(0) translateY(1px); }
+  24% { transform: translateX(22vw) translateY(-2px); }
+  60% { transform: translateX(48vw) translateY(2px); }
+  100% { transform: translateX(140vw) translateY(0); }
+}
+
+@keyframes retro-zombie-chase-two {
+  0% { transform: scale(0.88) translateX(0) translateY(0); }
+  28% { transform: scale(0.88) translateX(18vw) translateY(-1px); }
+  65% { transform: scale(0.88) translateX(43vw) translateY(2px); }
+  100% { transform: scale(0.88) translateX(136vw) translateY(-1px); }
+}
+
+@keyframes retro-leg-step-a {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
+}
+
+@keyframes retro-leg-step-b {
+  0%, 100% { transform: translateY(2px); }
+  50% { transform: translateY(0); }
 }

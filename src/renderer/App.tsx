@@ -591,7 +591,8 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [celebratingLevel, setCelebratingLevel] = useState<number | null>(null);
   const [isDevModeUnlockCelebrationVisible, setIsDevModeUnlockCelebrationVisible] = useState(false);
-  const [isRetroModeEnabled, setIsRetroModeEnabled] = useState(() => window.localStorage.getItem("whisparr-retro-mode") === "true");
+  const [isRetroModeEnabled, setIsRetroModeEnabled] = useState(false);
+  const [isRetroCelebrationVisible, setIsRetroCelebrationVisible] = useState(false);
   const [appDiagnostics, setAppDiagnostics] = useState<AppDiagnostics | null>(null);
   const [statusLogs, setStatusLogs] = useState<StatusLogEntry[]>([]);
   const [status, setStatus] = useState("Loading local workspace...");
@@ -619,6 +620,7 @@ export default function App() {
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
+  const retroCelebrationTimeoutRef = useRef<number | null>(null);
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
   const lastLoggedStatusRef = useRef("");
@@ -691,10 +693,75 @@ export default function App() {
   }, [settings.devModeUnlocked]);
 
   useEffect(() => {
-    window.localStorage.setItem("whisparr-retro-mode", String(isRetroModeEnabled));
-  }, [isRetroModeEnabled]);
+    function playRetroZombieSound() {
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextConstructor) {
+        return;
+      }
 
-  useEffect(() => {
+      const audioContext = new AudioContextConstructor();
+      const duration = 1.4;
+      const now = audioContext.currentTime;
+
+      const master = audioContext.createGain();
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.exponentialRampToValueAtTime(0.18, now + 0.05);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      master.connect(audioContext.destination);
+
+      const oscillator = audioContext.createOscillator();
+      oscillator.type = "sawtooth";
+      oscillator.frequency.setValueAtTime(210, now);
+      oscillator.frequency.exponentialRampToValueAtTime(92, now + duration);
+
+      const subOscillator = audioContext.createOscillator();
+      subOscillator.type = "square";
+      subOscillator.frequency.setValueAtTime(105, now);
+      subOscillator.frequency.exponentialRampToValueAtTime(56, now + duration);
+
+      const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * duration, audioContext.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      for (let index = 0; index < noiseData.length; index += 1) {
+        noiseData[index] = (Math.random() * 2 - 1) * 0.16;
+      }
+
+      const noiseSource = audioContext.createBufferSource();
+      noiseSource.buffer = noiseBuffer;
+      const noiseFilter = audioContext.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(620, now);
+      noiseFilter.Q.setValueAtTime(0.7, now);
+
+      const wobble = audioContext.createOscillator();
+      wobble.type = "triangle";
+      wobble.frequency.setValueAtTime(5.5, now);
+      const wobbleDepth = audioContext.createGain();
+      wobbleDepth.gain.setValueAtTime(17, now);
+      wobble.connect(wobbleDepth);
+      wobbleDepth.connect(oscillator.frequency);
+
+      oscillator.connect(master);
+      subOscillator.connect(master);
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(master);
+
+      oscillator.start(now);
+      subOscillator.start(now);
+      noiseSource.start(now);
+      wobble.start(now);
+
+      oscillator.stop(now + duration);
+      subOscillator.stop(now + duration);
+      noiseSource.stop(now + duration);
+      wobble.stop(now + duration);
+
+      window.setTimeout(() => {
+        void audioContext.close().catch(() => undefined);
+      }, Math.ceil(duration * 1000) + 200);
+    }
+
     function handleKonamiCode(event: KeyboardEvent) {
       const expectedKey = konamiSequence[konamiProgressRef.current];
       const normalizedKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
@@ -704,6 +771,15 @@ export default function App() {
         if (konamiProgressRef.current === konamiSequence.length) {
           konamiProgressRef.current = 0;
           setIsRetroModeEnabled(true);
+          setIsRetroCelebrationVisible(true);
+          playRetroZombieSound();
+          if (retroCelebrationTimeoutRef.current) {
+            window.clearTimeout(retroCelebrationTimeoutRef.current);
+          }
+          retroCelebrationTimeoutRef.current = window.setTimeout(() => {
+            setIsRetroCelebrationVisible(false);
+            retroCelebrationTimeoutRef.current = null;
+          }, 5200);
           setStatus("Retro mode unlocked.");
         }
         return;
@@ -713,7 +789,13 @@ export default function App() {
     }
 
     window.addEventListener("keydown", handleKonamiCode);
-    return () => window.removeEventListener("keydown", handleKonamiCode);
+    return () => {
+      if (retroCelebrationTimeoutRef.current) {
+        window.clearTimeout(retroCelebrationTimeoutRef.current);
+        retroCelebrationTimeoutRef.current = null;
+      }
+      window.removeEventListener("keydown", handleKonamiCode);
+    };
   }, []);
 
   useEffect(() => {
@@ -2926,12 +3008,24 @@ export default function App() {
           <section className="dev-mode-modal" aria-label="Developer mode unlocked">
             <p className="eyebrow">Easter Egg Found</p>
             <h3>Developer Mode Unlocked</h3>
-            <p>Advanced logs and diagnostics are now available in System Settings.</p>
+            <p>Advanced logs and diagnostics are now available in the Developer tab.</p>
           </section>
         </div>
       )}
-      <div className="bottom-level-bar" aria-label="Level progress to next level">
-        <div className="bottom-level-bar-fill-wrap">
+      {isRetroCelebrationVisible && (
+        <div className="retro-mode-backdrop" role="presentation">
+          <section className="retro-mode-modal" aria-label="Retro mode unlocked">
+            <p className="eyebrow">Secret Mode</p>
+            <h3>Retro Mode Unlocked</h3>
+            <p>A pixel survivor just bolted across the app. You are now in arcade mode.</p>
+          </section>
+        </div>
+      )}
+      <div
+        className={isRetroCelebrationVisible ? "bottom-level-bar retro-active" : "bottom-level-bar"}
+        aria-label="Level progress to next level"
+      >
+        <div className={isRetroCelebrationVisible ? "bottom-level-bar-fill-wrap retro-active" : "bottom-level-bar-fill-wrap"}>
           <div
             className={celebratingLevel ? "bottom-level-bar-fill celebrating" : "bottom-level-bar-fill"}
             style={{
@@ -2939,6 +3033,25 @@ export default function App() {
             }}
           />
         </div>
+        {isRetroCelebrationVisible && (
+          <div className="bottom-level-bar-runner-scene" aria-hidden="true">
+            <div className="retro-sprite retro-survivor">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="retro-sprite retro-zombie retro-zombie-one">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="retro-sprite retro-zombie retro-zombie-two">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        )}
         <div className="bottom-level-bar-meta">
           <span>Level {stats.currentLevel}</span>
           <span>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "motion/react";
 import {
   BookText,
   ChartColumnBig,
@@ -7,7 +8,9 @@ import {
   Mic,
   Settings2,
   SquareTerminal,
-  UserRound
+  UserRound,
+  Volume1,
+  Volume2
 } from "lucide-react";
 import { computeVoiceEmbedding, hasAudibleSpeech, scoreVoiceMatch } from "./lib/audio";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
@@ -34,6 +37,7 @@ type MicDevice = { deviceId: string; label: string };
 type StatusLogEntry = { timestamp: string; message: string };
 type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 type AchievementDifficulty = "Easy" | "Medium" | "Hard" | "Almost Impossible";
+const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
@@ -584,6 +588,184 @@ function clampSoundVolume(value: number) {
 
 function clampTranscriptHistoryLimit(value: number) {
   return Math.max(1, Math.min(500, Math.round(value)));
+}
+
+function decayOverflow(value: number, max: number) {
+  if (max === 0) {
+    return 0;
+  }
+
+  const entry = value / max;
+  const sigmoid = 2 * (1 / (1 + Math.exp(-entry)) - 0.5);
+  return sigmoid * max;
+}
+
+function ElasticVolumeSlider(props: {
+  value: number;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
+  const { value, min = 0, max = 100, disabled = false, onChange } = props;
+  const sliderRef = useRef<HTMLDivElement | null>(null);
+  const [region, setRegion] = useState<"left" | "middle" | "right">("middle");
+  const clientX = useMotionValue(0);
+  const overflow = useMotionValue(0);
+  const scale = useMotionValue(1);
+  const percentage = ((value - min) / Math.max(1, max - min)) * 100;
+
+  useMotionValueEvent(clientX, "change", (latest) => {
+    if (!sliderRef.current || disabled) {
+      return;
+    }
+
+    const { left, right } = sliderRef.current.getBoundingClientRect();
+    let overflowValue = 0;
+
+    if (latest < left) {
+      setRegion("left");
+      overflowValue = left - latest;
+    } else if (latest > right) {
+      setRegion("right");
+      overflowValue = latest - right;
+    } else {
+      setRegion("middle");
+    }
+
+    overflow.jump(decayOverflow(overflowValue, MAX_SLIDER_OVERFLOW));
+  });
+
+  function updateValue(nextClientX: number) {
+    if (!sliderRef.current || disabled) {
+      return;
+    }
+
+    const { left, width } = sliderRef.current.getBoundingClientRect();
+    const rawValue = min + ((nextClientX - left) / width) * (max - min);
+    onChange(Math.min(Math.max(Math.round(rawValue), min), max));
+    clientX.jump(nextClientX);
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    updateValue(event.clientX);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.buttons > 0) {
+      updateValue(event.clientX);
+    }
+  }
+
+  function handlePointerUp() {
+    animate(overflow, 0, { type: "spring", bounce: 0.5 });
+    setRegion("middle");
+  }
+
+  function nudge(delta: number) {
+    if (disabled) {
+      return;
+    }
+
+    onChange(Math.min(max, Math.max(min, value + delta)));
+  }
+
+  return (
+    <motion.div
+      className={disabled ? "elastic-slider-wrapper disabled" : "elastic-slider-wrapper"}
+      onHoverStart={() => !disabled && animate(scale, 1.12)}
+      onHoverEnd={() => animate(scale, 1)}
+      onTouchStart={() => !disabled && animate(scale, 1.12)}
+      onTouchEnd={() => animate(scale, 1)}
+      style={{
+        scale,
+        opacity: useTransform(scale, [1, 1.12], [0.82, 1])
+      }}
+    >
+      <motion.div
+        className="elastic-slider-icon"
+        animate={{
+          scale: region === "left" ? [1, 1.28, 1] : 1,
+          transition: { duration: 0.22 }
+        }}
+        style={{
+          x: useTransform(() => (region === "left" ? -overflow.get() / scale.get() : 0))
+        }}
+      >
+        <Volume1 size={18} />
+      </motion.div>
+
+      <div
+        ref={sliderRef}
+        className="elastic-slider-root"
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Application sound volume"
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+            event.preventDefault();
+            nudge(-1);
+          }
+          if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+            event.preventDefault();
+            nudge(1);
+          }
+        }}
+      >
+        <motion.div
+          className="elastic-slider-track-wrapper"
+          style={{
+            scaleX: useTransform(() => {
+              if (!sliderRef.current) {
+                return 1;
+              }
+
+              const { width } = sliderRef.current.getBoundingClientRect();
+              return 1 + overflow.get() / Math.max(1, width);
+            }),
+            scaleY: useTransform(overflow, [0, MAX_SLIDER_OVERFLOW], [1, 0.84]),
+            transformOrigin: useTransform(() => {
+              if (!sliderRef.current) {
+                return "center";
+              }
+
+              const { left, width } = sliderRef.current.getBoundingClientRect();
+              return clientX.get() < left + width / 2 ? "right" : "left";
+            }),
+            height: useTransform(scale, [1, 1.12], [16, 20]),
+            marginTop: useTransform(scale, [1, 1.12], [0, -2]),
+            marginBottom: useTransform(scale, [1, 1.12], [0, -2])
+          }}
+        >
+          <div className="elastic-slider-track">
+            <div className="elastic-slider-range" style={{ width: `${percentage}%` }} />
+            <div className="elastic-slider-thumb" style={{ left: `calc(${percentage}% - 15px)` }} />
+          </div>
+        </motion.div>
+      </div>
+
+      <motion.div
+        className="elastic-slider-icon"
+        animate={{
+          scale: region === "right" ? [1, 1.28, 1] : 1,
+          transition: { duration: 0.22 }
+        }}
+        style={{
+          x: useTransform(() => (region === "right" ? overflow.get() / scale.get() : 0))
+        }}
+      >
+        <Volume2 size={18} />
+      </motion.div>
+    </motion.div>
+  );
 }
 
 function shortcutFromPressedCodes(codes: Iterable<string>): ActivationShortcut {
@@ -1340,13 +1522,6 @@ export default function App() {
     await window.wisprApi.startHudMoveMode();
     setIsMovingHud(true);
     setStatus("Drag the pill where you want it, then click stop to save.");
-  }
-
-  async function stopHudMoveAndSave() {
-    const nextSettings = await window.wisprApi.stopHudMoveMode();
-    setSettings(nextSettings);
-    setIsMovingHud(false);
-    setStatus("Pill location saved.");
   }
 
   async function handleBrandMarkClick() {
@@ -2664,6 +2839,15 @@ export default function App() {
                   <div className="settings-switch-copy">
                     <strong>Pill always visible</strong>
                     <p>Leaves the HUD on screen in a ready state even when you are not dictating.</p>
+                    <div className="button-row">
+                      <button
+                        className={isMovingHud ? "primary-button" : "secondary-button"}
+                        type="button"
+                        onClick={() => void toggleHudMoveMode()}
+                      >
+                        {isMovingHud ? "Stop moving and save pill location" : "Move pill location"}
+                      </button>
+                    </div>
                   </div>
                   <button
                     className={settings.alwaysShowPill ? "settings-switch active" : "settings-switch"}
@@ -2676,29 +2860,6 @@ export default function App() {
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
                 </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Allow pill movement</strong>
-                    <p>Turn this on to drag the HUD pill around your screen, then stop and save its new location.</p>
-                  </div>
-                  <button
-                    className={isMovingHud ? "settings-switch active" : "settings-switch"}
-                    onClick={() => void toggleHudMoveMode()}
-                    type="button"
-                    role="switch"
-                    aria-checked={isMovingHud}
-                    aria-label="Toggle allow pill movement"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                {isMovingHud && (
-                  <div className="button-row">
-                    <button className="primary-button" type="button" onClick={() => void stopHudMoveAndSave()}>
-                      Stop moving and save pill location
-                    </button>
-                  </div>
-                )}
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
                     <strong>Dictation sounds</strong>
@@ -2731,30 +2892,20 @@ export default function App() {
                       <strong>{appSoundVolume}%</strong>
                       <span>Loud</span>
                     </div>
-                    <label className="bounce-slider" aria-label="Application sound volume">
-                      <span
-                        className="bounce-slider-track"
-                        style={{ "--slider-progress": `${appSoundVolume}%` } as CSSProperties}
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={appSoundVolume}
-                        disabled={settings.muteDictationSounds}
-                        onChange={(event) =>
-                          void patchSettings({
-                            appSoundVolume: clampSoundVolume(Number(event.target.value))
-                          })
-                        }
-                      />
-                    </label>
+                    <ElasticVolumeSlider
+                      value={appSoundVolume}
+                      disabled={settings.muteDictationSounds}
+                      onChange={(nextValue) =>
+                        void patchSettings({
+                          appSoundVolume: clampSoundVolume(nextValue)
+                        })
+                      }
+                    />
                   </div>
                 </div>
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
-                    <strong>Mute music while dictating</strong>
+                    <strong>Auto mute music when speaking</strong>
                     <p>Pauses media that is actively playing when dictation starts and never resumes anything automatically.</p>
                   </div>
                   <button
@@ -2767,7 +2918,7 @@ export default function App() {
                     type="button"
                     role="switch"
                     aria-checked={settings.muteMusicWhileDictating}
-                    aria-label="Toggle mute music while dictating"
+                    aria-label="Toggle auto mute music when speaking"
                   >
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>

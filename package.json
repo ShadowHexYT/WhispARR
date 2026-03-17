@@ -14,7 +14,8 @@
     "build": "npm run build:icons && npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build --base ./",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "dist": "npm run build && electron-builder",
+    "dist": "npm run build && electron-builder && npm run verify:package",
+    "verify:package": "node scripts/verify-package.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json"
   },
   "build": {
@@ -29,6 +30,9 @@
       "dist-electron/**/*",
       "package.json",
       "assets/WhispARR Image.png"
+    ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**/*"
     ],
     "extraResources": [
       {
@@ -70,6 +74,7 @@
   "dependencies": {
     "extract-zip": "^2.0.1",
     "lucide-react": "^0.577.0",
+    "motion": "^12.38.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "uiohook-napi": "^1.5.4"

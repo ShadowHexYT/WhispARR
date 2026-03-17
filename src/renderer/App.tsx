@@ -570,6 +570,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <div className="titlebar-drag" aria-hidden="true" />
       <aside className="sidebar">
         <div>
           <div className="brand-mark">

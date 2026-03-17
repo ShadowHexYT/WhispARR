@@ -240,6 +240,18 @@ function createWindow() {
     return mainWindow;
   }
 
+  const windowsChromeOptions =
+    process.platform === "win32"
+      ? {
+          titleBarStyle: "hidden" as const,
+          titleBarOverlay: {
+            color: "#07131a",
+            symbolColor: "#effcf7",
+            height: 32
+          }
+        }
+      : {};
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 920,
@@ -249,6 +261,7 @@ function createWindow() {
     title: "WhispARR",
     icon: getAppIconPath(),
     autoHideMenuBar: true,
+    ...windowsChromeOptions,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,

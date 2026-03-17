@@ -39,7 +39,20 @@ textarea {
 .app-shell {
   display: grid;
   grid-template-columns: 340px 1fr;
-  min-height: 100vh;
+  min-height: calc(100vh - env(titlebar-area-height, 0px));
+  padding-top: env(titlebar-area-height, 0px);
+}
+
+.titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(titlebar-area-height, 32px);
+  background: linear-gradient(180deg, rgba(7, 19, 26, 0.98), rgba(7, 19, 26, 0.92));
+  border-bottom: 1px solid rgba(143, 205, 187, 0.12);
+  -webkit-app-region: drag;
+  z-index: 20;
 }
 
 .sidebar {

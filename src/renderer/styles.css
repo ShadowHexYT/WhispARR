@@ -887,6 +887,56 @@ select option:disabled {
   margin-top: 20px;
 }
 
+.onboarding-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 11, 14, 0.56);
+  backdrop-filter: blur(14px);
+  z-index: 40;
+}
+
+.onboarding-modal {
+  width: min(100%, 760px);
+  max-height: min(86vh, 920px);
+  display: grid;
+  gap: 18px;
+  overflow-y: auto;
+  padding: 26px;
+  border-radius: 30px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, black 8%);
+  box-shadow: var(--shadow);
+}
+
+.onboarding-progress {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.onboarding-progress-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.onboarding-progress-dot.active {
+  background: var(--accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.onboarding-step-card {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+}
+
 .achievements-backdrop {
   position: fixed;
   inset: 0;

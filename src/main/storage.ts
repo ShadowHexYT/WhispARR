@@ -43,7 +43,8 @@ const defaultSettings: AppSettings = {
   smartFormatting: true,
   activationShortcut: defaultActivationShortcut,
   appTheme: defaultAppTheme,
-  customTheme: defaultCustomTheme
+  customTheme: defaultCustomTheme,
+  onboardingCompleted: false
 };
 
 const defaultData: LocalData = {

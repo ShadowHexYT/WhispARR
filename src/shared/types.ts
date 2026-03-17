@@ -41,6 +41,7 @@ export type AppSettings = {
   activationShortcut: ActivationShortcut;
   appTheme: AppThemeName;
   customTheme: CustomThemeColors;
+  onboardingCompleted: boolean;
 };
 
 export type DictationResult = {

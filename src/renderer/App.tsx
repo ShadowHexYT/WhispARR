@@ -47,7 +47,8 @@ const defaultSettings: AppSettings = {
     primary: "#5ef0ba",
     secondary: "#54d8ff",
     tertiary: "#ff77c8"
-  }
+  },
+  onboardingCompleted: false
 };
 
 type ThemeDefinition = {
@@ -467,6 +468,33 @@ const achievements = [
   { title: "Orbital", description: "Reach 250,000 total words in a single month.", difficulty: "Almost Impossible" }
 ] as const;
 
+const onboardingSteps = [
+  {
+    title: "Welcome to WhispARR",
+    description: "This quick setup will walk through the basics so the app is ready before your first dictation."
+  },
+  {
+    title: "Install the local engine",
+    description: "Make sure the local runtime is available so dictation can run fully on your device."
+  },
+  {
+    title: "Choose your microphone",
+    description: "Pick the microphone you want to use and test that the app is hearing your voice."
+  },
+  {
+    title: "Set your shortcut",
+    description: "Choose the push-to-talk shortcut you want to hold anywhere on your computer."
+  },
+  {
+    title: "Create your voice profile",
+    description: "Record a voice sample so WhispARR can learn how you sound and personalize the experience."
+  },
+  {
+    title: "You are ready",
+    description: "Finish setup and start using the home screen with your core tools already configured."
+  }
+] as const;
+
 function isModifierCode(code: string) {
   return ["ControlLeft", "ControlRight", "MetaLeft", "MetaRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(code);
 }
@@ -538,6 +566,8 @@ export default function App() {
   const [isSavedNoteComposerOpen, setIsSavedNoteComposerOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -592,6 +622,12 @@ export default function App() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    if (!settings.onboardingCompleted) {
+      setIsOnboardingOpen(true);
+    }
+  }, [settings.onboardingCompleted]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -880,6 +916,21 @@ export default function App() {
     }
   }
 
+  async function completeOnboarding() {
+    await patchSettings({ onboardingCompleted: true });
+    setIsOnboardingOpen(false);
+    setOnboardingStep(0);
+    setStatus("Setup complete. WhispARR is ready.");
+  }
+
+  function goToNextOnboardingStep() {
+    setOnboardingStep((current) => Math.min(onboardingSteps.length - 1, current + 1));
+  }
+
+  function goToPreviousOnboardingStep() {
+    setOnboardingStep((current) => Math.max(0, current - 1));
+  }
+
   async function beginGlobalDictation() {
     if (isRecordingRef.current) {
       return;
@@ -1121,6 +1172,11 @@ export default function App() {
   const xpIntoCurrentLevel = Math.max(0, stats.totalXp - currentLevelFloor);
   const xpNeededForCurrentLevel = Math.max(1, nextLevelThreshold - currentLevelFloor);
   const xpRemainingToNextLevel = Math.max(0, nextLevelThreshold - stats.totalXp);
+  const currentOnboardingStep = onboardingSteps[onboardingStep];
+  const runtimeReady = whisperStatus.binaryExists && whisperStatus.modelExists;
+  const microphoneReady = devices.length > 0;
+  const shortcutReady = Boolean(settings.activationShortcut.key);
+  const profileReady = profiles.length > 0;
 
   async function copyTranscript(text: string) {
     await navigator.clipboard.writeText(text);
@@ -2391,6 +2447,203 @@ export default function App() {
           </section>
         )}
       </main>
+      {isOnboardingOpen && (
+        <div className="onboarding-backdrop" role="presentation">
+          <section className="onboarding-modal" aria-label="WhispARR setup guide">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Setup Guide</p>
+                <h3>{currentOnboardingStep.title}</h3>
+              </div>
+              <span className="dictionary-chip">
+                Step {onboardingStep + 1} of {onboardingSteps.length}
+              </span>
+            </div>
+            <p className="supporting">{currentOnboardingStep.description}</p>
+            <div className="onboarding-progress">
+              {onboardingSteps.map((step, index) => (
+                <span
+                  key={step.title}
+                  className={index === onboardingStep ? "onboarding-progress-dot active" : "onboarding-progress-dot"}
+                  aria-hidden="true"
+                />
+              ))}
+            </div>
+
+            {onboardingStep === 0 && (
+              <div className="onboarding-step-card">
+                <p className="supporting">
+                  WhispARR works best after a few setup choices are handled first. We will set up the
+                  local runtime, microphone, shortcut, and voice profile in order.
+                </p>
+              </div>
+            )}
+
+            {onboardingStep === 1 && (
+              <div className="onboarding-step-card">
+                <p className="supporting">
+                  Status: <strong>{runtimeReady ? "Local engine ready" : "Local engine still needs setup"}</strong>
+                </p>
+                <div className="button-row">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => void installEverything()}
+                    disabled={isInstallingRuntime}
+                  >
+                    {isInstallingRuntime ? "Installing..." : "Install everything"}
+                  </button>
+                  <button className="secondary-button" type="button" onClick={() => void autoConfigureRuntime()}>
+                    Auto-find runtime
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {onboardingStep === 2 && (
+              <div className="onboarding-step-card">
+                <label className="field">
+                  <span>Microphone</span>
+                  <select
+                    value={settings.selectedMicId ?? ""}
+                    onChange={(event) =>
+                      void patchSettings({ selectedMicId: event.target.value || null })
+                    }
+                  >
+                    <option value="">System default microphone</option>
+                    {devices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="button-row">
+                  <button className="ghost-button" type="button" onClick={() => void refreshDevices()}>
+                    Refresh devices
+                  </button>
+                  <button
+                    className={isTestingMicrophone ? "secondary-button" : "primary-button"}
+                    type="button"
+                    onClick={() =>
+                      void (isTestingMicrophone ? stopMicrophoneTest() : startMicrophoneTest())
+                    }
+                  >
+                    {isTestingMicrophone ? "Stop microphone test" : "Test microphone"}
+                  </button>
+                </div>
+                {isTestingMicrophone && (
+                  <div className="microphone-test-card">
+                    <div className="microphone-test-header">
+                      <strong>Microphone input</strong>
+                      <span>{recorder.level > 0.08 ? "Input detected" : "Listening..."}</span>
+                    </div>
+                    <div className="microphone-test-meter" aria-hidden="true">
+                      <div
+                        className="microphone-test-fill"
+                        style={{ width: `${Math.max(8, recorder.level * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {onboardingStep === 3 && (
+              <div className="onboarding-step-card">
+                <p className="supporting">
+                  Current shortcut: <strong>{activeShortcutLabel}</strong>
+                </p>
+                <div className="button-row">
+                  <button
+                    className={isCapturingShortcut ? "primary-button" : "secondary-button"}
+                    type="button"
+                    onClick={() => {
+                      setDraftShortcut(null);
+                      setIsCapturingShortcut(true);
+                      setTab("settings");
+                    }}
+                  >
+                    {isCapturingShortcut ? "Press shortcut now..." : "Choose shortcut"}
+                  </button>
+                </div>
+                {draftShortcutLabel && (
+                  <div className="button-row">
+                    <p className="supporting">Captured: <strong>{draftShortcutLabel}</strong></p>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      onClick={() => draftShortcut && void saveShortcut(draftShortcut)}
+                    >
+                      Save captured shortcut
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {onboardingStep === 4 && (
+              <div className="onboarding-step-card">
+                <label className="field">
+                  <span>Profile name</span>
+                  <input
+                    value={profileName}
+                    onChange={(event) => setProfileName(event.target.value)}
+                    placeholder="Example: Hunter"
+                  />
+                </label>
+                <div className="button-row">
+                  <button
+                    className={isTrainingProfile ? "secondary-button" : "primary-button"}
+                    type="button"
+                    onClick={() => void toggleProfileTraining()}
+                    disabled={!isTrainingProfile && recorder.state === "recording"}
+                  >
+                    {isTrainingProfile ? "Stop training" : "Start training"}
+                  </button>
+                </div>
+                <div className="training-example">
+                  <p className="eyebrow">Practice Paragraph</p>
+                  <p>{trainingParagraph}</p>
+                </div>
+                {profiles.length > 0 && (
+                  <p className="supporting">
+                    Saved voices: <strong>{profiles.length}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {onboardingStep === 5 && (
+              <div className="onboarding-step-card">
+                <ul className="plain-list">
+                  <li>{runtimeReady ? "Local engine is ready" : "Local engine still needs setup"}</li>
+                  <li>{microphoneReady ? "A microphone is available" : "No microphone found yet"}</li>
+                  <li>{shortcutReady ? `Shortcut set to ${activeShortcutLabel}` : "Shortcut still needs review"}</li>
+                  <li>{profileReady ? "At least one voice profile is saved" : "Voice profile still needs setup"}</li>
+                </ul>
+              </div>
+            )}
+
+            <div className="button-row">
+              {onboardingStep > 0 && (
+                <button className="ghost-button" type="button" onClick={goToPreviousOnboardingStep}>
+                  Back
+                </button>
+              )}
+              {onboardingStep < onboardingSteps.length - 1 ? (
+                <button className="primary-button" type="button" onClick={goToNextOnboardingStep}>
+                  Continue
+                </button>
+              ) : (
+                <button className="primary-button" type="button" onClick={() => void completeOnboarding()}>
+                  Finish setup
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
       <div className="bottom-level-bar" aria-label="Level progress to next level">
         <div className="bottom-level-bar-fill-wrap">
           <div

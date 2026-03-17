@@ -25,7 +25,9 @@ import { discoverRuntime, installRuntime } from "./runtime";
 import { getWhisperConfigStatus, transcribeLocally } from "./whisper";
 import {
   ActivationShortcut,
+  AppThemeName,
   AppSettings,
+  CustomThemeColors,
   HudState,
   SaveVoiceProfileInput,
   ShortcutModifier,
@@ -120,6 +122,47 @@ let isQuitting = false;
 let pushToTalkActive = false;
 let currentSettings = readData().settings;
 const pressedKeys = new Set<number>();
+
+const windowsOverlayColors: Record<AppThemeName, string> = {
+  aurora: "#061018",
+  ember: "#190c0a",
+  ocean: "#06131b",
+  rose: "#180a14",
+  sunset: "#1c1008",
+  violet: "#140d24",
+  forest: "#0b140d",
+  gold: "#171306",
+  arctic: "#0b1417",
+  crimson: "#19080d",
+  custom: "#061018"
+};
+
+function getWindowOverlayColor(theme: AppThemeName, customTheme: CustomThemeColors) {
+  if (theme !== "custom") {
+    return windowsOverlayColors[theme];
+  }
+
+  const normalized = customTheme.tertiary.replace("#", "");
+  const safe = normalized.length === 3
+    ? normalized
+        .split("")
+        .map((part) => part + part)
+        .join("")
+    : normalized;
+
+  const int = Number.parseInt(safe, 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  const blend = (value: number, target: number, amount: number) =>
+    Math.round(value + (target - value) * amount);
+
+  const nr = blend(r, 6, 0.82);
+  const ng = blend(g, 16, 0.82);
+  const nb = blend(b, 24, 0.82);
+
+  return `#${[nr, ng, nb].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
 
 function getAppIconPath() {
   return isDev
@@ -245,7 +288,7 @@ function createWindow() {
       ? {
           titleBarStyle: "hidden" as const,
           titleBarOverlay: {
-            color: "#061018",
+            color: getWindowOverlayColor(currentSettings.appTheme, currentSettings.customTheme),
             symbolColor: "#effcf7",
             height: 32
           }
@@ -289,6 +332,18 @@ function createWindow() {
   }
 
   return mainWindow;
+}
+
+function syncWindowTheme(settings: AppSettings) {
+  if (process.platform !== "win32" || !mainWindow) {
+    return;
+  }
+
+  mainWindow.setTitleBarOverlay({
+    color: getWindowOverlayColor(settings.appTheme, settings.customTheme),
+    symbolColor: "#effcf7",
+    height: 32
+  });
 }
 
 function createTray() {
@@ -409,6 +464,7 @@ app.whenReady().then(() => {
     const next = updateSettings(patch);
     currentSettings = next;
     updateLaunchOnLogin(next);
+    syncWindowTheme(next);
     return next;
   });
   ipcMain.handle("voice-profile:save", (_event, input: SaveVoiceProfileInput) => saveVoiceProfile(input));

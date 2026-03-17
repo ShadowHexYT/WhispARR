@@ -1,5 +1,24 @@
 export type ShortcutModifier = "ctrl" | "meta" | "alt" | "shift";
 
+export type AppThemeName =
+  | "aurora"
+  | "ember"
+  | "ocean"
+  | "rose"
+  | "sunset"
+  | "violet"
+  | "forest"
+  | "gold"
+  | "arctic"
+  | "crimson"
+  | "custom";
+
+export type CustomThemeColors = {
+  primary: string;
+  secondary: string;
+  tertiary: string;
+};
+
 export type ActivationShortcut = {
   modifiers: ShortcutModifier[];
   key: string | null;
@@ -15,6 +34,8 @@ export type AppSettings = {
   autoPaste: boolean;
   launchOnLogin: boolean;
   activationShortcut: ActivationShortcut;
+  appTheme: AppThemeName;
+  customTheme: CustomThemeColors;
 };
 
 export type DictationResult = {

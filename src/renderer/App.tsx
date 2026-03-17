@@ -4,6 +4,8 @@ import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import {
   ActivationShortcut,
   AppSettings,
+  AppThemeName,
+  CustomThemeColors,
   DictationResult,
   ManualDictionaryEntry,
   RuntimeDiscoveryResult,
@@ -14,7 +16,7 @@ import {
   WhisperConfigStatus
 } from "../shared/types";
 
-type TabKey = "dictation" | "profiles" | "stats" | "settings";
+type TabKey = "dictation" | "profiles" | "stats" | "settings" | "help";
 type MicDevice = { deviceId: string; label: string };
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
@@ -33,8 +35,349 @@ const defaultSettings: AppSettings = {
   activeProfileId: null,
   autoPaste: true,
   launchOnLogin: false,
-  activationShortcut: defaultShortcut
+  activationShortcut: defaultShortcut,
+  appTheme: "aurora",
+  customTheme: {
+    primary: "#5ef0ba",
+    secondary: "#54d8ff",
+    tertiary: "#ff77c8"
+  }
 };
+
+type ThemeDefinition = {
+  id: AppThemeName;
+  name: string;
+  accent: string;
+  accentSoft: string;
+  text: string;
+  muted: string;
+  danger: string;
+  panel: string;
+  line: string;
+  bodyBackground: string;
+  appShellBackground: string;
+  sidebarBackground: string;
+  heroBackground: string;
+  statusBackground: string;
+  buttonTop: string;
+  buttonBottom: string;
+  buttonBorder: string;
+  progressTrack: string;
+};
+
+const themes: ThemeDefinition[] = [
+  {
+    id: "aurora",
+    name: "Aurora",
+    accent: "#5ef0ba",
+    accentSoft: "#8bf3ce",
+    text: "#effcf7",
+    muted: "#9fc4bc",
+    danger: "#ff8e76",
+    panel: "rgba(9, 27, 36, 0.88)",
+    line: "rgba(143, 205, 187, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(94, 240, 186, 0.14), transparent 30%), radial-gradient(circle at bottom right, rgba(33, 125, 160, 0.2), transparent 28%), linear-gradient(135deg, #050b0f, #0a1820 42%, #07131a)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(94, 240, 186, 0.08), transparent 24%), linear-gradient(180deg, rgba(6, 16, 22, 0.9), rgba(6, 16, 22, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(4, 12, 16, 0.78), rgba(4, 12, 16, 0.64))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(16, 38, 50, 0.95), rgba(5, 17, 23, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.04)",
+    buttonTop: "rgba(255, 255, 255, 0.045)",
+    buttonBottom: "rgba(255, 255, 255, 0.03)",
+    buttonBorder: "rgba(255, 255, 255, 0.05)",
+    progressTrack: "rgba(255, 255, 255, 0.08)"
+  },
+  {
+    id: "ember",
+    name: "Ember",
+    accent: "#ff8a5b",
+    accentSoft: "#ffb37d",
+    text: "#fff5ee",
+    muted: "#e0b8a6",
+    danger: "#ff6a76",
+    panel: "rgba(41, 18, 13, 0.86)",
+    line: "rgba(255, 148, 104, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(255, 138, 91, 0.2), transparent 30%), radial-gradient(circle at bottom right, rgba(255, 83, 83, 0.16), transparent 28%), linear-gradient(135deg, #120807, #24110d 40%, #1a0d0b)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(255, 138, 91, 0.1), transparent 24%), linear-gradient(180deg, rgba(25, 12, 10, 0.92), rgba(25, 12, 10, 0.22) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(24, 10, 8, 0.8), rgba(24, 10, 8, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(58, 25, 18, 0.96), rgba(27, 12, 10, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(255, 218, 203, 0.065)",
+    buttonBottom: "rgba(255, 218, 203, 0.03)",
+    buttonBorder: "rgba(255, 173, 136, 0.08)",
+    progressTrack: "rgba(255, 227, 215, 0.09)"
+  },
+  {
+    id: "ocean",
+    name: "Ocean",
+    accent: "#54d8ff",
+    accentSoft: "#91ebff",
+    text: "#eefcff",
+    muted: "#9fc6d4",
+    danger: "#ff8f8f",
+    panel: "rgba(8, 29, 40, 0.88)",
+    line: "rgba(116, 205, 235, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(84, 216, 255, 0.16), transparent 30%), radial-gradient(circle at bottom right, rgba(43, 111, 255, 0.18), transparent 28%), linear-gradient(135deg, #041017, #082230 42%, #071824)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(84, 216, 255, 0.1), transparent 24%), linear-gradient(180deg, rgba(5, 18, 27, 0.92), rgba(5, 18, 27, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(4, 14, 21, 0.8), rgba(4, 14, 21, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(13, 40, 56, 0.95), rgba(5, 18, 27, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(231, 248, 255, 0.055)",
+    buttonBottom: "rgba(231, 248, 255, 0.03)",
+    buttonBorder: "rgba(116, 205, 235, 0.08)",
+    progressTrack: "rgba(232, 249, 255, 0.08)"
+  },
+  {
+    id: "rose",
+    name: "Rose",
+    accent: "#ff77c8",
+    accentSoft: "#ff9bdd",
+    text: "#fff1f8",
+    muted: "#d9afc4",
+    danger: "#ff8b8b",
+    panel: "rgba(39, 16, 31, 0.88)",
+    line: "rgba(255, 148, 206, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(255, 119, 200, 0.16), transparent 30%), radial-gradient(circle at bottom right, rgba(191, 104, 255, 0.14), transparent 28%), linear-gradient(135deg, #10070d, #22101d 42%, #170913)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(255, 119, 200, 0.1), transparent 24%), linear-gradient(180deg, rgba(25, 11, 21, 0.92), rgba(25, 11, 21, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(23, 9, 19, 0.8), rgba(23, 9, 19, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(53, 20, 42, 0.95), rgba(24, 10, 20, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(255, 239, 247, 0.055)",
+    buttonBottom: "rgba(255, 239, 247, 0.03)",
+    buttonBorder: "rgba(255, 148, 206, 0.08)",
+    progressTrack: "rgba(255, 239, 247, 0.08)"
+  },
+  {
+    id: "sunset",
+    name: "Sunset",
+    accent: "#ffb04d",
+    accentSoft: "#ffd27d",
+    text: "#fff7eb",
+    muted: "#dbc3a2",
+    danger: "#ff8972",
+    panel: "rgba(45, 27, 11, 0.87)",
+    line: "rgba(255, 191, 113, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(255, 176, 77, 0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(255, 104, 84, 0.16), transparent 28%), linear-gradient(135deg, #120b05, #2a1709 42%, #1a0d06)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(255, 176, 77, 0.1), transparent 24%), linear-gradient(180deg, rgba(28, 16, 8, 0.92), rgba(28, 16, 8, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(26, 14, 6, 0.8), rgba(26, 14, 6, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(58, 33, 12, 0.95), rgba(29, 16, 7, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(255, 245, 226, 0.055)",
+    buttonBottom: "rgba(255, 245, 226, 0.03)",
+    buttonBorder: "rgba(255, 191, 113, 0.08)",
+    progressTrack: "rgba(255, 244, 226, 0.08)"
+  },
+  {
+    id: "violet",
+    name: "Violet",
+    accent: "#a77cff",
+    accentSoft: "#c4a6ff",
+    text: "#f6f1ff",
+    muted: "#c0b3de",
+    danger: "#ff93aa",
+    panel: "rgba(28, 18, 44, 0.88)",
+    line: "rgba(178, 148, 255, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(167, 124, 255, 0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(98, 84, 255, 0.16), transparent 28%), linear-gradient(135deg, #0e0918, #1c1230 42%, #140d24)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(167, 124, 255, 0.1), transparent 24%), linear-gradient(180deg, rgba(19, 12, 34, 0.92), rgba(19, 12, 34, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(17, 10, 29, 0.8), rgba(17, 10, 29, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(38, 24, 66, 0.95), rgba(18, 10, 33, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(244, 239, 255, 0.055)",
+    buttonBottom: "rgba(244, 239, 255, 0.03)",
+    buttonBorder: "rgba(178, 148, 255, 0.08)",
+    progressTrack: "rgba(243, 239, 255, 0.08)"
+  },
+  {
+    id: "forest",
+    name: "Forest",
+    accent: "#6ee58d",
+    accentSoft: "#a0f0b1",
+    text: "#effcf1",
+    muted: "#aac8af",
+    danger: "#ff9a84",
+    panel: "rgba(16, 31, 20, 0.88)",
+    line: "rgba(143, 220, 159, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(110, 229, 141, 0.16), transparent 30%), radial-gradient(circle at bottom right, rgba(57, 154, 87, 0.16), transparent 28%), linear-gradient(135deg, #071009, #122216 42%, #0b160e)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(110, 229, 141, 0.1), transparent 24%), linear-gradient(180deg, rgba(11, 20, 13, 0.92), rgba(11, 20, 13, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(9, 17, 11, 0.8), rgba(9, 17, 11, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(20, 42, 24, 0.95), rgba(9, 18, 12, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(240, 255, 241, 0.055)",
+    buttonBottom: "rgba(240, 255, 241, 0.03)",
+    buttonBorder: "rgba(143, 220, 159, 0.08)",
+    progressTrack: "rgba(240, 255, 241, 0.08)"
+  },
+  {
+    id: "gold",
+    name: "Gold",
+    accent: "#f4cf57",
+    accentSoft: "#ffe088",
+    text: "#fffbe9",
+    muted: "#d9cfaa",
+    danger: "#ff8c77",
+    panel: "rgba(41, 34, 12, 0.88)",
+    line: "rgba(244, 215, 117, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(244, 207, 87, 0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(163, 124, 40, 0.14), transparent 28%), linear-gradient(135deg, #121004, #2a220a 42%, #171205)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(244, 207, 87, 0.1), transparent 24%), linear-gradient(180deg, rgba(23, 19, 7, 0.92), rgba(23, 19, 7, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(20, 17, 6, 0.8), rgba(20, 17, 6, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(49, 41, 12, 0.95), rgba(22, 18, 6, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(255, 251, 233, 0.055)",
+    buttonBottom: "rgba(255, 251, 233, 0.03)",
+    buttonBorder: "rgba(244, 215, 117, 0.08)",
+    progressTrack: "rgba(255, 251, 233, 0.08)"
+  },
+  {
+    id: "arctic",
+    name: "Arctic",
+    accent: "#7df0ff",
+    accentSoft: "#b2f8ff",
+    text: "#f3feff",
+    muted: "#aecbd0",
+    danger: "#ff8b9c",
+    panel: "rgba(15, 30, 34, 0.86)",
+    line: "rgba(158, 232, 242, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(125, 240, 255, 0.16), transparent 30%), radial-gradient(circle at bottom right, rgba(160, 196, 255, 0.14), transparent 28%), linear-gradient(135deg, #071114, #122228 42%, #0c171b)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(125, 240, 255, 0.1), transparent 24%), linear-gradient(180deg, rgba(10, 19, 22, 0.92), rgba(10, 19, 22, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(8, 16, 18, 0.8), rgba(8, 16, 18, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(20, 43, 47, 0.95), rgba(10, 19, 22, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(243, 254, 255, 0.055)",
+    buttonBottom: "rgba(243, 254, 255, 0.03)",
+    buttonBorder: "rgba(158, 232, 242, 0.08)",
+    progressTrack: "rgba(243, 254, 255, 0.08)"
+  },
+  {
+    id: "crimson",
+    name: "Crimson",
+    accent: "#ff5d7a",
+    accentSoft: "#ff8fa1",
+    text: "#fff1f4",
+    muted: "#d8aeb7",
+    danger: "#ffb173",
+    panel: "rgba(39, 12, 20, 0.88)",
+    line: "rgba(255, 125, 149, 0.18)",
+    bodyBackground:
+      "radial-gradient(circle at top left, rgba(255, 93, 122, 0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(255, 152, 86, 0.14), transparent 28%), linear-gradient(135deg, #14060a, #2a0b14 42%, #18070d)",
+    appShellBackground:
+      "radial-gradient(circle at top left, rgba(255, 93, 122, 0.1), transparent 24%), linear-gradient(180deg, rgba(25, 8, 12, 0.92), rgba(25, 8, 12, 0.18) 72px, transparent 120px)",
+    sidebarBackground:
+      "linear-gradient(180deg, rgba(22, 7, 11, 0.8), rgba(22, 7, 11, 0.66))",
+    heroBackground:
+      "linear-gradient(135deg, rgba(54, 16, 27, 0.95), rgba(24, 8, 12, 0.92))",
+    statusBackground: "rgba(255, 255, 255, 0.035)",
+    buttonTop: "rgba(255, 241, 244, 0.055)",
+    buttonBottom: "rgba(255, 241, 244, 0.03)",
+    buttonBorder: "rgba(255, 125, 149, 0.08)",
+    progressTrack: "rgba(255, 241, 244, 0.08)"
+  }
+];
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  const safe = normalized.length === 3
+    ? normalized
+        .split("")
+        .map((part) => part + part)
+        .join("")
+    : normalized;
+
+  const int = Number.parseInt(safe, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255
+  };
+}
+
+function rgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixHex(first: string, second: string, amount = 0.5) {
+  const a = hexToRgb(first);
+  const b = hexToRgb(second);
+  const mix = (left: number, right: number) => Math.round(left + (right - left) * amount);
+  return `#${[mix(a.r, b.r), mix(a.g, b.g), mix(a.b, b.b)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function buildCustomTheme(colors: CustomThemeColors): ThemeDefinition {
+  const accent = colors.primary;
+  const accentSoft = mixHex(colors.primary, colors.secondary, 0.5);
+  const tertiarySoft = mixHex(colors.tertiary, "#ffffff", 0.22);
+  const text = mixHex("#ffffff", colors.secondary, 0.08);
+  const muted = mixHex("#8eaab0", colors.secondary, 0.28);
+  const panelBase = mixHex("#08131a", colors.tertiary, 0.14);
+  const heroStart = mixHex("#0f2531", colors.primary, 0.22);
+  const heroEnd = mixHex("#09161d", colors.secondary, 0.16);
+
+  return {
+    id: "custom",
+    name: "Custom",
+    accent,
+    accentSoft,
+    text,
+    muted,
+    danger: mixHex("#ff8e76", colors.tertiary, 0.25),
+    panel: rgba(panelBase, 0.88),
+    line: rgba(accentSoft, 0.2),
+    bodyBackground:
+      `radial-gradient(circle at top left, ${rgba(accent, 0.16)}, transparent 30%), radial-gradient(circle at bottom right, ${rgba(colors.secondary, 0.18)}, transparent 28%), linear-gradient(135deg, ${mixHex("#050b0f", colors.tertiary, 0.12)}, ${mixHex("#0a1820", colors.primary, 0.14)} 42%, ${mixHex("#07131a", colors.secondary, 0.14)})`,
+    appShellBackground:
+      `radial-gradient(circle at top left, ${rgba(accent, 0.1)}, transparent 24%), linear-gradient(180deg, ${rgba(mixHex("#061018", colors.tertiary, 0.12), 0.92)}, ${rgba(mixHex("#061018", colors.secondary, 0.08), 0.18)} 72px, transparent 120px)`,
+    sidebarBackground:
+      `linear-gradient(180deg, ${rgba(mixHex("#040c10", colors.tertiary, 0.12), 0.8)}, ${rgba(mixHex("#040c10", colors.primary, 0.08), 0.66)})`,
+    heroBackground:
+      `linear-gradient(135deg, ${rgba(heroStart, 0.95)}, ${rgba(heroEnd, 0.92)})`,
+    statusBackground: rgba(tertiarySoft, 0.08),
+    buttonTop: rgba(tertiarySoft, 0.07),
+    buttonBottom: rgba(tertiarySoft, 0.03),
+    buttonBorder: rgba(accentSoft, 0.1),
+    progressTrack: rgba(text, 0.09)
+  };
+}
+
+const themeMap: Record<AppThemeName, ThemeDefinition> = Object.fromEntries(
+  themes.map((theme) => [theme.id, theme])
+) as Record<AppThemeName, ThemeDefinition>;
 
 const defaultStats: UserStats = {
   totalWords: 0,
@@ -143,6 +486,12 @@ export default function App() {
     () => profiles.find((profile) => profile.id === settings.activeProfileId) ?? null,
     [profiles, settings.activeProfileId]
   );
+  const currentTheme = useMemo(
+    () => (settings.appTheme === "custom"
+      ? buildCustomTheme(settings.customTheme)
+      : themeMap[settings.appTheme] ?? themeMap.aurora),
+    [settings.appTheme, settings.customTheme]
+  );
   const transcriptHistoryOptions = [3, 5, 10, 20];
 
   useEffect(() => {
@@ -152,6 +501,28 @@ export default function App() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    root.style.setProperty("--panel", currentTheme.panel);
+    root.style.setProperty("--line", currentTheme.line);
+    root.style.setProperty("--text", currentTheme.text);
+    root.style.setProperty("--muted", currentTheme.muted);
+    root.style.setProperty("--accent", currentTheme.accent);
+    root.style.setProperty("--accent-soft", currentTheme.accentSoft);
+    root.style.setProperty("--danger", currentTheme.danger);
+    root.style.setProperty("--body-background", currentTheme.bodyBackground);
+    root.style.setProperty("--app-shell-background", currentTheme.appShellBackground);
+    root.style.setProperty("--sidebar-background", currentTheme.sidebarBackground);
+    root.style.setProperty("--hero-background", currentTheme.heroBackground);
+    root.style.setProperty("--status-background", currentTheme.statusBackground);
+    root.style.setProperty("--button-top", currentTheme.buttonTop);
+    root.style.setProperty("--button-bottom", currentTheme.buttonBottom);
+    root.style.setProperty("--button-border", currentTheme.buttonBorder);
+    root.style.setProperty("--progress-track", currentTheme.progressTrack);
+    body.style.background = currentTheme.bodyBackground;
+  }, [currentTheme]);
 
   useEffect(() => {
     levelUpAudioRef.current = new Audio(levelUpSoundUrl);
@@ -588,14 +959,24 @@ export default function App() {
             ["dictation", "Dictation"],
             ["profiles", "Voice Profiles"],
             ["stats", "Statistics"],
-            ["settings", "System"]
+            ["settings", "System"],
+            ["help", "Help"]
           ].map(([key, label]) => (
             <button
               key={key}
               className={tab === key ? "nav-button active" : "nav-button"}
               onClick={() => setTab(key as TabKey)}
             >
-              {label}
+              {key === "help" ? (
+                <span className="nav-button-content">
+                  <span className="help-nav-icon" aria-hidden="true">
+                    ?
+                  </span>
+                  <span>{label}</span>
+                </span>
+              ) : (
+                label
+              )}
             </button>
           ))}
         </nav>
@@ -1101,6 +1482,127 @@ export default function App() {
 
               <div className="panel-header">
                 <div>
+                  <p className="eyebrow">Themes</p>
+                  <h3>Application Look</h3>
+                </div>
+              </div>
+              <p className="supporting">
+                Pick a color theme for the whole app. Your choice is saved locally on this device.
+              </p>
+              <div className="theme-grid">
+                {themes.map((theme) => (
+                  <button
+                    key={theme.id}
+                    className={settings.appTheme === theme.id ? "theme-card active" : "theme-card"}
+                    onClick={() => void patchSettings({ appTheme: theme.id })}
+                    type="button"
+                  >
+                    <div className="theme-card-swatches">
+                      <span
+                        className="theme-swatch"
+                        style={{ background: theme.accent }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className="theme-swatch"
+                        style={{ background: theme.accentSoft }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className="theme-swatch theme-swatch-panel"
+                        style={{ background: theme.panel }}
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <strong>{theme.name}</strong>
+                  </button>
+                ))}
+                <div
+                  className={
+                    settings.appTheme === "custom"
+                      ? "theme-card theme-card-custom active"
+                      : "theme-card theme-card-custom"
+                  }
+                >
+                  <button
+                    className="theme-card-button"
+                    onClick={() => void patchSettings({ appTheme: "custom" })}
+                    type="button"
+                  >
+                    <div className="theme-card-swatches">
+                      <span
+                        className="theme-swatch"
+                        style={{ background: settings.customTheme.primary }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className="theme-swatch"
+                        style={{ background: settings.customTheme.secondary }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className="theme-swatch"
+                        style={{ background: settings.customTheme.tertiary }}
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <strong>Custom</strong>
+                  </button>
+                  <div className="custom-theme-editor">
+                    <label className="theme-color-field">
+                      <span>Primary</span>
+                      <input
+                        type="color"
+                        value={settings.customTheme.primary}
+                        onChange={(event) =>
+                          void patchSettings({
+                            appTheme: "custom",
+                            customTheme: {
+                              ...settings.customTheme,
+                              primary: event.target.value
+                            }
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="theme-color-field">
+                      <span>Secondary</span>
+                      <input
+                        type="color"
+                        value={settings.customTheme.secondary}
+                        onChange={(event) =>
+                          void patchSettings({
+                            appTheme: "custom",
+                            customTheme: {
+                              ...settings.customTheme,
+                              secondary: event.target.value
+                            }
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="theme-color-field">
+                      <span>Tertiary</span>
+                      <input
+                        type="color"
+                        value={settings.customTheme.tertiary}
+                        onChange={(event) =>
+                          void patchSettings({
+                            appTheme: "custom",
+                            customTheme: {
+                              ...settings.customTheme,
+                              tertiary: event.target.value
+                            }
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel-header">
+                <div>
                   <p className="eyebrow">System</p>
                   <h3>Background Behavior</h3>
                 </div>
@@ -1162,6 +1664,40 @@ export default function App() {
                 </div>
               </label>
             </section>
+          </section>
+        )}
+        {tab === "help" && (
+          <section className="panel-grid settings-grid">
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">How It Works</p>
+                  <h3>Using WhispARR</h3>
+                </div>
+              </div>
+              <p className="supporting">
+                WhispARR is a resident local dictation app. Once the runtime is installed, the app
+                stays available in the tray and listens for your shortcut anywhere on the computer.
+              </p>
+              <ul className="plain-list">
+                <li>Open `System` once to install the local speech runtime and pick your microphone</li>
+                <li>Set your shortcut if you want something different from `Windows + Control`</li>
+                <li>Hold the shortcut to talk, then release it to transcribe</li>
+                <li>If auto-paste is on, the transcript is pasted back into the app you were using</li>
+                <li>The bottom pill and waveform show when WhispARR is actively hearing your voice</li>
+                <li>Transcript history keeps your recent dictated text ready to copy again</li>
+              </ul>
+              <p className="supporting">
+                Voice Profiles are optional. You can train one by reading the sample paragraph, then
+                WhispARR can use that local voiceprint to better recognize your speech pattern and
+                optionally block dictation from someone else speaking near your microphone.
+              </p>
+              <p className="supporting">
+                Your stats, XP, history, shortcut, selected theme, dictionary rules, and runtime
+                paths are all saved locally on this device so you can close and reopen the app
+                without losing your setup.
+              </p>
+            </section>
             <section className="panel">
               <div className="panel-header">
                 <div>
@@ -1175,15 +1711,17 @@ export default function App() {
                 <li>Bundled or auto-discovered runtime paths</li>
                 <li>Whisper binary and model paths</li>
                 <li>Voice profile embeddings and verification settings</li>
+                <li>Manual dictionary corrections and transcript history</li>
                 <li>Clipboard-based paste insertion after local transcription</li>
               </ul>
               <p className="supporting">
-                This is a close local-first recreation of the workflow, but without copying any
-                proprietary branding, cloud services, or closed-source internals.
+                WhispARR is built to run locally on your computer. Dictation, history, voice
+                training, theme choices, and stats remain on the device instead of being sent to a
+                remote service.
               </p>
               <p className="supporting">
                 For packaged releases, place the runtime under `runtime/bin` and `runtime/models`
-                before building so the installer ships with everything preloaded.
+                before building so the installer can ship with everything preloaded.
               </p>
             </section>
           </section>

@@ -4,7 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ActivationShortcut,
+  AppThemeName,
   AppSettings,
+  CustomThemeColors,
   LocalData,
   ManualDictionaryEntry,
   SaveVoiceProfileInput,
@@ -18,6 +20,13 @@ const defaultActivationShortcut: ActivationShortcut = {
   key: null
 };
 
+const defaultAppTheme: AppThemeName = "aurora";
+const defaultCustomTheme: CustomThemeColors = {
+  primary: "#5ef0ba",
+  secondary: "#54d8ff",
+  tertiary: "#ff77c8"
+};
+
 const defaultSettings: AppSettings = {
   selectedMicId: null,
   whisperBinaryPath: "",
@@ -27,7 +36,9 @@ const defaultSettings: AppSettings = {
   activeProfileId: null,
   autoPaste: true,
   launchOnLogin: false,
-  activationShortcut: defaultActivationShortcut
+  activationShortcut: defaultActivationShortcut,
+  appTheme: defaultAppTheme,
+  customTheme: defaultCustomTheme
 };
 
 const defaultData: LocalData = {

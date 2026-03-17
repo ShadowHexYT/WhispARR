@@ -26,6 +26,32 @@ function applyManualDictionary(
     }, transcript);
 }
 
+function normalizeTranscript(transcript: string) {
+  const trimmed = transcript.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const simplified = trimmed
+    .toLowerCase()
+    .replace(/[\[\](){}"'.!?,-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const silentPhrases = new Set([
+    "silence",
+    "blank audio",
+    "says nothing",
+    "said nothing",
+    "no speech",
+    "no audio",
+    "nothing",
+    "empty audio"
+  ]);
+
+  return silentPhrases.has(simplified) ? "" : trimmed;
+}
+
 function writeWavFile(filePath: string, pcm: number[], sampleRate: number) {
   const numChannels = 1;
   const bitsPerSample = 16;
@@ -112,7 +138,9 @@ export async function transcribeLocally(args: {
   const rawTranscript = fs.existsSync(outputPath)
     ? fs.readFileSync(outputPath, "utf8").trim()
     : "";
-  const transcript = applyManualDictionary(rawTranscript, args.manualDictionary);
+  const transcript = normalizeTranscript(
+    applyManualDictionary(rawTranscript, args.manualDictionary)
+  );
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 

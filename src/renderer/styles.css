@@ -23,6 +23,27 @@ body {
     radial-gradient(circle at bottom right, rgba(33, 125, 160, 0.2), transparent 28%),
     linear-gradient(135deg, #050b0f, #0a1820 42%, #07131a);
   color: var(--text);
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar,
+.app-shell::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+html,
+body,
+#root,
+.app-shell,
+.sidebar,
+.content {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 button,
@@ -355,9 +376,9 @@ select option:active,
 select option[selected],
 select option:hover,
 select option:focus {
-  background: #173746;
+  background: #10242d;
   color: #effcf7;
-  box-shadow: inset 0 0 0 9999px #173746;
+  box-shadow: inset 0 0 0 9999px #10242d;
 }
 
 select option:disabled {

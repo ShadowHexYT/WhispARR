@@ -178,12 +178,18 @@ export function writeData(data: LocalData) {
 
 export function updateSettings(patch: Partial<AppSettings>) {
   const current = readData();
+  const nextTranscriptHistoryLimit = Math.max(
+    1,
+    Math.round(patch.transcriptHistoryLimit ?? current.settings.transcriptHistoryLimit)
+  );
   const next = {
     ...current,
     settings: {
       ...current.settings,
-      ...patch
-    }
+      ...patch,
+      transcriptHistoryLimit: nextTranscriptHistoryLimit
+    },
+    transcriptHistory: current.transcriptHistory.slice(0, nextTranscriptHistoryLimit)
   };
   writeData(next);
   return next.settings;

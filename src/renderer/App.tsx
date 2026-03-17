@@ -1129,12 +1129,38 @@ export default function App() {
 
     const timeout = window.setTimeout(() => {
       void window.wisprApi.saveNotes(notesRef.current);
-    }, 250);
+    }, 100);
 
     return () => {
       window.clearTimeout(timeout);
     };
   }, [notes]);
+
+  useEffect(() => {
+    function flushNotesIfNeeded() {
+      if (!hasLoadedInitialDataRef.current) {
+        return;
+      }
+
+      void window.wisprApi.saveNotes(notesRef.current);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        flushNotesIfNeeded();
+      }
+    }
+
+    window.addEventListener("beforeunload", flushNotesIfNeeded);
+    window.addEventListener("pagehide", flushNotesIfNeeded);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", flushNotesIfNeeded);
+      window.removeEventListener("pagehide", flushNotesIfNeeded);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const visible = recorder.state === "recording" || settings.alwaysShowPill || isPreviewingHudScale;
@@ -2020,7 +2046,7 @@ export default function App() {
   }
 
   async function saveNotesNow() {
-    await window.wisprApi.saveNotes(notes);
+    await window.wisprApi.saveNotes(notesRef.current);
     setStatus("Notes saved locally.");
   }
 

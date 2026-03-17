@@ -3,6 +3,8 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  AchievementSyncResult,
+  AchievementUnlockInput,
   ActivationShortcut,
   AppThemeName,
   AppSettings,
@@ -62,6 +64,7 @@ const defaultData: LocalData = {
     currentStreakDays: 0,
     lastUsedOn: null
   },
+  unlockedAchievements: [],
   transcriptHistory: [],
   notes: "",
   savedNotes: []
@@ -115,6 +118,11 @@ export function readData(): LocalData {
         ...defaultData.stats,
         ...parsed.stats
       },
+      unlockedAchievements: Array.isArray((parsed as { unlockedAchievements?: unknown }).unlockedAchievements)
+        ? ((parsed as { unlockedAchievements?: unknown[] }).unlockedAchievements ?? []).filter(
+            (entry): entry is string => typeof entry === "string"
+          )
+        : [],
       manualDictionary: Array.isArray(parsed.manualDictionary)
         ? parsed.manualDictionary.filter(
             (entry): entry is ManualDictionaryEntry =>
@@ -317,6 +325,36 @@ export function updateStatsFromTranscript(transcript: string): UserStats {
 
   writeData(current);
   return current.stats;
+}
+
+export function syncAchievementUnlocks(unlocked: AchievementUnlockInput[]): AchievementSyncResult {
+  const current = readData();
+  const known = new Set(current.unlockedAchievements);
+  const newlyUnlocked: string[] = [];
+  let xpAward = 0;
+
+  for (const achievement of unlocked) {
+    if (!achievement.title || known.has(achievement.title)) {
+      continue;
+    }
+
+    known.add(achievement.title);
+    newlyUnlocked.push(achievement.title);
+    xpAward += Math.max(0, Math.round(achievement.xp));
+  }
+
+  if (newlyUnlocked.length > 0) {
+    current.unlockedAchievements = [...current.unlockedAchievements, ...newlyUnlocked];
+    current.stats.totalXp += xpAward;
+    current.stats.currentLevel = getLevelFromXp(current.stats.totalXp);
+    writeData(current);
+  }
+
+  return {
+    unlockedAchievements: current.unlockedAchievements,
+    newlyUnlocked,
+    stats: current.stats
+  };
 }
 
 export function saveTranscriptHistory(history: string[], limit: number) {

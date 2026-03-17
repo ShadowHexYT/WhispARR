@@ -22,6 +22,7 @@ import {
   saveSavedNotes,
   saveVoiceProfile,
   saveTranscriptHistory,
+  syncAchievementUnlocks,
   updateSettings,
   updateStatsFromTranscript
 } from "./storage";
@@ -29,6 +30,7 @@ import { discoverRuntime, installRuntime } from "./runtime";
 import { getWhisperConfigStatus, transcribeLocally } from "./whisper";
 import { checkForAppUpdates, downloadAppUpdate } from "./updates";
 import {
+  AchievementUnlockInput,
   ActivationShortcut,
   AppThemeName,
   AppSettings,
@@ -811,6 +813,9 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("stats:track-transcript", (_event, transcript: string) => {
     return updateStatsFromTranscript(transcript);
+  });
+  ipcMain.handle("achievements:sync", (_event, unlocked: AchievementUnlockInput[]) => {
+    return syncAchievementUnlocks(unlocked);
   });
   ipcMain.handle("history:save", (_event, history: string[], limit: number) => {
     return saveTranscriptHistory(history, limit);

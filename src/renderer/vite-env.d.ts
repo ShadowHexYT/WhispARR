@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 import {
+  AchievementSyncResult,
+  AchievementUnlockInput,
   AppDiagnostics,
   AppUpdateInfo,
   AppSettings,
@@ -37,6 +39,7 @@ declare global {
       downloadAndInstallAppUpdate: () => Promise<string>;
       transcribe: (sample: TrainingSample) => Promise<DictationResult>;
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
+      syncAchievements: (unlocked: AchievementUnlockInput[]) => Promise<AchievementSyncResult>;
       saveTranscriptHistory: (history: string[], limit: number) => Promise<string[]>;
       saveNotes: (notes: string) => Promise<string>;
       saveSavedNotes: (savedNotes: string[]) => Promise<string[]>;

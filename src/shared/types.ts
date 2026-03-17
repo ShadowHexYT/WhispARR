@@ -102,11 +102,23 @@ export type UserStats = {
   lastUsedOn: string | null;
 };
 
+export type AchievementUnlockInput = {
+  title: string;
+  xp: number;
+};
+
+export type AchievementSyncResult = {
+  unlockedAchievements: string[];
+  newlyUnlocked: string[];
+  stats: UserStats;
+};
+
 export type LocalData = {
   settings: AppSettings;
   voiceProfiles: VoiceProfile[];
   manualDictionary: ManualDictionaryEntry[];
   stats: UserStats;
+  unlockedAchievements: string[];
   transcriptHistory: string[];
   notes: string;
   savedNotes: string[];

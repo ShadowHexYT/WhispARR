@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  AchievementSyncResult,
+  AchievementUnlockInput,
   AppDiagnostics,
   AppUpdateInfo,
   AppSettings,
@@ -37,6 +39,8 @@ contextBridge.exposeInMainWorld("wisprApi", {
   transcribe: (sample: TrainingSample) => ipcRenderer.invoke("dictation:transcribe", sample),
   trackTranscriptStats: (transcript: string) =>
     ipcRenderer.invoke("stats:track-transcript", transcript) as Promise<UserStats>,
+  syncAchievements: (unlocked: AchievementUnlockInput[]) =>
+    ipcRenderer.invoke("achievements:sync", unlocked) as Promise<AchievementSyncResult>,
   saveTranscriptHistory: (history: string[], limit: number) =>
     ipcRenderer.invoke("history:save", history, limit) as Promise<string[]>,
   saveNotes: (notes: string) => ipcRenderer.invoke("notes:save", notes) as Promise<string>,

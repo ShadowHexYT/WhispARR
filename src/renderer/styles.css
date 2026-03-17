@@ -841,6 +841,13 @@ select option:disabled {
   flex-wrap: wrap;
 }
 
+.button-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
 .button-row.compact {
   gap: 8px;
 }
@@ -1538,6 +1545,24 @@ select option:disabled {
   background: linear-gradient(90deg, var(--accent), var(--accent-soft));
   box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
   transition: width 0.35s ease;
+}
+
+.status-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.status-light.green {
+  background: #5ef0ba;
+  box-shadow: 0 0 12px rgba(94, 240, 186, 0.7);
+}
+
+.status-light.red {
+  background: #ff7d7d;
+  box-shadow: 0 0 12px rgba(255, 125, 125, 0.68);
 }
 
 .theme-card-button {

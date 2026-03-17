@@ -1860,6 +1860,14 @@ export default function App() {
   const xpRemainingToNextLevel = Math.max(0, nextLevelThreshold - stats.totalXp);
   const currentOnboardingStep = onboardingSteps[onboardingStep];
   const runtimeReady = whisperStatus.binaryExists && whisperStatus.modelExists;
+  const runtimeInstallHealthy = runtimeReady && runtimeInstallTone !== "error";
+  const runtimeAutoFindHealthy = runtimeReady && runtimeAutoFindTone !== "error";
+  const showRuntimeDetails =
+    !runtimeReady ||
+    isInstallingRuntime ||
+    isAutoFindingRuntime ||
+    runtimeInstallTone === "error" ||
+    runtimeAutoFindTone === "error";
   const microphoneReady = devices.length > 0;
   const shortcutReady =
     settings.activationShortcut.modifiers.length > 0 || Boolean(settings.activationShortcut.key);
@@ -2923,33 +2931,6 @@ export default function App() {
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
                 </div>
-                <div className="settings-slider-card active">
-                  <div className="settings-slider-copy">
-                    <strong>Bubble size</strong>
-                    <p>Adjusts the pill size incrementally so you can make it smaller or larger on screen.</p>
-                  </div>
-                  <div className="bounce-slider-shell">
-                    <div className="bounce-slider-readout">
-                      <span>Smaller</span>
-                      <strong>{hudScale}%</strong>
-                      <span>Larger</span>
-                    </div>
-                    <ElasticSettingSlider
-                      ariaLabel="Bubble size"
-                      value={hudScale}
-                      min={60}
-                      max={160}
-                      leftIcon={<Minimize2 size={18} />}
-                      rightIcon={<Maximize2 size={18} />}
-                      onChange={(nextValue) => {
-                        previewHudScale();
-                        void patchSettings({
-                          hudScale: clampHudScale(nextValue)
-                        });
-                      }}
-                    />
-                  </div>
-                </div>
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
                     <strong>Dictation sounds</strong>
@@ -2967,32 +2948,6 @@ export default function App() {
                   >
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
-                </div>
-                <div
-                  className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
-                  aria-disabled={settings.muteDictationSounds}
-                >
-                  <div className="settings-slider-copy">
-                    <strong>Application sound volume</strong>
-                    <p>Adjusts the volume for HUD cues, level-up audio, and other built-in app sounds.</p>
-                  </div>
-                  <div className="bounce-slider-shell">
-                    <div className="bounce-slider-readout">
-                      <span>Quiet</span>
-                      <strong>{appSoundVolume}%</strong>
-                      <span>Loud</span>
-                    </div>
-                    <ElasticSettingSlider
-                      ariaLabel="Application sound volume"
-                      value={appSoundVolume}
-                      disabled={settings.muteDictationSounds}
-                      onChange={(nextValue) =>
-                        void patchSettings({
-                          appSoundVolume: clampSoundVolume(nextValue)
-                        })
-                      }
-                    />
-                  </div>
                 </div>
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
@@ -3189,12 +3144,24 @@ export default function App() {
                   <h3>Speech Runtime Setup</h3>
                 </div>
               </div>
+              <div className={runtimeReady ? "runtime-feedback-card success" : "runtime-feedback-card error"}>
+                <div className="runtime-feedback-header">
+                  <strong>Engine status</strong>
+                  <span>{runtimeReady ? "Ready" : "Needs attention"}</span>
+                </div>
+                <p className="supporting">
+                  {runtimeReady
+                    ? "Local engine is good to go and is working."
+                    : "Local engine still needs setup or a fix before dictation can run reliably."}
+                </p>
+              </div>
               <div className="button-row">
                 <button
                   className="primary-button"
                   onClick={() => void installEverything()}
                   disabled={isInstallingRuntime}
                 >
+                  <span className={runtimeInstallHealthy ? "status-light green" : "status-light red"} aria-hidden="true" />
                   {isInstallingRuntime ? "Installing..." : "Install everything"}
                 </button>
                 <button
@@ -3202,110 +3169,117 @@ export default function App() {
                   onClick={() => void autoConfigureRuntime()}
                   disabled={isAutoFindingRuntime || isInstallingRuntime}
                 >
+                  <span className={runtimeAutoFindHealthy ? "status-light green" : "status-light red"} aria-hidden="true" />
                   {isAutoFindingRuntime ? "Scanning..." : "Auto-find runtime"}
                 </button>
               </div>
-              <p className="supporting">
-                `Install everything` now downloads the local speech runtime, configures the
-                binary and model paths automatically, and runs a local verification check before
-                reporting success. Packaged builds can also ship the runtime already embedded, and
-                the app will auto-detect it on launch.
-              </p>
-              {(isInstallingRuntime || runtimeInstallMessage) && (
-                <div
-                  className={
-                    runtimeInstallTone === "success"
-                      ? "runtime-feedback-card success"
-                      : runtimeInstallTone === "error"
-                        ? "runtime-feedback-card error"
-                        : "runtime-feedback-card"
-                  }
-                >
-                  <div className="runtime-feedback-header">
-                    <strong>Install everything</strong>
-                    <span>{runtimeInstallProgress}%</span>
-                  </div>
-                  <div className="runtime-progress-track" aria-hidden="true">
+              {showRuntimeDetails ? (
+                <>
+                  <p className="supporting">
+                    `Install everything` downloads the local speech runtime, configures the binary and
+                    model paths automatically, and runs a verification check before reporting success.
+                  </p>
+                  {(isInstallingRuntime || runtimeInstallMessage) && (
                     <div
-                      className="runtime-progress-fill"
-                      style={{ width: `${Math.max(6, runtimeInstallProgress)}%` }}
-                    />
+                      className={
+                        runtimeInstallTone === "success"
+                          ? "runtime-feedback-card success"
+                          : runtimeInstallTone === "error"
+                            ? "runtime-feedback-card error"
+                            : "runtime-feedback-card"
+                      }
+                    >
+                      <div className="runtime-feedback-header">
+                        <strong>Install everything</strong>
+                        <span>{runtimeInstallProgress}%</span>
+                      </div>
+                      <div className="runtime-progress-track" aria-hidden="true">
+                        <div
+                          className="runtime-progress-fill"
+                          style={{ width: `${Math.max(6, runtimeInstallProgress)}%` }}
+                        />
+                      </div>
+                      <p className="supporting">{runtimeInstallStage}</p>
+                      {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
+                    </div>
+                  )}
+                  {(isAutoFindingRuntime || runtimeAutoFindMessage) && (
+                    <div
+                      className={
+                        runtimeAutoFindTone === "success"
+                          ? "runtime-feedback-card success"
+                          : runtimeAutoFindTone === "error"
+                            ? "runtime-feedback-card error"
+                            : "runtime-feedback-card"
+                      }
+                    >
+                      <div className="runtime-feedback-header">
+                        <strong>Auto-find runtime</strong>
+                        <span>
+                          {runtimeAutoFindTone === "success"
+                            ? "Success"
+                            : runtimeAutoFindTone === "error"
+                              ? "Failed"
+                              : "Working"}
+                        </span>
+                      </div>
+                      <p className="supporting">{runtimeAutoFindMessage}</p>
+                    </div>
+                  )}
+                  {runtimeDiscovery?.selected && (
+                    <p className="supporting">
+                      Active match: <strong>{runtimeDiscovery.selected.source}</strong>
+                    </p>
+                  )}
+                  {runtimeDiscovery && runtimeDiscovery.candidates.length > 1 && (
+                    <p className="supporting">
+                      Additional matches found: <strong>{runtimeDiscovery.candidates.length - 1}</strong>
+                    </p>
+                  )}
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Engine</p>
+                      <h3>whisper.cpp Paths</h3>
+                    </div>
                   </div>
-                  <p className="supporting">{runtimeInstallStage}</p>
-                  {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
-                </div>
-              )}
-              {(isAutoFindingRuntime || runtimeAutoFindMessage) && (
-                <div
-                  className={
-                    runtimeAutoFindTone === "success"
-                      ? "runtime-feedback-card success"
-                      : runtimeAutoFindTone === "error"
-                        ? "runtime-feedback-card error"
-                        : "runtime-feedback-card"
-                  }
-                >
-                  <div className="runtime-feedback-header">
-                    <strong>Auto-find runtime</strong>
-                    <span>
-                      {runtimeAutoFindTone === "success"
-                        ? "Success"
-                        : runtimeAutoFindTone === "error"
-                          ? "Failed"
-                          : "Working"}
-                    </span>
-                  </div>
-                  <p className="supporting">{runtimeAutoFindMessage}</p>
-                </div>
-              )}
-              {runtimeDiscovery?.selected && (
+                  <label className="field">
+                    <span>Local binary</span>
+                    <div className="path-field">
+                      <input
+                        value={settings.whisperBinaryPath}
+                        readOnly
+                        placeholder="Path to main binary"
+                      />
+                      <button
+                        className="ghost-button"
+                        onClick={() => void chooseFile("whisperBinaryPath")}
+                      >
+                        Browse
+                      </button>
+                    </div>
+                  </label>
+                  <label className="field">
+                    <span>Local model</span>
+                    <div className="path-field">
+                      <input
+                        value={settings.whisperModelPath}
+                        readOnly
+                        placeholder="Path to GGML model"
+                      />
+                      <button
+                        className="ghost-button"
+                        onClick={() => void chooseFile("whisperModelPath")}
+                      >
+                        Browse
+                      </button>
+                    </div>
+                  </label>
+                </>
+              ) : (
                 <p className="supporting">
-                  Active match: <strong>{runtimeDiscovery.selected.source}</strong>
+                  Everything is configured correctly. You are good to go and the local engine is working.
                 </p>
               )}
-              {runtimeDiscovery && runtimeDiscovery.candidates.length > 1 && (
-                <p className="supporting">
-                  Additional matches found: <strong>{runtimeDiscovery.candidates.length - 1}</strong>
-                </p>
-              )}
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Engine</p>
-                  <h3>whisper.cpp Paths</h3>
-                </div>
-              </div>
-              <label className="field">
-                <span>Local binary</span>
-                <div className="path-field">
-                  <input
-                    value={settings.whisperBinaryPath}
-                    readOnly
-                    placeholder="Path to main binary"
-                  />
-                  <button
-                    className="ghost-button"
-                    onClick={() => void chooseFile("whisperBinaryPath")}
-                  >
-                    Browse
-                  </button>
-                </div>
-              </label>
-              <label className="field">
-                <span>Local model</span>
-                <div className="path-field">
-                  <input
-                    value={settings.whisperModelPath}
-                    readOnly
-                    placeholder="Path to GGML model"
-                  />
-                  <button
-                    className="ghost-button"
-                    onClick={() => void chooseFile("whisperModelPath")}
-                  >
-                    Browse
-                  </button>
-                </div>
-              </label>
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Updates</p>
@@ -3353,6 +3327,65 @@ export default function App() {
                   {appUpdateInfo?.message ??
                     "No update check has been run yet. This works after a GitHub releases repo is configured for the app."}
                 </p>
+              </div>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Fine Tune</p>
+                  <h3>Bubble And Sound Sliders</h3>
+                </div>
+              </div>
+              <div className="settings-slider-card active">
+                <div className="settings-slider-copy">
+                  <strong>Bubble size</strong>
+                  <p>Adjusts the pill size incrementally so you can make it smaller or larger on screen.</p>
+                </div>
+                <div className="bounce-slider-shell">
+                  <div className="bounce-slider-readout">
+                    <span>Smaller</span>
+                    <strong>{hudScale}%</strong>
+                    <span>Larger</span>
+                  </div>
+                  <ElasticSettingSlider
+                    ariaLabel="Bubble size"
+                    value={hudScale}
+                    min={60}
+                    max={160}
+                    leftIcon={<Minimize2 size={18} />}
+                    rightIcon={<Maximize2 size={18} />}
+                    onChange={(nextValue) => {
+                      previewHudScale();
+                      void patchSettings({
+                        hudScale: clampHudScale(nextValue)
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+              <div
+                className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
+                aria-disabled={settings.muteDictationSounds}
+              >
+                <div className="settings-slider-copy">
+                  <strong>Application sound volume</strong>
+                  <p>Adjusts the volume for HUD cues, level-up audio, and other built-in app sounds.</p>
+                </div>
+                <div className="bounce-slider-shell">
+                  <div className="bounce-slider-readout">
+                    <span>Quiet</span>
+                    <strong>{appSoundVolume}%</strong>
+                    <span>Loud</span>
+                  </div>
+                  <ElasticSettingSlider
+                    ariaLabel="Application sound volume"
+                    value={appSoundVolume}
+                    disabled={settings.muteDictationSounds}
+                    onChange={(nextValue) =>
+                      void patchSettings({
+                        appSoundVolume: clampSoundVolume(nextValue)
+                      })
+                    }
+                  />
+                </div>
               </div>
             </section>
           </section>

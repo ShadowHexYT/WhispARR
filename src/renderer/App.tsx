@@ -2537,37 +2537,32 @@ export default function App() {
                     "No update check has been run yet. This works after a GitHub releases repo is configured for the app."}
                 </p>
               </div>
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Developer</p>
-                  <h3>Developer Mode</h3>
-                </div>
-              </div>
-              <div className="update-status-card">
-                <p className="supporting">
-                  Status: <strong>{settings.devModeUnlocked ? "Unlocked" : "Locked"}</strong>
-                </p>
-                <p className="supporting">
-                  {settings.devModeUnlocked
-                    ? settings.devModeEnabled
-                      ? "Developer mode is on."
-                      : "Developer mode is off."
-                    : "Click the app icon or name in the top-left corner 20 times to unlock it."}
-                </p>
-                {settings.devModeUnlocked && (
-                  <div className="button-row">
-                    <button
-                      className={settings.devModeEnabled ? "primary-button" : "secondary-button"}
-                      type="button"
-                      onClick={() =>
-                        void patchSettings({ devModeEnabled: !settings.devModeEnabled })
-                      }
-                    >
-                      {settings.devModeEnabled ? "Turn developer mode off" : "Turn developer mode on"}
-                    </button>
+              {settings.devModeUnlocked && (
+                <>
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Developer</p>
+                      <h3>Developer Mode</h3>
+                    </div>
                   </div>
-                )}
-              </div>
+                  <div className="update-status-card">
+                    <p className="supporting">
+                      Status: <strong>{settings.devModeEnabled ? "On" : "Off"}</strong>
+                    </p>
+                    <div className="button-row">
+                      <button
+                        className={settings.devModeEnabled ? "primary-button" : "secondary-button"}
+                        type="button"
+                        onClick={() =>
+                          void patchSettings({ devModeEnabled: !settings.devModeEnabled })
+                        }
+                      >
+                        {settings.devModeEnabled ? "Turn developer mode off" : "Turn developer mode on"}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
               {settings.devModeUnlocked && settings.devModeEnabled && (
                 <div className="dev-mode-panel">
                   <div className="dev-mode-grid">

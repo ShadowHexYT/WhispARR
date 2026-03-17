@@ -33,6 +33,7 @@ type MicDevice = { deviceId: string; label: string };
 type StatusLogEntry = { timestamp: string; message: string };
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
+const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
 
 const defaultShortcut: ActivationShortcut = {
   modifiers: ["meta", "ctrl"],
@@ -590,6 +591,7 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [celebratingLevel, setCelebratingLevel] = useState<number | null>(null);
   const [isDevModeUnlockCelebrationVisible, setIsDevModeUnlockCelebrationVisible] = useState(false);
+  const [isRetroModeEnabled, setIsRetroModeEnabled] = useState(() => window.localStorage.getItem("whisparr-retro-mode") === "true");
   const [appDiagnostics, setAppDiagnostics] = useState<AppDiagnostics | null>(null);
   const [statusLogs, setStatusLogs] = useState<StatusLogEntry[]>([]);
   const [status, setStatus] = useState("Loading local workspace...");
@@ -618,6 +620,7 @@ export default function App() {
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const brandClickCountRef = useRef(0);
+  const konamiProgressRef = useRef(0);
   const lastLoggedStatusRef = useRef("");
   const activeProfileRef = useRef<VoiceProfile | null>(null);
   const settingsRef = useRef<AppSettings>(defaultSettings);
@@ -686,6 +689,32 @@ export default function App() {
       setAppDiagnostics(null);
     });
   }, [settings.devModeUnlocked]);
+
+  useEffect(() => {
+    window.localStorage.setItem("whisparr-retro-mode", String(isRetroModeEnabled));
+  }, [isRetroModeEnabled]);
+
+  useEffect(() => {
+    function handleKonamiCode(event: KeyboardEvent) {
+      const expectedKey = konamiSequence[konamiProgressRef.current];
+      const normalizedKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+      if (normalizedKey === expectedKey) {
+        konamiProgressRef.current += 1;
+        if (konamiProgressRef.current === konamiSequence.length) {
+          konamiProgressRef.current = 0;
+          setIsRetroModeEnabled(true);
+          setStatus("Retro mode unlocked.");
+        }
+        return;
+      }
+
+      konamiProgressRef.current = normalizedKey === konamiSequence[0] ? 1 : 0;
+    }
+
+    window.addEventListener("keydown", handleKonamiCode);
+    return () => window.removeEventListener("keydown", handleKonamiCode);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1432,7 +1461,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={isRetroModeEnabled ? "app-shell retro-mode" : "app-shell"}>
       <div className="titlebar-drag" aria-hidden="true" />
       <aside className="sidebar">
         <div>
@@ -1481,6 +1510,18 @@ export default function App() {
             </button>
           ))}
         </nav>
+        {isRetroModeEnabled && (
+          <button
+            className="secondary-button retro-exit-button"
+            type="button"
+            onClick={() => {
+              setIsRetroModeEnabled(false);
+              setStatus("Retro mode disabled.");
+            }}
+          >
+            Exit retro mode
+          </button>
+        )}
       </aside>
       <main className="content">
         <section className="top-stats">

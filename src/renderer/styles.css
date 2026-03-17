@@ -90,6 +90,8 @@ textarea {
 }
 
 .sidebar {
+  display: flex;
+  flex-direction: column;
   margin-top: calc(-1 * env(titlebar-area-height, 0px));
   padding: calc(env(titlebar-area-height, 0px) + 28px) 28px 36px;
   border-right: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
@@ -165,6 +167,38 @@ textarea {
   display: grid;
   gap: 10px;
   margin: 24px 0;
+}
+
+.retro-mode,
+.retro-mode button,
+.retro-mode input,
+.retro-mode select,
+.retro-mode textarea {
+  font-family: "Press Start 2P", "Pixelify Sans", "VT323", "Courier New", monospace;
+}
+
+.retro-mode .eyebrow,
+.retro-mode .supporting,
+.retro-mode .status-pill,
+.retro-mode .nav-button,
+.retro-mode .panel,
+.retro-mode .top-stat,
+.retro-mode .bottom-level-bar-meta {
+  letter-spacing: 0.03em;
+}
+
+.retro-mode .sidebar,
+.retro-mode .panel,
+.retro-mode .top-stat,
+.retro-mode .update-status-card,
+.retro-mode .nav-button {
+  image-rendering: pixelated;
+}
+
+.retro-exit-button {
+  width: 100%;
+  margin-top: auto;
+  margin-bottom: 18px;
 }
 
 .nav-button,

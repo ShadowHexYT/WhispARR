@@ -5,6 +5,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  Notification,
   Tray,
   nativeImage,
   screen,
@@ -411,41 +412,87 @@ function normalizeWordForLearning(word: string) {
   return word.toLowerCase().replace(/[^a-z0-9'-]+/g, "");
 }
 
+function levenshteinDistance(left: string, right: string) {
+  const rows = left.length + 1;
+  const cols = right.length + 1;
+  const dp = Array.from({ length: rows }, () => new Array<number>(cols).fill(0));
+
+  for (let row = 0; row < rows; row += 1) {
+    dp[row][0] = row;
+  }
+
+  for (let col = 0; col < cols; col += 1) {
+    dp[0][col] = col;
+  }
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let col = 1; col < cols; col += 1) {
+      const cost = left[row - 1] === right[col - 1] ? 0 : 1;
+      dp[row][col] = Math.min(
+        dp[row - 1][col] + 1,
+        dp[row][col - 1] + 1,
+        dp[row - 1][col - 1] + cost
+      );
+    }
+  }
+
+  return dp[left.length][right.length];
+}
+
+function shouldLearnCorrectedWord(originalWord: string, correctedWord: string) {
+  const normalizedOriginal = normalizeWordForLearning(originalWord);
+  const normalizedCorrected = normalizeWordForLearning(correctedWord);
+
+  if (
+    !normalizedOriginal ||
+    !normalizedCorrected ||
+    normalizedOriginal === normalizedCorrected ||
+    normalizedCorrected.length < 3
+  ) {
+    return false;
+  }
+
+  const distance = levenshteinDistance(normalizedOriginal, normalizedCorrected);
+  const maxLength = Math.max(normalizedOriginal.length, normalizedCorrected.length);
+  const allowedDistance = Math.max(1, Math.min(3, Math.floor(maxLength * 0.34)));
+  const sameFirstLetter = normalizedOriginal[0] === normalizedCorrected[0];
+  const similarLength = Math.abs(normalizedOriginal.length - normalizedCorrected.length) <= 3;
+
+  return distance <= allowedDistance && (sameFirstLetter || distance <= 1) && similarLength;
+}
+
 function getLearnableWords(originalTranscript: string, correctedTranscript: string) {
   const originalWords = originalTranscript.match(/[A-Za-z0-9'-]+/g) ?? [];
   const correctedWords = correctedTranscript.match(/[A-Za-z0-9'-]+/g) ?? [];
 
-  if (
-    originalWords.length === 0 ||
-    correctedWords.length === 0 ||
-    Math.abs(originalWords.length - correctedWords.length) >
-      Math.max(4, Math.floor(originalWords.length * 0.35))
-  ) {
+  if (originalWords.length === 0 || correctedWords.length === 0) {
     return [];
   }
 
   const learnableTerms = new Set<string>();
-  const comparisons = Math.min(originalWords.length, correctedWords.length);
+  const comparisons = correctedWords.length;
 
   for (let index = 0; index < comparisons; index += 1) {
-    const originalWord = originalWords[index] ?? "";
     const correctedWord = correctedWords[index] ?? "";
-    const normalizedOriginal = normalizeWordForLearning(originalWord);
-    const normalizedCorrected = normalizeWordForLearning(correctedWord);
+    let bestOriginalWord = "";
+    let bestDistance = Number.POSITIVE_INFINITY;
 
-    if (
-      !normalizedOriginal ||
-      !normalizedCorrected ||
-      normalizedOriginal === normalizedCorrected ||
-      normalizedCorrected.length < 3
-    ) {
-      continue;
+    for (let offset = -2; offset <= 2; offset += 1) {
+      const originalWord = originalWords[index + offset] ?? "";
+      const normalizedOriginal = normalizeWordForLearning(originalWord);
+      const normalizedCorrected = normalizeWordForLearning(correctedWord);
+      if (!normalizedOriginal || !normalizedCorrected) {
+        continue;
+      }
+
+      const distance = levenshteinDistance(normalizedOriginal, normalizedCorrected);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestOriginalWord = originalWord;
+      }
     }
 
-    const samePrefix = normalizedOriginal[0] === normalizedCorrected[0];
-    const similarLength = Math.abs(normalizedOriginal.length - normalizedCorrected.length) <= 3;
-
-    if (samePrefix && similarLength) {
+    if (bestOriginalWord && shouldLearnCorrectedWord(bestOriginalWord, correctedWord)) {
       learnableTerms.add(correctedWord);
     }
   }
@@ -500,6 +547,17 @@ function startClipboardLearningWatch(sourceTranscript: string) {
     const savedTerms = maybeLearnDictionaryFromClipboard(sourceTranscript, nextClipboardText);
     if (savedTerms.length > 0) {
       mainWindow?.webContents.send("dictionary:auto-learned", savedTerms);
+      if (Notification.isSupported()) {
+        const body = savedTerms.length === 1
+          ? `Added "${savedTerms[0]}" to your dictionary.`
+          : `Added ${savedTerms.length} corrected terms to your dictionary.`;
+        new Notification({
+          title: "WhispARR Dictionary Updated",
+          body,
+          icon: getAppIconPath(),
+          silent: false
+        }).show();
+      }
     }
     clearClipboardLearningWatch();
   }, 1000);

@@ -39,6 +39,7 @@ type StatusLogEntry = { timestamp: string; message: string };
 type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 type AchievementDifficulty = "Easy" | "Medium" | "Hard" | "Almost Impossible";
 type UpdateDialogState = "closed" | "none" | "available" | "error";
+type AutoDictionaryToast = { terms: string[]; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
@@ -956,6 +957,7 @@ export default function App() {
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
   const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
   const [updateDialogMessage, setUpdateDialogMessage] = useState("");
+  const [autoDictionaryToast, setAutoDictionaryToast] = useState<AutoDictionaryToast>(null);
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
   const [isTranscriptHistoryMenuOpen, setIsTranscriptHistoryMenuOpen] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
@@ -975,6 +977,7 @@ export default function App() {
   const hudPreviewTimeoutRef = useRef<number | null>(null);
   const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
+  const autoDictionaryToastTimeoutRef = useRef<number | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
@@ -1319,6 +1322,9 @@ export default function App() {
       if (runtimeInstallProgressIntervalRef.current) {
         window.clearInterval(runtimeInstallProgressIntervalRef.current);
       }
+      if (autoDictionaryToastTimeoutRef.current) {
+        window.clearTimeout(autoDictionaryToastTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -1335,6 +1341,17 @@ export default function App() {
     });
     const unsubscribeAutoLearn = window.wisprApi.onAutoDictionaryLearned((terms) => {
       void refreshLocalData();
+      if (autoDictionaryToastTimeoutRef.current) {
+        window.clearTimeout(autoDictionaryToastTimeoutRef.current);
+      }
+      setAutoDictionaryToast({
+        terms,
+        id: Date.now()
+      });
+      autoDictionaryToastTimeoutRef.current = window.setTimeout(() => {
+        setAutoDictionaryToast(null);
+        autoDictionaryToastTimeoutRef.current = null;
+      }, 5000);
       if (terms.length === 1) {
         setStatus(`Auto dictionary learning saved "${terms[0]}".`);
       } else if (terms.length > 1) {
@@ -2733,7 +2750,6 @@ export default function App() {
                         {entry.term}
                         {entry.addedBySystem && <span className="dictionary-star" aria-label="System added"> ★</span>}
                       </strong>
-                      <p>{entry.addedBySystem ? "System-added term" : "Preferred local term"}</p>
                     </div>
                     <button
                       className="ghost-button danger"
@@ -4005,6 +4021,21 @@ export default function App() {
               )}
             </div>
           </section>
+        </div>
+      )}
+      {autoDictionaryToast && (
+        <div className="auto-dictionary-toast" role="status" aria-live="polite" key={autoDictionaryToast.id}>
+          <p className="eyebrow">Dictionary Updated</p>
+          <strong>
+            {autoDictionaryToast.terms.length === 1
+              ? `Added ${autoDictionaryToast.terms[0]}`
+              : `Added ${autoDictionaryToast.terms.length} terms`}
+          </strong>
+          <p>
+            {autoDictionaryToast.terms.length === 1
+              ? "Starred in your local dictionary."
+              : autoDictionaryToast.terms.join(", ")}
+          </p>
         </div>
       )}
       <div

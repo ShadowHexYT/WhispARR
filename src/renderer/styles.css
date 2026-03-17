@@ -681,12 +681,6 @@ select option:disabled {
   margin-top: 16px;
 }
 
-.dev-mode-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
 .dev-mode-card {
   min-height: 0;
   padding: 16px;
@@ -695,16 +689,30 @@ select option:disabled {
   background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
 }
 
+.dev-mode-card + .dev-mode-card {
+  margin-top: 14px;
+}
+
+.dev-mode-card-primary {
+  padding: 18px;
+}
+
+.dev-mode-card-secondary {
+  padding: 14px 16px;
+  opacity: 0.88;
+}
+
 .dev-mode-list {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
+  line-height: 1.65;
 }
 
 .dev-log-list {
   display: grid;
   gap: 10px;
-  max-height: 280px;
+  max-height: 460px;
   overflow-y: auto;
   padding-right: 6px;
 }
@@ -720,15 +728,15 @@ select option:disabled {
   display: block;
   margin-bottom: 6px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
 }
 
 .dev-log-entry p {
   margin: 0;
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.88rem;
-  line-height: 1.5;
+  font-size: 0.96rem;
+  line-height: 1.6;
 }
 
 .button-row {
@@ -1433,9 +1441,6 @@ select option:disabled {
     grid-template-columns: 1fr;
   }
 
-  .dev-mode-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @keyframes level-stat-celebrate {

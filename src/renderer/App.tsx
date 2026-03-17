@@ -2551,8 +2551,7 @@ export default function App() {
           </section>
         )}
         {tab === "developer" && settings.devModeUnlocked && (
-          <section className="panel-grid settings-grid">
-            <section className="panel">
+          <section className="panel dev-tab-panel">
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Developer</p>
@@ -2577,42 +2576,39 @@ export default function App() {
               </div>
               {settings.devModeEnabled && (
                 <div className="dev-mode-panel">
-                  <div className="dev-mode-grid">
-                    <div className="dev-mode-card">
-                      <p className="eyebrow">Diagnostics</p>
-                      <ul className="plain-list dev-mode-list">
-                        <li>Version: {appDiagnostics?.version ?? "Loading..."}</li>
-                        <li>Platform: {appDiagnostics?.platform ?? "Loading..."}</li>
-                        <li>Architecture: {appDiagnostics?.arch ?? "Loading..."}</li>
-                        <li>Packaged: {appDiagnostics ? String(appDiagnostics.isPackaged) : "Loading..."}</li>
-                        <li>Theme: {settings.appTheme}</li>
-                        <li>Whisper ready: {runtimeReady ? "Yes" : "No"}</li>
-                        <li>Profiles: {profiles.length}</li>
-                        <li>Dictionary entries: {manualDictionary.length}</li>
-                        <li>Saved notes: {savedNotes.length}</li>
-                        <li>Selected mic: {settings.selectedMicId ?? "System default"}</li>
-                        <li>Binary path: {settings.whisperBinaryPath || "Not set"}</li>
-                        <li>Model path: {settings.whisperModelPath || "Not set"}</li>
-                      </ul>
+                  <div className="dev-mode-card dev-mode-card-primary">
+                    <p className="eyebrow">Recent Logs</p>
+                    <div className="dev-log-list">
+                      {statusLogs.length === 0 && (
+                        <p className="supporting">No logs yet.</p>
+                      )}
+                      {statusLogs.map((entry, index) => (
+                        <div key={`${entry.timestamp}-${index}`} className="dev-log-entry">
+                          <strong>{entry.timestamp}</strong>
+                          <p>{entry.message}</p>
+                        </div>
+                      ))}
                     </div>
-                    <div className="dev-mode-card">
-                      <p className="eyebrow">Recent Logs</p>
-                      <div className="dev-log-list">
-                        {statusLogs.length === 0 && (
-                          <p className="supporting">No logs yet.</p>
-                        )}
-                        {statusLogs.map((entry, index) => (
-                          <div key={`${entry.timestamp}-${index}`} className="dev-log-entry">
-                            <strong>{entry.timestamp}</strong>
-                            <p>{entry.message}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  </div>
+                  <div className="dev-mode-card dev-mode-card-secondary">
+                    <p className="eyebrow">Diagnostics</p>
+                    <ul className="plain-list dev-mode-list">
+                      <li>Version: {appDiagnostics?.version ?? "Loading..."}</li>
+                      <li>Platform: {appDiagnostics?.platform ?? "Loading..."}</li>
+                      <li>Architecture: {appDiagnostics?.arch ?? "Loading..."}</li>
+                      <li>Packaged: {appDiagnostics ? String(appDiagnostics.isPackaged) : "Loading..."}</li>
+                      <li>Theme: {settings.appTheme}</li>
+                      <li>Whisper ready: {runtimeReady ? "Yes" : "No"}</li>
+                      <li>Profiles: {profiles.length}</li>
+                      <li>Dictionary entries: {manualDictionary.length}</li>
+                      <li>Saved notes: {savedNotes.length}</li>
+                      <li>Selected mic: {settings.selectedMicId ?? "System default"}</li>
+                      <li>Binary path: {settings.whisperBinaryPath || "Not set"}</li>
+                      <li>Model path: {settings.whisperModelPath || "Not set"}</li>
+                    </ul>
                   </div>
                 </div>
               )}
-            </section>
           </section>
         )}
         {tab === "help" && (

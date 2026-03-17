@@ -9,7 +9,8 @@ function Hud() {
   const [hudState, setHudState] = useState<HudState>({
     visible: false,
     level: 0,
-    label: "Listening"
+    label: "Listening",
+    soundEnabled: true
   });
   const isHeard = hudState.level > 0.03;
   const previousVisibleRef = useRef(false);
@@ -31,7 +32,7 @@ function Hud() {
   }, []);
 
   useEffect(() => {
-    if (previousVisibleRef.current && !hudState.visible) {
+    if (previousVisibleRef.current && !hudState.visible && hudState.soundEnabled !== false) {
       const audio = popAudioRef.current;
       if (audio) {
         audio.currentTime = 0;

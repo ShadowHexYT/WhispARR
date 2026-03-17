@@ -383,6 +383,15 @@ textarea {
   padding: 14px 16px;
 }
 
+textarea {
+  resize: vertical;
+}
+
+.notes-textarea {
+  min-height: 420px;
+  line-height: 1.6;
+}
+
 select {
   appearance: none;
   -webkit-appearance: none;

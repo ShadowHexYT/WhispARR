@@ -86,7 +86,20 @@ function applyManualDictionary(transcript: string, manualDictionary: ManualDicti
 }
 
 function normalizeTranscript(transcript: string) {
-  const trimmed = transcript.trim();
+  const stripped = transcript
+    // Remove subtitle-style bracketed cues such as [music], (applause), {laughter}.
+    .replace(/\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g, " ")
+    // Remove common singing / caption markers.
+    .replace(/[♪♫]+/g, " ")
+    // Remove standalone caption cue lines like "applause", "laughter", "music", "subtitle".
+    .replace(
+      /\b(?:applause|laughter|laughing|music|singing|sings|subtitle|subtitles|closed captions?|caption|captions|background noise|crowd noise|ambient noise|sound effects?)\b/gi,
+      " "
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const trimmed = stripped.trim();
   if (!trimmed) {
     return "";
   }

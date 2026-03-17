@@ -35,6 +35,9 @@ const defaultSettings: AppSettings = {
   activeProfileId: null,
   autoPaste: true,
   launchOnLogin: false,
+  alwaysShowPill: false,
+  muteDictationSounds: false,
+  muteMusicWhileDictating: false,
   activationShortcut: defaultShortcut,
   appTheme: "aurora",
   customTheme: {
@@ -582,13 +585,14 @@ export default function App() {
   }, [notes]);
 
   useEffect(() => {
-    const visible = recorder.state === "recording";
+    const visible = recorder.state === "recording" || settings.alwaysShowPill;
     void window.wisprApi.updateHud({
       visible,
-      level: visible ? recorder.level : 0,
-      label: "Listening"
+      level: recorder.state === "recording" ? recorder.level : 0,
+      label: recorder.state === "recording" ? "Listening" : "Ready",
+      soundEnabled: !settings.muteDictationSounds
     });
-  }, [recorder.level, recorder.state]);
+  }, [recorder.level, recorder.state, settings.alwaysShowPill, settings.muteDictationSounds]);
 
   useEffect(() => {
     if (!hasLoadedInitialDataRef.current) {
@@ -598,7 +602,7 @@ export default function App() {
 
     if (stats.currentLevel > previousLevelRef.current) {
       const audio = levelUpAudioRef.current;
-      if (audio) {
+      if (audio && !settingsRef.current.muteDictationSounds) {
         audio.currentTime = 0;
         void audio.play().catch(() => {});
       }
@@ -1381,6 +1385,56 @@ export default function App() {
             </section>
           </section>
         )}
+        {tab === "notes" && (
+          <section className="panel-grid">
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Notes</p>
+                  <h3>Local Notes Workspace</h3>
+                </div>
+                <div className="button-row compact">
+                  <button className="ghost-button" onClick={() => void pasteIntoNotes()}>
+                    Paste from clipboard
+                  </button>
+                  <button className="ghost-button" onClick={() => void copyNotes()}>
+                    Copy notes
+                  </button>
+                  <button className="primary-button" onClick={() => void saveNotesNow()}>
+                    Save now
+                  </button>
+                </div>
+              </div>
+              <p className="supporting">
+                Keep personal notes inside WhispARR and come back to them later. Notes are saved
+                locally on this device and auto-save while you type.
+              </p>
+              <label className="field">
+                <span>Your notes</span>
+                <textarea
+                  className="notes-textarea"
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Write anything here. You can paste text in, keep reminders, or save snippets you want to reuse later."
+                />
+              </label>
+            </section>
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Tips</p>
+                  <h3>Using Notes</h3>
+                </div>
+              </div>
+              <ul className="plain-list">
+                <li>Type directly into the notes area and it will auto-save locally</li>
+                <li>Use `Paste from clipboard` to append copied text into your notes</li>
+                <li>Use `Copy notes` any time to move your current notes elsewhere</li>
+                <li>Your notes stay on this device and reload when you open WhispARR again</li>
+              </ul>
+            </section>
+          </section>
+        )}
         {tab === "stats" && (
           <section className="panel-grid stats-grid">
             <section className="panel">
@@ -1668,10 +1722,43 @@ export default function App() {
                 >
                   {settings.launchOnLogin ? "Launch at login on" : "Launch at login off"}
                 </button>
+                <button
+                  className={settings.alwaysShowPill ? "primary-button" : "secondary-button"}
+                  onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
+                >
+                  {settings.alwaysShowPill ? "Pill always visible" : "Pill only while dictating"}
+                </button>
+                <button
+                  className={settings.muteDictationSounds ? "secondary-button" : "primary-button"}
+                  onClick={() =>
+                    void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
+                  }
+                >
+                  {settings.muteDictationSounds ? "Dictation sounds muted" : "Dictation sounds on"}
+                </button>
+                <button
+                  className={settings.muteMusicWhileDictating ? "primary-button" : "secondary-button"}
+                  onClick={() =>
+                    void patchSettings({
+                      muteMusicWhileDictating: !settings.muteMusicWhileDictating
+                    })
+                  }
+                >
+                  {settings.muteMusicWhileDictating ? "Mute music while dictating on" : "Mute music while dictating off"}
+                </button>
               </div>
               <p className="supporting">
                 Auto-paste uses the system clipboard plus a local paste keystroke so the dictated
                 text lands back in the app you were using.
+              </p>
+              <p className="supporting">
+                `Launch at login` keeps WhispARR ready after restart. `Pill always visible` leaves
+                the bottom HUD on screen in a ready state even when you are not dictating.
+              </p>
+              <p className="supporting">
+                `Dictation sounds` controls WhispARR sound cues like the pill pop and level-up
+                sound. `Mute music while dictating` uses a best-effort media pause/resume approach
+                during push-to-talk.
               </p>
               <div className="panel-header">
                 <div>

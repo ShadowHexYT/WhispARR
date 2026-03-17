@@ -36,6 +36,9 @@ const defaultSettings: AppSettings = {
   activeProfileId: null,
   autoPaste: true,
   launchOnLogin: false,
+  alwaysShowPill: false,
+  muteDictationSounds: false,
+  muteMusicWhileDictating: false,
   activationShortcut: defaultActivationShortcut,
   appTheme: defaultAppTheme,
   customTheme: defaultCustomTheme

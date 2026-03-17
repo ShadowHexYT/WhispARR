@@ -10,6 +10,7 @@ import {
   screen
 } from "electron";
 import path from "node:path";
+import { execFile } from "node:child_process";
 import { uIOhook, UiohookKey, UiohookKeyboardEvent } from "uiohook-napi";
 import {
   deleteManualDictionaryEntry,
@@ -123,6 +124,7 @@ let isQuitting = false;
 let pushToTalkActive = false;
 let currentSettings = readData().settings;
 const pressedKeys = new Set<number>();
+let didToggleMediaForDictation = false;
 
 const windowsOverlayColors: Record<AppThemeName, string> = {
   aurora: "#061018",
@@ -258,7 +260,9 @@ function updateHud(state: HudState) {
   positionHudWindow();
   hudWindow.webContents.send("hud:state", state);
 
-  if (state.visible) {
+  const shouldShow = state.visible || currentSettings.alwaysShowPill;
+
+  if (shouldShow) {
     hudWindow.showInactive();
   } else {
     hudWindow.hide();
@@ -277,6 +281,50 @@ function updateLaunchOnLogin(settings: AppSettings) {
   app.setLoginItemSettings({
     openAtLogin: settings.launchOnLogin
   });
+}
+
+function sendMediaPlayPauseKey() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class MediaKeys {
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);
+}
+"@
+[MediaKeys]::keybd_event(0xB3, 0, 0, 0)
+Start-Sleep -Milliseconds 40
+[MediaKeys]::keybd_event(0xB3, 0, 2, 0)
+`;
+
+  execFile(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+    () => {}
+  );
+}
+
+function pauseMediaForDictationIfNeeded() {
+  if (!currentSettings.muteMusicWhileDictating || didToggleMediaForDictation) {
+    return;
+  }
+
+  sendMediaPlayPauseKey();
+  didToggleMediaForDictation = true;
+}
+
+function resumeMediaAfterDictationIfNeeded() {
+  if (!currentSettings.muteMusicWhileDictating || !didToggleMediaForDictation) {
+    return;
+  }
+
+  sendMediaPlayPauseKey();
+  didToggleMediaForDictation = false;
 }
 
 function createWindow() {
@@ -409,6 +457,7 @@ function registerGlobalPushToTalk() {
     }
 
     pushToTalkActive = true;
+    pauseMediaForDictationIfNeeded();
     updateHud({ visible: true, level: 0, label: "Listening" });
     sendPushToTalkEvent("start");
   });
@@ -424,6 +473,7 @@ function registerGlobalPushToTalk() {
     }
 
     pushToTalkActive = false;
+    resumeMediaAfterDictationIfNeeded();
     updateHud({ visible: false, level: 0, label: "Listening" });
     sendPushToTalkEvent("stop");
   });
@@ -466,6 +516,12 @@ app.whenReady().then(() => {
     currentSettings = next;
     updateLaunchOnLogin(next);
     syncWindowTheme(next);
+    updateHud({
+      visible: pushToTalkActive || next.alwaysShowPill,
+      level: 0,
+      label: pushToTalkActive ? "Listening" : "Ready",
+      soundEnabled: !next.muteDictationSounds
+    });
     return next;
   });
   ipcMain.handle("voice-profile:save", (_event, input: SaveVoiceProfileInput) => saveVoiceProfile(input));
@@ -546,6 +602,7 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  resumeMediaAfterDictationIfNeeded();
   pressedKeys.clear();
   uIOhook.stop();
 });

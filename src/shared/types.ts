@@ -33,6 +33,9 @@ export type AppSettings = {
   activeProfileId: string | null;
   autoPaste: boolean;
   launchOnLogin: boolean;
+  alwaysShowPill: boolean;
+  muteDictationSounds: boolean;
+  muteMusicWhileDictating: boolean;
   activationShortcut: ActivationShortcut;
   appTheme: AppThemeName;
   customTheme: CustomThemeColors;
@@ -121,4 +124,5 @@ export type HudState = {
   visible: boolean;
   level: number;
   label?: string;
+  soundEnabled?: boolean;
 };

@@ -4,7 +4,7 @@
   "private": true,
   "description": "A fully local desktop dictation app with microphone selection and voice profile training.",
   "main": "dist-electron/main/main.js",
-  "author": "OpenAI Codex",
+  "author": "AbsoluteZero",
   "scripts": {
     "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron:watch\" \"npm:dev:electron\"",
     "dev:renderer": "vite",

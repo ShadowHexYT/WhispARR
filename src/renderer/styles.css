@@ -267,6 +267,32 @@ textarea {
   transform-origin: center;
 }
 
+.help-question-ring,
+.help-question-stem,
+.help-question-dot {
+  stroke: currentColor;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease,
+    stroke 0.2s ease;
+}
+
+.help-question-ring {
+  stroke-width: 1.8;
+  opacity: 0.84;
+}
+
+.help-question-stem {
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.help-question-dot {
+  fill: currentColor;
+  stroke: none;
+}
+
 .nav-button.active .nav-icon {
   border-color: color-mix(in srgb, var(--accent-soft) 38%, transparent);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
@@ -309,6 +335,14 @@ textarea {
 
 .nav-button:hover .nav-icon-help {
   animation: nav-pop 0.7s ease;
+}
+
+.nav-button:hover .nav-icon-help .help-question-stem {
+  animation: help-question-bob 0.7s ease;
+}
+
+.nav-button:hover .nav-icon-help .help-question-dot {
+  animation: help-question-blink 0.7s ease;
 }
 
 @keyframes nav-pulse {
@@ -354,6 +388,19 @@ textarea {
   100% { transform: scale(1); }
   45% { transform: scale(1.2); }
   75% { transform: scale(0.94); }
+}
+
+@keyframes help-question-bob {
+  0%,
+  100% { transform: translateY(0); }
+  40% { transform: translateY(-0.6px); }
+  72% { transform: translateY(0.45px); }
+}
+
+@keyframes help-question-blink {
+  0%,
+  100% { opacity: 1; transform: scale(1); }
+  45% { opacity: 0.6; transform: scale(1.18); }
 }
 
 .privacy-card,

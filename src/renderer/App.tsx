@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "motion/react";
 import {
   BookText,
   ChartColumnBig,
-  CircleHelp,
   FileText,
   Mic,
   Settings2,
@@ -430,13 +429,31 @@ const modifierLabels: Record<ShortcutModifier, string> = {
   shift: "Shift"
 };
 
+function HelpQuestionIcon(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={props.className}
+    >
+      <circle cx="12" cy="12" r="9" className="help-question-ring" />
+      <path
+        d="M9.35 9.15a2.7 2.7 0 0 1 5.3.7c0 1.95-2.1 2.35-2.1 4.15"
+        className="help-question-stem"
+      />
+      <circle cx="12" cy="17.35" r="0.95" className="help-question-dot" />
+    </svg>
+  );
+}
+
 const trainingParagraph =
   "Hello, this is my voice training sample for WhispARR. I speak clearly and naturally so the app can recognize my voice, pacing, and pronunciation. Today I am reading a short paragraph with numbers like twenty three and names like Chicago, Windows, and macOS to give the model a better sense of how I sound in everyday use.";
 
 const navItems: Array<{
   key: TabKey;
   label: string;
-  Icon: typeof Mic;
+  Icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   iconClassName: string;
 }> = [
   { key: "dictation", label: "Dictation", Icon: Mic, iconClassName: "nav-icon-dictation" },
@@ -445,7 +462,7 @@ const navItems: Array<{
   { key: "notes", label: "Notes", Icon: FileText, iconClassName: "nav-icon-notes" },
   { key: "stats", label: "Statistics", Icon: ChartColumnBig, iconClassName: "nav-icon-stats" },
   { key: "settings", label: "System", Icon: Settings2, iconClassName: "nav-icon-settings" },
-  { key: "help", label: "Help", Icon: CircleHelp, iconClassName: "nav-icon-help" },
+  { key: "help", label: "Help", Icon: HelpQuestionIcon, iconClassName: "nav-icon-help" },
   { key: "developer", label: "Developer", Icon: SquareTerminal, iconClassName: "nav-icon-developer" }
 ];
 
@@ -2165,7 +2182,7 @@ export default function App() {
           >
             <span className="nav-button-content">
               <span className="nav-icon" aria-hidden="true">
-                <CircleHelp className="nav-icon-glyph nav-icon-help" strokeWidth={1.8} />
+                <HelpQuestionIcon className="nav-icon-glyph nav-icon-help" />
               </span>
               <span>{isCheckingForUpdates ? "Checking..." : "Check for updates"}</span>
             </span>

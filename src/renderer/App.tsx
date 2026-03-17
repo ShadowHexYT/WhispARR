@@ -6,6 +6,7 @@ import {
   FileText,
   Mic,
   Settings2,
+  SquareTerminal,
   UserRound
 } from "lucide-react";
 import { computeVoiceEmbedding, hasAudibleSpeech, scoreVoiceMatch } from "./lib/audio";
@@ -27,7 +28,7 @@ import {
   WhisperConfigStatus
 } from "../shared/types";
 
-type TabKey = "dictation" | "profiles" | "dictionary" | "notes" | "stats" | "settings" | "help";
+type TabKey = "dictation" | "profiles" | "dictionary" | "notes" | "stats" | "settings" | "developer" | "help";
 type MicDevice = { deviceId: string; label: string };
 type StatusLogEntry = { timestamp: string; message: string };
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
@@ -430,7 +431,8 @@ const navItems: Array<{
   { key: "notes", label: "Notes", Icon: FileText, iconClassName: "nav-icon-notes" },
   { key: "stats", label: "Statistics", Icon: ChartColumnBig, iconClassName: "nav-icon-stats" },
   { key: "settings", label: "System", Icon: Settings2, iconClassName: "nav-icon-settings" },
-  { key: "help", label: "Help", Icon: CircleHelp, iconClassName: "nav-icon-help" }
+  { key: "help", label: "Help", Icon: CircleHelp, iconClassName: "nav-icon-help" },
+  { key: "developer", label: "Developer", Icon: SquareTerminal, iconClassName: "nav-icon-developer" }
 ];
 
 const achievements = [
@@ -654,6 +656,12 @@ export default function App() {
       setIsOnboardingOpen(true);
     }
   }, [settings.onboardingCompleted]);
+
+  useEffect(() => {
+    if (!settings.devModeUnlocked && tab === "developer") {
+      setTab("help");
+    }
+  }, [settings.devModeUnlocked, tab]);
 
   useEffect(() => {
     if (!status || status === lastLoggedStatusRef.current) {
@@ -1456,7 +1464,9 @@ export default function App() {
           </div>
         </div>
         <nav className="nav">
-          {navItems.map(({ key, label, Icon, iconClassName }) => (
+          {navItems
+            .filter((item) => item.key !== "developer" || settings.devModeUnlocked)
+            .map(({ key, label, Icon, iconClassName }) => (
             <button
               key={key}
               className={tab === key ? "nav-button active" : "nav-button"}
@@ -2537,33 +2547,35 @@ export default function App() {
                     "No update check has been run yet. This works after a GitHub releases repo is configured for the app."}
                 </p>
               </div>
-              {settings.devModeUnlocked && (
-                <>
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">Developer</p>
-                      <h3>Developer Mode</h3>
-                    </div>
-                  </div>
-                  <div className="update-status-card">
-                    <p className="supporting">
-                      Status: <strong>{settings.devModeEnabled ? "On" : "Off"}</strong>
-                    </p>
-                    <div className="button-row">
-                      <button
-                        className={settings.devModeEnabled ? "primary-button" : "secondary-button"}
-                        type="button"
-                        onClick={() =>
-                          void patchSettings({ devModeEnabled: !settings.devModeEnabled })
-                        }
-                      >
-                        {settings.devModeEnabled ? "Turn developer mode off" : "Turn developer mode on"}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-              {settings.devModeUnlocked && settings.devModeEnabled && (
+            </section>
+          </section>
+        )}
+        {tab === "developer" && settings.devModeUnlocked && (
+          <section className="panel-grid settings-grid">
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Developer</p>
+                  <h3>Developer Mode</h3>
+                </div>
+              </div>
+              <div className="update-status-card">
+                <p className="supporting">
+                  Status: <strong>{settings.devModeEnabled ? "On" : "Off"}</strong>
+                </p>
+                <div className="button-row">
+                  <button
+                    className={settings.devModeEnabled ? "primary-button" : "secondary-button"}
+                    type="button"
+                    onClick={() =>
+                      void patchSettings({ devModeEnabled: !settings.devModeEnabled })
+                    }
+                  >
+                    {settings.devModeEnabled ? "Turn developer mode off" : "Turn developer mode on"}
+                  </button>
+                </div>
+              </div>
+              {settings.devModeEnabled && (
                 <div className="dev-mode-panel">
                   <div className="dev-mode-grid">
                     <div className="dev-mode-card">

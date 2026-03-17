@@ -573,6 +573,10 @@ function clampSoundVolume(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function clampTranscriptHistoryLimit(value: number) {
+  return Math.max(1, Math.min(500, Math.round(value)));
+}
+
 function shortcutFromPressedCodes(codes: Iterable<string>): ActivationShortcut {
   const codeSet = new Set(codes);
   const modifiers = modifierOrder.filter((modifier) => {
@@ -645,6 +649,7 @@ export default function App() {
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
+  const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [isMovingHud, setIsMovingHud] = useState(false);
   const [isCapturingShortcut, setIsCapturingShortcut] = useState(false);
@@ -1936,20 +1941,55 @@ export default function App() {
                 <div className="panel-actions">
                   <label className="inline-field">
                     <span>Keep</span>
-                    <select
-                      value={settings.transcriptHistoryLimit}
-                      onChange={(event) =>
-                        void patchSettings({
-                          transcriptHistoryLimit: Number(event.target.value)
-                        })
-                      }
-                    >
-                      {transcriptHistoryOptions.map((count) => (
-                        <option key={count} value={count}>
-                          {count}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="history-limit-control">
+                      <div className="history-limit-presets">
+                        {transcriptHistoryOptions.map((count) => (
+                          <button
+                            key={count}
+                            type="button"
+                            className={
+                              settings.transcriptHistoryLimit === count
+                                ? "history-limit-chip active"
+                                : "history-limit-chip"
+                            }
+                            onClick={() =>
+                              void patchSettings({
+                                transcriptHistoryLimit: count
+                              }).then(() => setIsEditingTranscriptHistoryLimit(false))
+                            }
+                          >
+                            {count}
+                          </button>
+                        ))}
+                      </div>
+                      {isEditingTranscriptHistoryLimit ? (
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          step="1"
+                          value={settings.transcriptHistoryLimit}
+                          autoFocus
+                          onChange={(event) =>
+                            void patchSettings({
+                              transcriptHistoryLimit: clampTranscriptHistoryLimit(
+                                Number(event.target.value || settings.transcriptHistoryLimit)
+                              )
+                            })
+                          }
+                          onBlur={() => setIsEditingTranscriptHistoryLimit(false)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="history-limit-custom"
+                          onDoubleClick={() => setIsEditingTranscriptHistoryLimit(true)}
+                          title="Double-click to enter a custom history limit"
+                        >
+                          Custom: {settings.transcriptHistoryLimit}
+                        </button>
+                      )}
+                    </div>
                   </label>
                   {lastResult && (
                     <div className="metrics">

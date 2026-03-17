@@ -124,6 +124,7 @@ export type RuntimeDiscoveryResult = {
 export type RuntimeInstallResult = {
   discovery: RuntimeDiscoveryResult;
   installed: boolean;
+  ready: boolean;
   message: string;
 };
 

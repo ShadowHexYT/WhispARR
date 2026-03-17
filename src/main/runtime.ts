@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import { pipeline } from "node:stream/promises";
 import https from "node:https";
@@ -113,6 +114,33 @@ function scoreModelPath(modelPath: string) {
 
 function getBundledRoots() {
   return [path.join(process.resourcesPath, "runtime"), path.join(process.cwd(), "runtime")];
+}
+
+function writeSilentWav(filePath: string, sampleRate = 16000, durationMs = 250) {
+  const sampleCount = Math.max(1, Math.floor((sampleRate * durationMs) / 1000));
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = sampleCount * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(byteRate, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  fs.writeFileSync(filePath, buffer);
 }
 
 function copyDirectory(source: string, destination: string) {
@@ -250,6 +278,50 @@ async function installModel(managedRoot: string) {
   return modelPath;
 }
 
+async function verifyRuntimeCandidate(binaryPath: string, modelPath: string) {
+  if (!fileExists(binaryPath)) {
+    throw new Error("The local speech binary is missing after installation.");
+  }
+
+  if (!fileExists(modelPath)) {
+    throw new Error("The local speech model is missing after installation.");
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(app.getPath("temp"), "whisparr-runtime-check-"));
+  const audioPath = path.join(tempDir, "smoke-test.wav");
+  const outputBase = path.join(tempDir, "smoke-test");
+
+  try {
+    writeSilentWav(audioPath);
+
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        binaryPath,
+        ["-m", modelPath, "-f", audioPath, "-t", "1", "-otxt", "-of", outputBase, "-nt"],
+        { timeout: 120000, windowsHide: true },
+        (error) => {
+          if (error) {
+            reject(
+              new Error(
+                `Installed runtime failed its local verification check: ${error.message}.`
+              )
+            );
+            return;
+          }
+
+          resolve();
+        }
+      );
+    });
+
+    if (!fileExists(`${outputBase}.txt`)) {
+      throw new Error("Installed runtime did not produce a transcript output file during verification.");
+    }
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 export function discoverRuntime(): RuntimeDiscoveryResult {
   const candidates: RuntimeCandidate[] = [];
 
@@ -281,10 +353,12 @@ export function discoverRuntime(): RuntimeDiscoveryResult {
 export async function installRuntime(): Promise<RuntimeInstallResult> {
   const existing = discoverRuntime();
   if (existing.selected) {
+    await verifyRuntimeCandidate(existing.selected.binaryPath, existing.selected.modelPath);
     return {
       discovery: existing,
       installed: false,
-      message: `Runtime already available from ${existing.selected.source}.`
+      ready: true,
+      message: `Runtime already available from ${existing.selected.source} and passed verification.`
     };
   }
 
@@ -315,9 +389,12 @@ export async function installRuntime(): Promise<RuntimeInstallResult> {
     throw new Error("Runtime installation finished, but the app could not validate the installed files.");
   }
 
+  await verifyRuntimeCandidate(discovery.selected.binaryPath, discovery.selected.modelPath);
+
   return {
     discovery,
     installed: true,
-    message: `Installed local speech runtime from ${discovery.selected.source}.`
+    ready: true,
+    message: `Installed local speech runtime from ${discovery.selected.source} and verified it is ready.`
   };
 }

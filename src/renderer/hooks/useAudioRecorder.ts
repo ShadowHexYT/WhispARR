@@ -50,6 +50,9 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
       });
 
       const context = new AudioContext();
+      if (context.state === "suspended") {
+        await context.resume();
+      }
       const source = context.createMediaStreamSource(stream);
       const processor = context.createScriptProcessor(1024, 1, 1);
 

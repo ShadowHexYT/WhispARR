@@ -59,22 +59,34 @@ export function hasAudibleSpeech(pcm: Float32Array) {
     return false;
   }
 
-  const segment = pcm.slice(0, Math.min(16000, pcm.length));
-  let peak = 0;
-  let energy = 0;
-  let activeSamples = 0;
+  const windowSize = Math.max(512, Math.min(2048, Math.floor(pcm.length / 8) || 512));
+  let overallPeak = 0;
+  let bestWindowRms = 0;
+  let bestActivityRatio = 0;
 
-  for (let index = 0; index < segment.length; index += 1) {
-    const value = Math.abs(segment[index] ?? 0);
-    peak = Math.max(peak, value);
-    energy += value * value;
-    if (value > 0.018) {
-      activeSamples += 1;
+  for (let start = 0; start < pcm.length; start += windowSize) {
+    const end = Math.min(pcm.length, start + windowSize);
+    let peak = 0;
+    let energy = 0;
+    let activeSamples = 0;
+
+    for (let index = start; index < end; index += 1) {
+      const value = Math.abs(pcm[index] ?? 0);
+      peak = Math.max(peak, value);
+      energy += value * value;
+      if (value > 0.012) {
+        activeSamples += 1;
+      }
     }
+
+    const length = Math.max(1, end - start);
+    const rms = Math.sqrt(energy / length);
+    const activityRatio = activeSamples / length;
+
+    overallPeak = Math.max(overallPeak, peak);
+    bestWindowRms = Math.max(bestWindowRms, rms);
+    bestActivityRatio = Math.max(bestActivityRatio, activityRatio);
   }
 
-  const rms = Math.sqrt(energy / Math.max(1, segment.length));
-  const activityRatio = activeSamples / Math.max(1, segment.length);
-
-  return peak > 0.03 && rms > 0.008 && activityRatio > 0.015;
+  return overallPeak > 0.02 && bestWindowRms > 0.006 && bestActivityRatio > 0.02;
 }

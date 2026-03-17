@@ -566,6 +566,28 @@ function shortcutFromKeyboardEvent(event: KeyboardEvent): ActivationShortcut {
   };
 }
 
+function shortcutFromPressedCodes(codes: Iterable<string>): ActivationShortcut {
+  const codeSet = new Set(codes);
+  const modifiers = modifierOrder.filter((modifier) => {
+    if (modifier === "meta") {
+      return codeSet.has("MetaLeft") || codeSet.has("MetaRight");
+    }
+    if (modifier === "ctrl") {
+      return codeSet.has("ControlLeft") || codeSet.has("ControlRight");
+    }
+    if (modifier === "alt") {
+      return codeSet.has("AltLeft") || codeSet.has("AltRight");
+    }
+    return codeSet.has("ShiftLeft") || codeSet.has("ShiftRight");
+  });
+  const key = [...codeSet].find((code) => !isModifierCode(code)) ?? null;
+
+  return {
+    modifiers,
+    key
+  };
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabKey>("dictation");
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -622,6 +644,7 @@ export default function App() {
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
+  const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
   const lastLoggedStatusRef = useRef("");
@@ -936,27 +959,62 @@ export default function App() {
       return;
     }
 
+    shortcutCaptureCodesRef.current = new Set();
+
     const handleKeyDown = (event: KeyboardEvent) => {
       event.preventDefault();
+      event.stopPropagation();
 
       if (event.code === "Escape") {
         setIsCapturingShortcut(false);
         setDraftShortcut(null);
+        shortcutCaptureCodesRef.current = new Set();
         return;
       }
 
-      const nextShortcut = shortcutFromKeyboardEvent(event);
+      if (event.repeat) {
+        return;
+      }
+
+      const nextCodes = new Set(shortcutCaptureCodesRef.current);
+      nextCodes.add(event.code);
+      shortcutCaptureCodesRef.current = nextCodes;
+      const nextShortcut = shortcutFromPressedCodes(nextCodes);
       if (nextShortcut.modifiers.length === 0 && !nextShortcut.key) {
         return;
       }
 
       setDraftShortcut(nextShortcut);
-      setIsCapturingShortcut(false);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const snapshot = new Set(shortcutCaptureCodesRef.current);
+      if (snapshot.size === 0) {
+        return;
+      }
+
+      const nextShortcut = shortcutFromPressedCodes(snapshot);
+      const remainingCodes = new Set(snapshot);
+      remainingCodes.delete(event.code);
+      shortcutCaptureCodesRef.current = remainingCodes;
+
+      if (nextShortcut.modifiers.length === 0 && !nextShortcut.key) {
+        return;
+      }
+
+      setDraftShortcut(nextShortcut);
+      void saveShortcut(nextShortcut);
     };
 
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
     return () => {
+      shortcutCaptureCodesRef.current = new Set();
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
     };
   }, [isCapturingShortcut]);
 
@@ -1046,7 +1104,8 @@ export default function App() {
 
   async function saveShortcut(shortcut: ActivationShortcut) {
     await patchSettings({ activationShortcut: shortcut });
-    setDraftShortcut(null);
+    setDraftShortcut(shortcut);
+    setIsCapturingShortcut(false);
     setStatus(`Activation shortcut updated to ${shortcutToLabel(shortcut)}.`);
   }
 
@@ -1064,14 +1123,18 @@ export default function App() {
 
   async function installEverything() {
     setIsInstallingRuntime(true);
-    setRuntimeInstallMessage("Installing local runtime and model...");
+    setRuntimeInstallMessage("Installing local runtime, configuring paths, and verifying the engine...");
 
     try {
       const result: RuntimeInstallResult = await window.wisprApi.installRuntime();
       setRuntimeDiscovery(result.discovery);
       setRuntimeInstallMessage(result.message);
       await refreshLocalData();
-      setStatus("Local speech engine is installed. Next steps are shortcut setup and voice training.");
+      setStatus(
+        result.ready
+          ? "Local speech engine is installed and verified. You can dictate right away."
+          : "Local speech engine installation finished, but readiness could not be confirmed."
+      );
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Runtime installation failed.";
       setRuntimeInstallMessage(message);
@@ -1392,7 +1455,8 @@ export default function App() {
   const currentOnboardingStep = onboardingSteps[onboardingStep];
   const runtimeReady = whisperStatus.binaryExists && whisperStatus.modelExists;
   const microphoneReady = devices.length > 0;
-  const shortcutReady = Boolean(settings.activationShortcut.key);
+  const shortcutReady =
+    settings.activationShortcut.modifiers.length > 0 || Boolean(settings.activationShortcut.key);
   const profileReady = profiles.length > 0;
   const isAchievementUnlocked = (achievementTitle: string) => {
     switch (achievementTitle) {
@@ -1721,7 +1785,7 @@ export default function App() {
                 <div className="microphone-test-card">
                   <div className="microphone-test-header">
                     <strong>Microphone input</strong>
-                    <span>{recorder.level > 0.08 ? "Input detected" : "Listening..."}</span>
+                    <span>{recorder.level > 0.03 ? "Input detected" : "Listening..."}</span>
                   </div>
                   <div className="microphone-test-meter" aria-hidden="true">
                     <div
@@ -2310,11 +2374,10 @@ export default function App() {
                 <button
                   className={isCapturingShortcut ? "primary-button" : "secondary-button"}
                   onClick={() => {
-                    setDraftShortcut(null);
                     setIsCapturingShortcut(true);
                   }}
                 >
-                  {isCapturingShortcut ? "Press shortcut now..." : "Record new shortcut"}
+                  {isCapturingShortcut ? "Hold combo and release" : "Record new shortcut"}
                 </button>
                 <button
                   className="ghost-button"
@@ -2324,18 +2387,11 @@ export default function App() {
                 </button>
               </div>
               {draftShortcutLabel && (
-                <div className="button-row">
-                  <p className="supporting">Captured: <strong>{draftShortcutLabel}</strong></p>
-                  <button
-                    className="primary-button"
-                    onClick={() => draftShortcut && void saveShortcut(draftShortcut)}
-                  >
-                    Save captured shortcut
-                  </button>
-                </div>
+                <p className="supporting">Latest captured shortcut: <strong>{draftShortcutLabel}</strong></p>
               )}
               <p className="supporting">
-                While recording a shortcut, press the full combination once. `Escape` cancels the capture.
+                While recording a shortcut, hold the full combination and release any key to save it immediately.
+                `Escape` cancels the capture.
               </p>
 
               <div className="panel-header">
@@ -2622,9 +2678,10 @@ export default function App() {
                 </button>
               </div>
               <p className="supporting">
-                `Install everything` downloads the local speech runtime into the app data folder
-                and configures it automatically. Packaged builds can also ship the runtime already
-                embedded, and the app will auto-detect it on launch.
+                `Install everything` now downloads the local speech runtime, configures the
+                binary and model paths automatically, and runs a local verification check before
+                reporting success. Packaged builds can also ship the runtime already embedded, and
+                the app will auto-detect it on launch.
               </p>
               {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
               {runtimeDiscovery?.selected && (
@@ -2937,7 +2994,7 @@ export default function App() {
                   <div className="microphone-test-card">
                     <div className="microphone-test-header">
                       <strong>Microphone input</strong>
-                      <span>{recorder.level > 0.08 ? "Input detected" : "Listening..."}</span>
+                      <span>{recorder.level > 0.03 ? "Input detected" : "Listening..."}</span>
                     </div>
                     <div className="microphone-test-meter" aria-hidden="true">
                       <div
@@ -2960,25 +3017,15 @@ export default function App() {
                     className={isCapturingShortcut ? "primary-button" : "secondary-button"}
                     type="button"
                     onClick={() => {
-                      setDraftShortcut(null);
                       setIsCapturingShortcut(true);
                       setTab("settings");
                     }}
                   >
-                    {isCapturingShortcut ? "Press shortcut now..." : "Choose shortcut"}
+                    {isCapturingShortcut ? "Hold combo and release" : "Choose shortcut"}
                   </button>
                 </div>
                 {draftShortcutLabel && (
-                  <div className="button-row">
-                    <p className="supporting">Captured: <strong>{draftShortcutLabel}</strong></p>
-                    <button
-                      className="primary-button"
-                      type="button"
-                      onClick={() => draftShortcut && void saveShortcut(draftShortcut)}
-                    >
-                      Save captured shortcut
-                    </button>
-                  </div>
+                  <p className="supporting">Latest captured shortcut: <strong>{draftShortcutLabel}</strong></p>
                 )}
               </div>
             )}

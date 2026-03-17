@@ -1,0 +1,72 @@
+{
+  "name": "whisparr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A fully local desktop dictation app with microphone selection and voice profile training.",
+  "main": "dist-electron/main/main.js",
+  "author": "OpenAI Codex",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron:watch\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron:watch": "tsc -p tsconfig.electron.json --watch",
+    "dev:electron": "wait-on tcp:5173 dist-electron/main/main.js && electron .",
+    "build": "npm run build:renderer && npm run build:electron",
+    "build:renderer": "vite build --base ./",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "dist": "npm run build && electron-builder",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json"
+  },
+  "build": {
+    "appId": "com.local.whisparr",
+    "productName": "WhispARR",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      "assets/WhispARR Image.png"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/WhispARR Image.png",
+        "to": "assets/WhispARR Image.png"
+      },
+      {
+        "from": "runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    }
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "uiohook-napi": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.0.1",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "wait-on": "^8.0.1"
+  }
+}

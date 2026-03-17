@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import ReactDOM from "react-dom/client";
 import { HudState } from "../shared/types";
 import "./hud.css";
@@ -13,6 +14,7 @@ function Hud() {
     label: "Listening",
     soundEnabled: true,
     soundVolume: 0.8,
+    hudScale: 100,
     moveMode: false
   });
   const isHeard = hudState.level > 0.03;
@@ -77,7 +79,10 @@ function Hud() {
   }, [hudState.level]);
 
   return (
-    <div className={hudState.visible || hudState.moveMode ? "hud-shell visible" : "hud-shell"}>
+    <div
+      className={hudState.visible || hudState.moveMode ? "hud-shell visible" : "hud-shell"}
+      style={{ "--hud-scale": `${Math.max(60, Math.min(160, hudState.hudScale ?? 100)) / 100}` } as CSSProperties}
+    >
       <div className={hudState.moveMode ? "hud-pill move-mode" : "hud-pill"}>
         <div className={isHeard ? "hud-icon heard" : "hud-icon quiet"} />
         <div className="hud-wave">

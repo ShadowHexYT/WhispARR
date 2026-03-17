@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "motion/react";
 import {
   BookText,
@@ -9,6 +9,8 @@ import {
   Settings2,
   SquareTerminal,
   UserRound,
+  Minimize2,
+  Maximize2,
   Volume1,
   Volume2
 } from "lucide-react";
@@ -58,6 +60,7 @@ const defaultSettings: AppSettings = {
   launchOnLogin: false,
   alwaysShowPill: false,
   hudPosition: null,
+  hudScale: 100,
   muteDictationSounds: false,
   appSoundVolume: 80,
   muteMusicWhileDictating: false,
@@ -586,6 +589,10 @@ function clampSoundVolume(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function clampHudScale(value: number) {
+  return Math.max(60, Math.min(160, Math.round(value)));
+}
+
 function clampTranscriptHistoryLimit(value: number) {
   return Math.max(1, Math.min(500, Math.round(value)));
 }
@@ -600,14 +607,26 @@ function decayOverflow(value: number, max: number) {
   return sigmoid * max;
 }
 
-function ElasticVolumeSlider(props: {
+function ElasticSettingSlider(props: {
   value: number;
   min?: number;
   max?: number;
   disabled?: boolean;
+  ariaLabel: string;
+  leftIcon?: ReactNode;
+  rightIcon?: ReactNode;
   onChange: (value: number) => void;
 }) {
-  const { value, min = 0, max = 100, disabled = false, onChange } = props;
+  const {
+    value,
+    min = 0,
+    max = 100,
+    disabled = false,
+    ariaLabel,
+    leftIcon = <Volume1 size={18} />,
+    rightIcon = <Volume2 size={18} />,
+    onChange
+  } = props;
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const [region, setRegion] = useState<"left" | "middle" | "right">("middle");
   const clientX = useMotionValue(0);
@@ -647,12 +666,12 @@ function ElasticVolumeSlider(props: {
     clientX.jump(nextClientX);
   }
 
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     updateValue(event.clientX);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     if (event.buttons > 0) {
       updateValue(event.clientX);
     }
@@ -693,7 +712,7 @@ function ElasticVolumeSlider(props: {
           x: useTransform(() => (region === "left" ? -overflow.get() / scale.get() : 0))
         }}
       >
-        <Volume1 size={18} />
+        {leftIcon}
       </motion.div>
 
       <div
@@ -701,7 +720,7 @@ function ElasticVolumeSlider(props: {
         className="elastic-slider-root"
         role="slider"
         tabIndex={disabled ? -1 : 0}
-        aria-label="Application sound volume"
+        aria-label={ariaLabel}
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
@@ -762,7 +781,7 @@ function ElasticVolumeSlider(props: {
           x: useTransform(() => (region === "right" ? overflow.get() / scale.get() : 0))
         }}
       >
-        <Volume2 size={18} />
+        {rightIcon}
       </motion.div>
     </motion.div>
   );
@@ -844,6 +863,7 @@ export default function App() {
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [isMovingHud, setIsMovingHud] = useState(false);
+  const [isPreviewingHudScale, setIsPreviewingHudScale] = useState(false);
   const [isCapturingShortcut, setIsCapturingShortcut] = useState(false);
   const [draftShortcut, setDraftShortcut] = useState<ActivationShortcut | null>(null);
   const [isTrainingProfile, setIsTrainingProfile] = useState(false);
@@ -855,6 +875,7 @@ export default function App() {
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
+  const hudPreviewTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
@@ -1111,15 +1132,24 @@ export default function App() {
   }, [notes]);
 
   useEffect(() => {
-    const visible = recorder.state === "recording" || settings.alwaysShowPill;
+    const visible = recorder.state === "recording" || settings.alwaysShowPill || isPreviewingHudScale;
     void window.wisprApi.updateHud({
       visible,
       level: recorder.state === "recording" ? recorder.level : 0,
       label: recorder.state === "recording" ? "Listening" : "Ready",
       soundEnabled: !settings.muteDictationSounds,
-      soundVolume: clampSoundVolume(settings.appSoundVolume) / 100
+      soundVolume: clampSoundVolume(settings.appSoundVolume) / 100,
+      hudScale: clampHudScale(settings.hudScale)
     });
-  }, [recorder.level, recorder.state, settings.alwaysShowPill, settings.appSoundVolume, settings.muteDictationSounds]);
+  }, [
+    isPreviewingHudScale,
+    recorder.level,
+    recorder.state,
+    settings.alwaysShowPill,
+    settings.appSoundVolume,
+    settings.hudScale,
+    settings.muteDictationSounds
+  ]);
 
   useEffect(() => {
     if (!hasLoadedInitialDataRef.current) {
@@ -1149,6 +1179,9 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      if (hudPreviewTimeoutRef.current) {
+        window.clearTimeout(hudPreviewTimeoutRef.current);
+      }
       if (levelUpTimeoutRef.current) {
         window.clearTimeout(levelUpTimeoutRef.current);
       }
@@ -1404,6 +1437,17 @@ export default function App() {
     } finally {
       setIsAutoFindingRuntime(false);
     }
+  }
+
+  function previewHudScale() {
+    setIsPreviewingHudScale(true);
+    if (hudPreviewTimeoutRef.current) {
+      window.clearTimeout(hudPreviewTimeoutRef.current);
+    }
+    hudPreviewTimeoutRef.current = window.setTimeout(() => {
+      setIsPreviewingHudScale(false);
+      hudPreviewTimeoutRef.current = null;
+    }, 1100);
   }
 
   async function installEverything() {
@@ -1808,6 +1852,7 @@ export default function App() {
   const activeShortcutLabel = shortcutToLabel(settings.activationShortcut);
   const draftShortcutLabel = draftShortcut ? shortcutToLabel(draftShortcut) : null;
   const appSoundVolume = clampSoundVolume(settings.appSoundVolume);
+  const hudScale = clampHudScale(settings.hudScale);
   const currentLevelFloor = getLevelThreshold(stats.currentLevel);
   const nextLevelThreshold = getNextLevelThreshold(stats.currentLevel);
   const xpIntoCurrentLevel = Math.max(0, stats.totalXp - currentLevelFloor);
@@ -2878,6 +2923,33 @@ export default function App() {
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
                 </div>
+                <div className="settings-slider-card active">
+                  <div className="settings-slider-copy">
+                    <strong>Bubble size</strong>
+                    <p>Adjusts the pill size incrementally so you can make it smaller or larger on screen.</p>
+                  </div>
+                  <div className="bounce-slider-shell">
+                    <div className="bounce-slider-readout">
+                      <span>Smaller</span>
+                      <strong>{hudScale}%</strong>
+                      <span>Larger</span>
+                    </div>
+                    <ElasticSettingSlider
+                      ariaLabel="Bubble size"
+                      value={hudScale}
+                      min={60}
+                      max={160}
+                      leftIcon={<Minimize2 size={18} />}
+                      rightIcon={<Maximize2 size={18} />}
+                      onChange={(nextValue) => {
+                        previewHudScale();
+                        void patchSettings({
+                          hudScale: clampHudScale(nextValue)
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
                     <strong>Dictation sounds</strong>
@@ -2910,7 +2982,8 @@ export default function App() {
                       <strong>{appSoundVolume}%</strong>
                       <span>Loud</span>
                     </div>
-                    <ElasticVolumeSlider
+                    <ElasticSettingSlider
+                      ariaLabel="Application sound volume"
                       value={appSoundVolume}
                       disabled={settings.muteDictationSounds}
                       onChange={(nextValue) =>

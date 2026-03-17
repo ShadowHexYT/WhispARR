@@ -40,6 +40,7 @@ export type AppSettings = {
   launchOnLogin: boolean;
   alwaysShowPill: boolean;
   hudPosition: HudPosition | null;
+  hudScale: number;
   muteDictationSounds: boolean;
   appSoundVolume: number;
   muteMusicWhileDictating: boolean;
@@ -176,5 +177,6 @@ export type HudState = {
   label?: string;
   soundEnabled?: boolean;
   soundVolume?: number;
+  hudScale?: number;
   moveMode?: boolean;
 };

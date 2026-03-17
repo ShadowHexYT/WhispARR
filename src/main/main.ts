@@ -136,15 +136,24 @@ let currentHudState: HudState = {
   label: "Ready",
   soundEnabled: !currentSettings.muteDictationSounds,
   soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+  hudScale: currentSettings.hudScale,
   moveMode: false
 };
 const pressedKeys = new Set<number>();
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
-const HUD_WIDTH = 156;
-const HUD_HEIGHT = 62;
+const HUD_BASE_WIDTH = 110;
+const HUD_BASE_HEIGHT = 44;
 const HUD_MARGIN = 6;
+
+function getHudDimensions() {
+  const scale = Math.max(60, Math.min(160, currentSettings.hudScale || 100)) / 100;
+  return {
+    width: Math.round(HUD_BASE_WIDTH * scale),
+    height: Math.round(HUD_BASE_HEIGHT * scale)
+  };
+}
 
 const windowsOverlayColors: Record<AppThemeName, string> = {
   aurora: "#061018",
@@ -227,16 +236,18 @@ function hideMainWindowToTray() {
 }
 
 function clampHudPosition(position: { x: number; y: number }, bounds: Electron.Rectangle) {
+  const { width, height } = getHudDimensions();
   return {
-    x: Math.min(Math.max(position.x, bounds.x), bounds.x + bounds.width - HUD_WIDTH),
-    y: Math.min(Math.max(position.y, bounds.y), bounds.y + bounds.height - HUD_HEIGHT)
+    x: Math.min(Math.max(position.x, bounds.x), bounds.x + bounds.width - width),
+    y: Math.min(Math.max(position.y, bounds.y), bounds.y + bounds.height - height)
   };
 }
 
 function getDefaultHudPosition(bounds: Electron.Rectangle) {
+  const { width, height } = getHudDimensions();
   return {
-    x: bounds.x + Math.round((bounds.width - HUD_WIDTH) / 2),
-    y: bounds.y + bounds.height - HUD_HEIGHT - HUD_MARGIN
+    x: bounds.x + Math.round((bounds.width - width) / 2),
+    y: bounds.y + bounds.height - height - HUD_MARGIN
   };
 }
 
@@ -252,10 +263,11 @@ function positionHudWindow() {
     return;
   }
 
+  const { width, height } = getHudDimensions();
   const position = getHudPosition();
   hudWindow.setBounds({
-    width: HUD_WIDTH,
-    height: HUD_HEIGHT,
+    width,
+    height,
     x: position.x,
     y: position.y
   });
@@ -266,9 +278,10 @@ function createHudWindow() {
     return hudWindow;
   }
 
+  const { width, height } = getHudDimensions();
   hudWindow = new BrowserWindow({
-    width: HUD_WIDTH,
-    height: HUD_HEIGHT,
+    width,
+    height,
     frame: false,
     transparent: true,
     resizable: false,
@@ -675,7 +688,8 @@ function registerGlobalPushToTalk() {
       level: 0,
       label: "Listening",
       soundEnabled: !currentSettings.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100))
+      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+      hudScale: currentSettings.hudScale
     });
     sendPushToTalkEvent("start");
   });
@@ -696,7 +710,8 @@ function registerGlobalPushToTalk() {
       level: 0,
       label: "Listening",
       soundEnabled: !currentSettings.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100))
+      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+      hudScale: currentSettings.hudScale
     });
     sendPushToTalkEvent("stop");
   });
@@ -749,6 +764,7 @@ app.whenReady().then(() => {
       label: pushToTalkActive ? "Listening" : "Ready",
       soundEnabled: !next.muteDictationSounds,
       soundVolume: Math.max(0, Math.min(1, next.appSoundVolume / 100)),
+      hudScale: next.hudScale,
       moveMode: isHudMoveMode
     });
     return next;

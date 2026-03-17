@@ -40,6 +40,7 @@ const defaultSettings: AppSettings = {
   launchOnLogin: false,
   alwaysShowPill: false,
   hudPosition: null,
+  hudScale: 100,
   muteDictationSounds: false,
   appSoundVolume: 80,
   muteMusicWhileDictating: false,

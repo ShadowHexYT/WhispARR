@@ -13,6 +13,7 @@ body {
 }
 
 .hud-shell {
+  --hud-scale: 1;
   width: 100%;
   height: 100%;
   display: flex;
@@ -30,10 +31,10 @@ body {
 .hud-pill {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 120px;
-  height: 38px;
-  padding: 0 14px;
+  gap: calc(6px * var(--hud-scale));
+  min-width: calc(96px * var(--hud-scale));
+  height: calc(27px * var(--hud-scale));
+  padding: 0 calc(8px * var(--hud-scale)) 0 calc(7px * var(--hud-scale));
   border-radius: 999px;
   background: rgba(4, 10, 14, 0.94);
   border: 1px solid rgba(113, 174, 255, 0.22);
@@ -42,7 +43,7 @@ body {
 
 .hud-pill.move-mode {
   position: relative;
-  padding-right: 74px;
+  padding-right: calc(52px * var(--hud-scale));
   -webkit-app-region: drag;
   cursor: move;
   border-color: rgba(125, 210, 255, 0.45);
@@ -52,8 +53,8 @@ body {
 }
 
 .hud-icon {
-  width: 11px;
-  height: 11px;
+  width: calc(8px * var(--hud-scale));
+  height: calc(8px * var(--hud-scale));
   border-radius: 999px;
   flex: 0 0 auto;
 }
@@ -71,31 +72,35 @@ body {
 .hud-wave {
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 16px;
+  gap: calc(2px * var(--hud-scale));
+  height: calc(11px * var(--hud-scale));
   flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .hud-wave span {
-  width: 2px;
+  width: calc(2px * var(--hud-scale));
   border-radius: 999px;
   background: rgba(236, 244, 255, 0.95);
-  min-height: 4px;
+  min-height: calc(3px * var(--hud-scale));
+  flex: 1 1 0;
+  max-width: calc(2px * var(--hud-scale));
   transition: height 70ms linear;
 }
 
 .hud-move-badge {
   position: absolute;
-  right: 9px;
+  right: calc(6px * var(--hud-scale));
   top: 50%;
   transform: translateY(-50%);
-  font-size: 10px;
+  font-size: calc(7px * var(--hud-scale));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(223, 243, 255, 0.88);
   background: rgba(72, 166, 255, 0.16);
   border: 1px solid rgba(122, 193, 255, 0.28);
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: calc(3px * var(--hud-scale)) calc(6px * var(--hud-scale));
   white-space: nowrap;
 }

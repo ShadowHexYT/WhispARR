@@ -34,6 +34,12 @@ import {
 
 const isDev = !app.isPackaged;
 
+if (isDev) {
+  app.setName("WhispARR Dev");
+  app.setPath("userData", path.join(app.getPath("appData"), "WhispARR Dev"));
+  app.setPath("sessionData", path.join(app.getPath("appData"), "WhispARR Dev", "session"));
+}
+
 const MODIFIER_KEY_CODES: Record<ShortcutModifier, number[]> = {
   ctrl: [UiohookKey.Ctrl, UiohookKey.CtrlRight],
   meta: [UiohookKey.Meta, UiohookKey.MetaRight],
@@ -242,12 +248,15 @@ function createWindow() {
     backgroundColor: "#08131a",
     title: "WhispARR",
     icon: getAppIconPath(),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
+
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.on("close", (event) => {
     if (!isQuitting) {

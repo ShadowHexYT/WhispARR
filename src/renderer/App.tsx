@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { computeVoiceEmbedding, scoreVoiceMatch } from "./lib/audio";
+import { computeVoiceEmbedding, hasAudibleSpeech, scoreVoiceMatch } from "./lib/audio";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import {
   ActivationShortcut,
@@ -383,6 +383,13 @@ export default function App() {
 
   async function finalizeDictation(options: { pasteResult: boolean }) {
     const sample = await recorderRef.current.stop();
+
+    if (!hasAudibleSpeech(sample.pcm)) {
+      setStatus("No speech detected. Nothing was saved or pasted.");
+      recorderRef.current.reset();
+      return;
+    }
+
     const embedding = computeVoiceEmbedding(sample.pcm, sample.sampleRate);
     const profile = activeProfileRef.current;
     const currentSettings = settingsRef.current;

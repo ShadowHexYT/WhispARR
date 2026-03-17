@@ -53,3 +53,28 @@ export function scoreVoiceMatch(reference: VoiceEmbedding, candidate: VoiceEmbed
 
   return Number(score.toFixed(3));
 }
+
+export function hasAudibleSpeech(pcm: Float32Array) {
+  if (pcm.length === 0) {
+    return false;
+  }
+
+  const segment = pcm.slice(0, Math.min(16000, pcm.length));
+  let peak = 0;
+  let energy = 0;
+  let activeSamples = 0;
+
+  for (let index = 0; index < segment.length; index += 1) {
+    const value = Math.abs(segment[index] ?? 0);
+    peak = Math.max(peak, value);
+    energy += value * value;
+    if (value > 0.018) {
+      activeSamples += 1;
+    }
+  }
+
+  const rms = Math.sqrt(energy / Math.max(1, segment.length));
+  const activityRatio = activeSamples / Math.max(1, segment.length);
+
+  return peak > 0.03 && rms > 0.008 && activityRatio > 0.015;
+}

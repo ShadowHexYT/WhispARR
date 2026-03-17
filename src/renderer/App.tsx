@@ -39,6 +39,7 @@ type MicDevice = { deviceId: string; label: string };
 type StatusLogEntry = { timestamp: string; message: string };
 type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 type AchievementDifficulty = "Easy" | "Medium" | "Hard" | "Almost Impossible";
+type UpdateDialogState = "closed" | "none" | "available" | "error";
 const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
@@ -860,7 +861,10 @@ export default function App() {
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
+  const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
+  const [updateDialogMessage, setUpdateDialogMessage] = useState("");
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
+  const [isTranscriptHistoryMenuOpen, setIsTranscriptHistoryMenuOpen] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [isMovingHud, setIsMovingHud] = useState(false);
   const [isPreviewingHudScale, setIsPreviewingHudScale] = useState(false);
@@ -876,6 +880,7 @@ export default function App() {
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
   const hudPreviewTimeoutRef = useRef<number | null>(null);
+  const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
@@ -1179,6 +1184,9 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      if (transcriptHistoryClickTimeoutRef.current) {
+        window.clearTimeout(transcriptHistoryClickTimeoutRef.current);
+      }
       if (hudPreviewTimeoutRef.current) {
         window.clearTimeout(hudPreviewTimeoutRef.current);
       }
@@ -1520,8 +1528,21 @@ export default function App() {
       const info = await window.wisprApi.checkForAppUpdates();
       setAppUpdateInfo(info);
       setStatus(info.message);
+      if (info.hasUpdate && info.downloadUrl) {
+        setUpdateDialogMessage(info.message);
+        setUpdateDialogState("available");
+      } else if (info.hasUpdate) {
+        setUpdateDialogMessage(info.message);
+        setUpdateDialogState("error");
+      } else {
+        setUpdateDialogMessage("No new updates are available right now.");
+        setUpdateDialogState("none");
+      }
     } catch (caught) {
-      setStatus(caught instanceof Error ? caught.message : "Update check failed.");
+      const message = caught instanceof Error ? caught.message : "Update check failed.";
+      setStatus(message);
+      setUpdateDialogMessage(message);
+      setUpdateDialogState("error");
     } finally {
       setIsCheckingForUpdates(false);
     }
@@ -1532,8 +1553,13 @@ export default function App() {
       setIsInstallingAppUpdate(true);
       const message = await window.wisprApi.downloadAndInstallAppUpdate();
       setStatus(message);
+      setUpdateDialogMessage(message);
+      setUpdateDialogState("closed");
     } catch (caught) {
-      setStatus(caught instanceof Error ? caught.message : "Update install failed.");
+      const message = caught instanceof Error ? caught.message : "Update install failed.";
+      setStatus(message);
+      setUpdateDialogMessage(message);
+      setUpdateDialogState("error");
     } finally {
       setIsInstallingAppUpdate(false);
     }
@@ -1962,6 +1988,10 @@ export default function App() {
         return true;
     }
   });
+  const mainNavItems = navItems.filter((item) => item.key !== "developer");
+  const developerNavItem = settings.devModeUnlocked
+    ? navItems.find((item) => item.key === "developer") ?? null
+    : null;
 
   async function copyTranscript(text: string) {
     await navigator.clipboard.writeText(text);
@@ -2007,6 +2037,25 @@ export default function App() {
     setSavedNoteDraft("");
     setIsSavedNoteComposerOpen(false);
     setStatus("Saved a local note item.");
+  }
+
+  function handleTranscriptHistoryCustomClick() {
+    if (transcriptHistoryClickTimeoutRef.current) {
+      window.clearTimeout(transcriptHistoryClickTimeoutRef.current);
+    }
+    transcriptHistoryClickTimeoutRef.current = window.setTimeout(() => {
+      setIsTranscriptHistoryMenuOpen((current) => !current);
+      transcriptHistoryClickTimeoutRef.current = null;
+    }, 220);
+  }
+
+  function handleTranscriptHistoryCustomDoubleClick() {
+    if (transcriptHistoryClickTimeoutRef.current) {
+      window.clearTimeout(transcriptHistoryClickTimeoutRef.current);
+      transcriptHistoryClickTimeoutRef.current = null;
+    }
+    setIsTranscriptHistoryMenuOpen(false);
+    setIsEditingTranscriptHistoryLimit(true);
   }
 
   async function removeSavedNote(index: number) {
@@ -2068,9 +2117,7 @@ export default function App() {
           </div>
         </div>
         <nav className="nav">
-          {navItems
-            .filter((item) => item.key !== "developer" || settings.devModeUnlocked)
-            .map(({ key, label, Icon, iconClassName }) => (
+          {mainNavItems.map(({ key, label, Icon, iconClassName }) => (
             <button
               key={key}
               className={tab === key ? "nav-button active" : "nav-button"}
@@ -2084,6 +2131,43 @@ export default function App() {
               </span>
             </button>
           ))}
+          <button
+            className="nav-button sidebar-update-button"
+            type="button"
+            onClick={() => void checkForUpdates()}
+            disabled={isCheckingForUpdates}
+          >
+            <span className="nav-button-content">
+              <span className="nav-icon" aria-hidden="true">
+                <CircleHelp className="nav-icon-glyph nav-icon-help" strokeWidth={1.8} />
+              </span>
+              <span>{isCheckingForUpdates ? "Checking..." : "Check for updates"}</span>
+            </span>
+          </button>
+          {appUpdateInfo?.hasUpdate && appUpdateInfo.downloadUrl && (
+            <button
+              className="secondary-button sidebar-update-button sidebar-update-install-button"
+              type="button"
+              onClick={() => void downloadAndInstallUpdate()}
+              disabled={isInstallingAppUpdate}
+            >
+              {isInstallingAppUpdate ? "Preparing installer..." : "Download and install update"}
+            </button>
+          )}
+          {developerNavItem && (
+            <button
+              key={developerNavItem.key}
+              className={tab === developerNavItem.key ? "nav-button active nav-button-last" : "nav-button nav-button-last"}
+              onClick={() => setTab(developerNavItem.key)}
+            >
+              <span className="nav-button-content">
+                <span className="nav-icon" aria-hidden="true">
+                  <developerNavItem.Icon className={`nav-icon-glyph ${developerNavItem.iconClassName}`} strokeWidth={1.8} />
+                </span>
+                <span>{developerNavItem.label}</span>
+              </span>
+            </button>
+          )}
         </nav>
         {isRetroModeEnabled && (
           <button
@@ -2224,26 +2308,6 @@ export default function App() {
                   <label className="inline-field">
                     <span>Keep</span>
                     <div className="history-limit-control">
-                      <div className="history-limit-presets">
-                        {transcriptHistoryOptions.map((count) => (
-                          <button
-                            key={count}
-                            type="button"
-                            className={
-                              settings.transcriptHistoryLimit === count
-                                ? "history-limit-chip active"
-                                : "history-limit-chip"
-                            }
-                            onClick={() =>
-                              void patchSettings({
-                                transcriptHistoryLimit: count
-                              }).then(() => setIsEditingTranscriptHistoryLimit(false))
-                            }
-                          >
-                            {count}
-                          </button>
-                        ))}
-                      </div>
                       {isEditingTranscriptHistoryLimit ? (
                         <input
                           type="number"
@@ -2265,11 +2329,37 @@ export default function App() {
                         <button
                           type="button"
                           className="history-limit-custom"
-                          onDoubleClick={() => setIsEditingTranscriptHistoryLimit(true)}
-                          title="Double-click to enter a custom history limit"
+                          onClick={handleTranscriptHistoryCustomClick}
+                          onDoubleClick={handleTranscriptHistoryCustomDoubleClick}
+                          title="Click once for presets or double-click to enter a custom history limit"
                         >
-                          Custom: {settings.transcriptHistoryLimit}
+                          {settings.transcriptHistoryLimit}
                         </button>
+                      )}
+                      {isTranscriptHistoryMenuOpen && !isEditingTranscriptHistoryLimit && (
+                        <div className="history-limit-presets history-limit-presets-dropdown">
+                          {transcriptHistoryOptions.map((count) => (
+                            <button
+                              key={count}
+                              type="button"
+                              className={
+                                settings.transcriptHistoryLimit === count
+                                  ? "history-limit-chip active"
+                                  : "history-limit-chip"
+                              }
+                              onClick={() =>
+                                void patchSettings({
+                                  transcriptHistoryLimit: count
+                                }).then(() => {
+                                  setIsEditingTranscriptHistoryLimit(false);
+                                  setIsTranscriptHistoryMenuOpen(false);
+                                })
+                              }
+                            >
+                              {count}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </label>
@@ -3289,26 +3379,6 @@ export default function App() {
               <p className="supporting">
                 Check GitHub releases for a newer installer so you can update from inside the app.
               </p>
-              <div className="button-row">
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => void checkForUpdates()}
-                  disabled={isCheckingForUpdates}
-                >
-                  {isCheckingForUpdates ? "Checking..." : "Check for updates"}
-                </button>
-                {appUpdateInfo?.hasUpdate && appUpdateInfo.downloadUrl && (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => void downloadAndInstallUpdate()}
-                    disabled={isInstallingAppUpdate}
-                  >
-                    {isInstallingAppUpdate ? "Preparing installer..." : "Download and install update"}
-                  </button>
-                )}
-              </div>
               <div className="update-status-card">
                 <p className="supporting">
                   Current version: <strong>{appUpdateInfo?.currentVersion ?? "Not checked yet"}</strong>
@@ -3725,6 +3795,86 @@ export default function App() {
             <p className="eyebrow">Secret Mode</p>
             <h3>Retro Mode Unlocked</h3>
             <p>A pixel survivor just bolted across the app. You are now in arcade mode.</p>
+          </section>
+        </div>
+      )}
+      {updateDialogState !== "closed" && (
+        <div className="update-dialog-backdrop" role="presentation">
+          <section className="update-dialog-modal" aria-label="Application update">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Updates</p>
+                <h3>
+                  {updateDialogState === "available"
+                    ? "New Update Ready"
+                    : updateDialogState === "none"
+                      ? "No New Updates"
+                      : "Update Check"}
+                </h3>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setUpdateDialogState("closed")}
+                aria-label="Close update dialog"
+                title="Close"
+                disabled={isInstallingAppUpdate}
+              >
+                X
+              </button>
+            </div>
+            <p className="supporting">
+              {updateDialogState === "none"
+                ? "You already have the latest version installed."
+                : updateDialogMessage}
+            </p>
+            {appUpdateInfo?.latestVersion && updateDialogState !== "none" && (
+              <p className="supporting">
+                Latest version: <strong>{appUpdateInfo.latestVersion}</strong>
+              </p>
+            )}
+            {appUpdateInfo?.releaseName && updateDialogState === "available" && (
+              <p className="supporting">
+                Release: <strong>{appUpdateInfo.releaseName}</strong>
+              </p>
+            )}
+            {appUpdateInfo?.releaseNotes && updateDialogState === "available" && (
+              <div className="update-dialog-notes">
+                <strong>What's new</strong>
+                <p>{appUpdateInfo.releaseNotes}</p>
+              </div>
+            )}
+            <div className="button-row">
+              {updateDialogState === "available" ? (
+                <>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setUpdateDialogState("closed")}
+                    disabled={isInstallingAppUpdate}
+                  >
+                    Later
+                  </button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => void downloadAndInstallUpdate()}
+                    disabled={isInstallingAppUpdate}
+                  >
+                    {isInstallingAppUpdate ? "Downloading update..." : "Download and install update"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => setUpdateDialogState("closed")}
+                  disabled={isInstallingAppUpdate}
+                >
+                  Okay
+                </button>
+              )}
+            </div>
           </section>
         </div>
       )}

@@ -2473,7 +2473,7 @@ export default function App() {
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
                     <strong>Mute music while dictating</strong>
-                    <p>Uses a best-effort media pause and resume approach during push-to-talk.</p>
+                    <p>Pauses media that is actively playing when dictation starts and never resumes anything automatically.</p>
                   </div>
                   <button
                     className={settings.muteMusicWhileDictating ? "settings-switch active" : "settings-switch"}

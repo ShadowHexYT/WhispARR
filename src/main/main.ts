@@ -128,7 +128,6 @@ let isQuitting = false;
 let pushToTalkActive = false;
 let currentSettings = readData().settings;
 const pressedKeys = new Set<number>();
-let didToggleMediaForDictation = false;
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
@@ -411,23 +410,32 @@ function startClipboardLearningWatch(sourceTranscript: string) {
   }, 45000);
 }
 
-function sendMediaPlayPauseKey() {
+function pauseActiveMediaSessions() {
   if (process.platform !== "win32") {
     return;
   }
 
   const script = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public static class MediaKeys {
-  [DllImport("user32.dll", SetLastError=true)]
-  public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime]
+[void][System.WindowsRuntimeSystemExtensions, System.Runtime.WindowsRuntime, ContentType=WindowsRuntime]
+function Await($operation) {
+  return [System.WindowsRuntimeSystemExtensions]::AsTask($operation).GetAwaiter().GetResult()
 }
-"@
-[MediaKeys]::keybd_event(0xB3, 0, 0, 0)
-Start-Sleep -Milliseconds 40
-[MediaKeys]::keybd_event(0xB3, 0, 2, 0)
+$manager = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+foreach ($session in $manager.GetSessions()) {
+  try {
+    $playbackInfo = Await($session.TryGetPlaybackInfoAsync())
+    if (
+      $playbackInfo -and
+      $playbackInfo.PlaybackStatus -eq
+        [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
+    ) {
+      [void](Await($session.TryPauseAsync()))
+    }
+  } catch {
+  }
+}
 `;
 
   execFile(
@@ -438,21 +446,11 @@ Start-Sleep -Milliseconds 40
 }
 
 function pauseMediaForDictationIfNeeded() {
-  if (!currentSettings.muteMusicWhileDictating || didToggleMediaForDictation) {
+  if (!currentSettings.muteMusicWhileDictating) {
     return;
   }
 
-  sendMediaPlayPauseKey();
-  didToggleMediaForDictation = true;
-}
-
-function resumeMediaAfterDictationIfNeeded() {
-  if (!currentSettings.muteMusicWhileDictating || !didToggleMediaForDictation) {
-    return;
-  }
-
-  sendMediaPlayPauseKey();
-  didToggleMediaForDictation = false;
+  pauseActiveMediaSessions();
 }
 
 function createWindow() {
@@ -601,7 +599,6 @@ function registerGlobalPushToTalk() {
     }
 
     pushToTalkActive = false;
-    resumeMediaAfterDictationIfNeeded();
     updateHud({ visible: false, level: 0, label: "Listening" });
     sendPushToTalkEvent("stop");
   });
@@ -763,7 +760,6 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
-  resumeMediaAfterDictationIfNeeded();
   clearClipboardLearningWatch();
   pressedKeys.clear();
   uIOhook.stop();

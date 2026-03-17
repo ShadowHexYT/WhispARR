@@ -677,6 +677,10 @@ select option:disabled {
   margin-bottom: 0;
 }
 
+.dev-tab-panel {
+  width: 100%;
+}
+
 .dev-mode-panel {
   margin-top: 16px;
 }

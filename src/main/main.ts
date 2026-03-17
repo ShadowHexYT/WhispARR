@@ -524,13 +524,26 @@ function Await($operation) {
 $manager = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
 foreach ($session in $manager.GetSessions()) {
   try {
-    $playbackInfo = Await($session.TryGetPlaybackInfoAsync())
+    $appId = ""
+    try {
+      $appId = [string]$session.SourceAppUserModelId
+    } catch {
+      $appId = ""
+    }
+    if ($appId -match "discord") {
+      continue
+    }
+
+    $playbackInfo = $session.GetPlaybackInfo()
     if (
       $playbackInfo -and
       $playbackInfo.PlaybackStatus -eq
         [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
     ) {
-      [void](Await($session.TryPauseAsync()))
+      $controls = $playbackInfo.Controls
+      if ($controls -and $controls.IsPauseEnabled) {
+        [void](Await($session.TryPauseAsync()))
+      }
     }
   } catch {
   }

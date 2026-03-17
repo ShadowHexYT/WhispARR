@@ -25,6 +25,7 @@ declare global {
       saveManualDictionaryEntry: (input: {
         id?: string;
         term: string;
+        addedBySystem?: boolean;
       }) => Promise<ManualDictionaryEntry>;
       deleteManualDictionaryEntry: (id: string) => Promise<ManualDictionaryEntry[]>;
       getWhisperStatus: () => Promise<WhisperConfigStatus>;

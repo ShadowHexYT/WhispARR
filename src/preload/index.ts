@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
   saveManualDictionaryEntry: (input: {
     id?: string;
     term: string;
+    addedBySystem?: boolean;
   }) => ipcRenderer.invoke("dictionary:save", input) as Promise<ManualDictionaryEntry>,
   deleteManualDictionaryEntry: (id: string) =>
     ipcRenderer.invoke("dictionary:delete", id) as Promise<ManualDictionaryEntry[]>,

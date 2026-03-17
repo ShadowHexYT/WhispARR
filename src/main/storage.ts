@@ -135,6 +135,9 @@ export function readData(): LocalData {
                     : typeof legacyEntry.replacement === "string"
                       ? (legacyEntry.replacement.trim() || "")
                       : (legacyEntry.spoken?.trim() || ""),
+                addedBySystem: typeof (entry as { addedBySystem?: unknown }).addedBySystem === "boolean"
+                  ? Boolean((entry as { addedBySystem?: boolean }).addedBySystem)
+                  : false,
                 createdAt: entry.createdAt,
                 updatedAt: entry.updatedAt
               };
@@ -231,6 +234,7 @@ export function deleteVoiceProfile(id: string) {
 export function saveManualDictionaryEntry(input: {
   id?: string;
   term: string;
+  addedBySystem?: boolean;
 }): ManualDictionaryEntry {
   const current = readData();
   const now = new Date().toISOString();
@@ -243,6 +247,7 @@ export function saveManualDictionaryEntry(input: {
     entry = {
       ...existing,
       term: normalizedTerm,
+      addedBySystem: input.addedBySystem ?? existing.addedBySystem,
       updatedAt: now
     };
     current.manualDictionary = current.manualDictionary.map((item) =>
@@ -252,6 +257,7 @@ export function saveManualDictionaryEntry(input: {
     entry = {
       id: randomUUID(),
       term: normalizedTerm,
+      addedBySystem: Boolean(input.addedBySystem),
       createdAt: now,
       updatedAt: now
     };

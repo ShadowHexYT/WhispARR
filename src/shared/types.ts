@@ -67,6 +67,7 @@ export type VoiceProfile = {
 export type ManualDictionaryEntry = {
   id: string;
   term: string;
+  addedBySystem: boolean;
   createdAt: string;
   updatedAt: string;
 };

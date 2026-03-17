@@ -524,11 +524,19 @@ export default function App() {
   const [devices, setDevices] = useState<MicDevice[]>([]);
   const [profileName, setProfileName] = useState("");
   const [dictionaryTerm, setDictionaryTerm] = useState("");
+  const [pronunciationTerm, setPronunciationTerm] = useState("");
+  const [selectedPronunciationEntryId, setSelectedPronunciationEntryId] = useState("");
+  const [isRecordingPronunciation, setIsRecordingPronunciation] = useState(false);
+  const [lastPronunciationResult, setLastPronunciationResult] = useState<{
+    intended: string;
+    heard: string;
+  } | null>(null);
   const [notes, setNotes] = useState("");
   const [savedNotes, setSavedNotes] = useState<string[]>([]);
   const [savedNoteDraft, setSavedNoteDraft] = useState("");
   const [isSavedNoteComposerOpen, setIsSavedNoteComposerOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -570,6 +578,12 @@ export default function App() {
   useEffect(() => {
     recorderRef.current = recorder;
   }, [recorder]);
+
+  useEffect(() => {
+    if (isTestingMicrophone && recorder.error) {
+      setIsTestingMicrophone(false);
+    }
+  }, [isTestingMicrophone, recorder.error]);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -842,6 +856,10 @@ export default function App() {
       return;
     }
 
+    if (isTestingMicrophone) {
+      await stopMicrophoneTest();
+    }
+
     isRecordingRef.current = true;
     setIsPushToTalkActive(true);
     await recorderRef.current.start();
@@ -941,23 +959,26 @@ export default function App() {
     await finalizeDictation({ pasteResult: true });
   }
 
-  async function startDictation() {
-    if (isRecordingRef.current) {
+  async function startMicrophoneTest() {
+    if (isRecordingRef.current || recorderRef.current.state === "recording") {
       return;
     }
 
-    isRecordingRef.current = true;
-    await recorder.start();
-    setStatus("Recording from your selected microphone...");
+    setIsTestingMicrophone(true);
+    await recorderRef.current.start();
+    setStatus("Microphone test is live. Speak to check for input.");
   }
 
-  async function stopDictation() {
-    if (!isRecordingRef.current) {
+  async function stopMicrophoneTest() {
+    if (recorderRef.current.state !== "recording") {
+      setIsTestingMicrophone(false);
       return;
     }
 
-    isRecordingRef.current = false;
-    await finalizeDictation({ pasteResult: false });
+    await recorderRef.current.stop();
+    recorderRef.current.reset();
+    setIsTestingMicrophone(false);
+    setStatus("Microphone test stopped.");
   }
 
   async function trainProfile() {
@@ -966,7 +987,7 @@ export default function App() {
       return;
     }
 
-    if (isTrainingProfile) {
+    if (isTrainingProfile || isRecordingPronunciation) {
       return;
     }
 
@@ -1001,6 +1022,69 @@ export default function App() {
     }
   }
 
+  async function toggleProfileTraining() {
+    if (isTrainingProfile) {
+      await stopProfileTraining();
+      return;
+    }
+
+    await trainProfile();
+  }
+
+  async function togglePronunciationCapture() {
+    if (isTrainingProfile) {
+      return;
+    }
+
+    if (isRecordingPronunciation) {
+      try {
+        const sample = await recorder.stop();
+        if (!hasAudibleSpeech(sample.pcm)) {
+          setStatus("No speech detected. Try saying the word again.");
+          return;
+        }
+
+        const intended = pronunciationTerm.trim();
+        const existingMatch = manualDictionary.find(
+          (entry) => entry.term.toLowerCase() === intended.toLowerCase()
+        );
+        const transcription = await window.wisprApi.transcribe({
+          pcm: Array.from(sample.pcm),
+          sampleRate: sample.sampleRate
+        });
+        const savedEntry = await window.wisprApi.saveManualDictionaryEntry({
+          id: existingMatch?.id,
+          term: intended
+        });
+
+        setManualDictionary((current) => [savedEntry, ...current.filter((item) => item.id !== savedEntry.id)]);
+        setSelectedPronunciationEntryId(savedEntry.id);
+        setLastPronunciationResult({
+          intended: savedEntry.term,
+          heard: transcription.transcript.trim() || "No clear transcript detected"
+        });
+        setStatus(`Saved "${savedEntry.term}" to your local dictionary and checked how it was heard.`);
+      } catch (caught) {
+        setStatus(caught instanceof Error ? caught.message : "Pronunciation capture failed.");
+      } finally {
+        setIsRecordingPronunciation(false);
+        recorder.reset();
+      }
+      return;
+    }
+
+    const intended = pronunciationTerm.trim();
+    if (!intended) {
+      setStatus("Choose or type the word you want WhispARR to learn first.");
+      return;
+    }
+
+    setLastPronunciationResult(null);
+    await recorder.start();
+    setIsRecordingPronunciation(true);
+    setStatus(`Pronunciation capture is live. Say "${intended}" clearly, then press stop.`);
+  }
+
   const activeShortcutLabel = shortcutToLabel(settings.activationShortcut);
   const draftShortcutLabel = draftShortcut ? shortcutToLabel(draftShortcut) : null;
   const currentLevelFloor = getLevelThreshold(stats.currentLevel);
@@ -1012,11 +1096,6 @@ export default function App() {
   async function copyTranscript(text: string) {
     await navigator.clipboard.writeText(text);
     setStatus("Transcript copied to clipboard.");
-  }
-
-  async function copyTrainingParagraph() {
-    await navigator.clipboard.writeText(trainingParagraph);
-    setStatus("Training paragraph copied to clipboard.");
   }
 
   async function copyNotes() {
@@ -1160,6 +1239,10 @@ export default function App() {
             <span>Streak</span>
             <strong>{stats.currentStreakDays} days</strong>
           </article>
+          <article className="top-stat">
+            <span>Total Achievements</span>
+            <strong>{achievements.length}</strong>
+          </article>
         </section>
         <section className="top-progress">
           <div className="top-progress-copy">
@@ -1194,8 +1277,30 @@ export default function App() {
                   <p className="eyebrow">Activation</p>
                   <h3>{activeShortcutLabel} To Dictate</h3>
                 </div>
-                <button className="ghost-button" onClick={() => void refreshDevices()}>
-                  Refresh devices
+                <button
+                  className="icon-button"
+                  onClick={() => void refreshDevices()}
+                  type="button"
+                  aria-label="Refresh devices"
+                  title="Refresh devices"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M20 12a8 8 0 1 1-2.34-5.66"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M20 4v5h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </button>
               </div>
               <p className="supporting">
@@ -1219,24 +1324,33 @@ export default function App() {
                 </select>
               </label>
               <div className="button-row">
-                <button
-                  className="primary-button"
-                  onClick={() => void startDictation()}
-                  disabled={recorder.state === "recording"}
-                >
-                  Start manually
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => void stopDictation()}
-                  disabled={recorder.state !== "recording"}
-                >
-                  Stop manual capture
-                </button>
                 <button className="ghost-button" onClick={() => setTab("settings")}>
                   Edit shortcut
                 </button>
+                <button
+                  className={isTestingMicrophone ? "secondary-button" : "primary-button"}
+                  onClick={() =>
+                    void (isTestingMicrophone ? stopMicrophoneTest() : startMicrophoneTest())
+                  }
+                  disabled={!isTestingMicrophone && recorder.state === "recording"}
+                >
+                  {isTestingMicrophone ? "Stop microphone test" : "Test microphone"}
+                </button>
               </div>
+              {isTestingMicrophone && (
+                <div className="microphone-test-card">
+                  <div className="microphone-test-header">
+                    <strong>Microphone input</strong>
+                    <span>{recorder.level > 0.08 ? "Input detected" : "Listening..."}</span>
+                  </div>
+                  <div className="microphone-test-meter" aria-hidden="true">
+                    <div
+                      className="microphone-test-fill"
+                      style={{ width: `${Math.max(8, recorder.level * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               {activeProfile && (
                 <p className="supporting">
                   Active speaker verification profile: <strong>{activeProfile.name}</strong>
@@ -1321,35 +1435,16 @@ export default function App() {
               </label>
               <div className="button-row">
                 <button
-                  className="primary-button"
-                  onClick={() => void trainProfile()}
-                  disabled={isTrainingProfile || recorder.state === "recording"}
+                  className={isTrainingProfile ? "secondary-button" : "primary-button"}
+                  onClick={() => void toggleProfileTraining()}
+                  disabled={!isTrainingProfile && recorder.state === "recording"}
                 >
-                  Start training recording
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => void stopProfileTraining()}
-                  disabled={!isTrainingProfile}
-                >
-                  Stop and save training
-                </button>
-                <button className="ghost-button" onClick={() => void copyTrainingParagraph()}>
-                  Copy sample paragraph
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() =>
-                    void patchSettings({ autoVerifySpeaker: !settings.autoVerifySpeaker })
-                  }
-                >
-                  {settings.autoVerifySpeaker ? "Disable speaker gate" : "Enable speaker gate"}
+                  {isTrainingProfile ? "Stop training" : "Start training"}
                 </button>
               </div>
               <p className="supporting">
-                Training stores a local voiceprint that can block transcription if someone else is
-                speaking when push-to-talk is triggered. Start recording when you are ready, read the
-                paragraph at your normal pace, and stop it yourself when finished.
+                Training stores a local voiceprint on this device. Start recording when you are ready,
+                read the paragraph at your normal pace, and press the same button again when finished.
               </p>
               <div className="training-example">
                 <p className="eyebrow">Practice Paragraph</p>
@@ -1400,6 +1495,70 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              <div className="dictionary-header">
+                <p className="eyebrow">Pronunciation</p>
+                <h3>Teach A Word You Say Differently</h3>
+              </div>
+              <p className="supporting">
+                Pick a term from your local dictionary or type a new one, then record yourself saying
+                it. WhispARR will save that intended term into the local dictionary and show what the
+                local engine heard so you can quickly tune repeated misses.
+              </p>
+              <div className="dictionary-form">
+                <label className="field">
+                  <span>Use a saved dictionary term</span>
+                  <select
+                    value={selectedPronunciationEntryId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setSelectedPronunciationEntryId(nextId);
+                      const selectedEntry = manualDictionary.find((entry) => entry.id === nextId);
+                      if (selectedEntry) {
+                        setPronunciationTerm(selectedEntry.term);
+                      }
+                    }}
+                  >
+                    <option value="">Choose from local dictionary</option>
+                    {manualDictionary.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.addedBySystem ? `★ ${entry.term}` : entry.term}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Word or phrase</span>
+                  <input
+                    value={pronunciationTerm}
+                    onChange={(event) => {
+                      setPronunciationTerm(event.target.value);
+                      setSelectedPronunciationEntryId("");
+                    }}
+                    placeholder="Example: WhispARR"
+                  />
+                </label>
+              </div>
+              <div className="button-row">
+                <button
+                  className={isRecordingPronunciation ? "secondary-button" : "primary-button"}
+                  onClick={() => void togglePronunciationCapture()}
+                  disabled={!isRecordingPronunciation && recorder.state === "recording"}
+                >
+                  {isRecordingPronunciation ? "Stop and check word" : "Say this word"}
+                </button>
+              </div>
+              {lastPronunciationResult && (
+                <div className="pronunciation-result">
+                  <div>
+                    <strong>Intended word</strong>
+                    <p>{lastPronunciationResult.intended}</p>
+                  </div>
+                  <div>
+                    <strong>Heard locally</strong>
+                    <p>{lastPronunciationResult.heard}</p>
+                  </div>
+                </div>
+              )}
             </section>
           </section>
         )}
@@ -1447,8 +1606,11 @@ export default function App() {
                 {manualDictionary.map((entry) => (
                   <div key={entry.id} className="dictionary-card">
                     <div>
-                      <strong>{entry.term}</strong>
-                      <p>Preferred local term</p>
+                      <strong>
+                        {entry.term}
+                        {entry.addedBySystem && <span className="dictionary-star" aria-label="System added"> ★</span>}
+                      </strong>
+                      <p>{entry.addedBySystem ? "System-added term" : "Preferred local term"}</p>
                     </div>
                     <button
                       className="ghost-button danger"

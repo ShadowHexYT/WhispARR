@@ -348,6 +348,42 @@ textarea {
   flex-wrap: wrap;
 }
 
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--button-top) 100%, white 10%),
+    color-mix(in srgb, var(--button-bottom) 100%, white 8%)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .inline-field {
   display: flex;
   align-items: center;
@@ -394,6 +430,43 @@ textarea {
 .saved-note-input {
   min-height: 160px;
   line-height: 1.6;
+}
+
+.microphone-test-card {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+}
+
+.microphone-test-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.microphone-test-header span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.microphone-test-meter {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--progress-track);
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.microphone-test-fill {
+  height: 100%;
+  min-width: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  transition: width 0.12s ease;
 }
 
 .notes-workspace-actions {
@@ -731,6 +804,10 @@ select option:disabled {
   color: var(--text);
 }
 
+.dictionary-star {
+  color: var(--accent);
+}
+
 .profile-card {
   display: flex;
   justify-content: space-between;
@@ -864,6 +941,27 @@ select option:disabled {
   border-radius: 18px;
   background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.pronunciation-result {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.pronunciation-result strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.pronunciation-result p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .theme-grid {

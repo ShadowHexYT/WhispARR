@@ -584,7 +584,13 @@ function registerGlobalPushToTalk() {
 
     pushToTalkActive = true;
     pauseMediaForDictationIfNeeded();
-    updateHud({ visible: true, level: 0, label: "Listening" });
+    updateHud({
+      visible: true,
+      level: 0,
+      label: "Listening",
+      soundEnabled: !currentSettings.muteDictationSounds,
+      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100))
+    });
     sendPushToTalkEvent("start");
   });
 
@@ -599,7 +605,13 @@ function registerGlobalPushToTalk() {
     }
 
     pushToTalkActive = false;
-    updateHud({ visible: false, level: 0, label: "Listening" });
+    updateHud({
+      visible: false,
+      level: 0,
+      label: "Listening",
+      soundEnabled: !currentSettings.muteDictationSounds,
+      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100))
+    });
     sendPushToTalkEvent("stop");
   });
 
@@ -649,7 +661,8 @@ app.whenReady().then(() => {
       visible: pushToTalkActive || next.alwaysShowPill,
       level: 0,
       label: pushToTalkActive ? "Listening" : "Ready",
-      soundEnabled: !next.muteDictationSounds
+      soundEnabled: !next.muteDictationSounds,
+      soundVolume: Math.max(0, Math.min(1, next.appSoundVolume / 100))
     });
     return next;
   });

@@ -38,6 +38,7 @@ const defaultSettings: AppSettings = {
   launchOnLogin: false,
   alwaysShowPill: false,
   muteDictationSounds: false,
+  appSoundVolume: 80,
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
   smartFormatting: true,

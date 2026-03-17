@@ -11,7 +11,8 @@ function Hud() {
     visible: false,
     level: 0,
     label: "Listening",
-    soundEnabled: true
+    soundEnabled: true,
+    soundVolume: 0.8
   });
   const isHeard = hudState.level > 0.03;
   const previousVisibleRef = useRef(false);
@@ -20,15 +21,25 @@ function Hud() {
 
   useEffect(() => {
     popAudioRef.current = new Audio(popSoundUrl);
-    popAudioRef.current.volume = 0.8;
+    popAudioRef.current.volume = hudState.soundVolume ?? 0.8;
     startHumAudioRef.current = new Audio(startHumSoundUrl);
-    startHumAudioRef.current.volume = 0.8;
+    startHumAudioRef.current.volume = hudState.soundVolume ?? 0.8;
 
     return () => {
       popAudioRef.current = null;
       startHumAudioRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const volume = hudState.soundVolume ?? 0.8;
+    if (popAudioRef.current) {
+      popAudioRef.current.volume = volume;
+    }
+    if (startHumAudioRef.current) {
+      startHumAudioRef.current.volume = volume;
+    }
+  }, [hudState.soundVolume]);
 
   useEffect(() => {
     return window.wisprApi.onHudState((state) => {

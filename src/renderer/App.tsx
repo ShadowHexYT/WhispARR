@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   BookText,
   ChartColumnBig,
@@ -51,6 +51,7 @@ const defaultSettings: AppSettings = {
   launchOnLogin: false,
   alwaysShowPill: false,
   muteDictationSounds: false,
+  appSoundVolume: 80,
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
   smartFormatting: true,
@@ -566,6 +567,10 @@ function shortcutFromKeyboardEvent(event: KeyboardEvent): ActivationShortcut {
   };
 }
 
+function clampSoundVolume(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 function shortcutFromPressedCodes(codes: Iterable<string>): ActivationShortcut {
   const codeSet = new Set(codes);
   const modifiers = modifierOrder.filter((modifier) => {
@@ -731,7 +736,8 @@ export default function App() {
 
       const master = audioContext.createGain();
       master.gain.setValueAtTime(0.0001, now);
-      master.gain.exponentialRampToValueAtTime(0.18, now + 0.05);
+      const targetVolume = Math.max(0.0001, (settingsRef.current.appSoundVolume / 100) * 0.18);
+      master.gain.exponentialRampToValueAtTime(targetVolume, now + 0.05);
       master.gain.exponentialRampToValueAtTime(0.0001, now + duration);
       master.connect(audioContext.destination);
 
@@ -846,12 +852,19 @@ export default function App() {
 
   useEffect(() => {
     levelUpAudioRef.current = new Audio(levelUpSoundUrl);
-    levelUpAudioRef.current.volume = 0.85;
+    levelUpAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
 
     return () => {
       levelUpAudioRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const audio = levelUpAudioRef.current;
+    if (audio) {
+      audio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
+    }
+  }, [settings.appSoundVolume]);
 
   useEffect(() => {
     transcriptHistoryRef.current = transcriptHistory;
@@ -896,9 +909,10 @@ export default function App() {
       visible,
       level: recorder.state === "recording" ? recorder.level : 0,
       label: recorder.state === "recording" ? "Listening" : "Ready",
-      soundEnabled: !settings.muteDictationSounds
+      soundEnabled: !settings.muteDictationSounds,
+      soundVolume: clampSoundVolume(settings.appSoundVolume) / 100
     });
-  }, [recorder.level, recorder.state, settings.alwaysShowPill, settings.muteDictationSounds]);
+  }, [recorder.level, recorder.state, settings.alwaysShowPill, settings.appSoundVolume, settings.muteDictationSounds]);
 
   useEffect(() => {
     if (!hasLoadedInitialDataRef.current) {
@@ -1447,6 +1461,7 @@ export default function App() {
 
   const activeShortcutLabel = shortcutToLabel(settings.activationShortcut);
   const draftShortcutLabel = draftShortcut ? shortcutToLabel(draftShortcut) : null;
+  const appSoundVolume = clampSoundVolume(settings.appSoundVolume);
   const currentLevelFloor = getLevelThreshold(stats.currentLevel);
   const nextLevelThreshold = getNextLevelThreshold(stats.currentLevel);
   const xpIntoCurrentLevel = Math.max(0, stats.totalXp - currentLevelFloor);
@@ -2469,6 +2484,41 @@ export default function App() {
                   >
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
+                </div>
+                <div
+                  className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
+                  aria-disabled={settings.muteDictationSounds}
+                >
+                  <div className="settings-slider-copy">
+                    <strong>Application sound volume</strong>
+                    <p>Adjusts the volume for HUD cues, level-up audio, and other built-in app sounds.</p>
+                  </div>
+                  <div className="bounce-slider-shell">
+                    <div className="bounce-slider-readout">
+                      <span>Quiet</span>
+                      <strong>{appSoundVolume}%</strong>
+                      <span>Loud</span>
+                    </div>
+                    <label className="bounce-slider" aria-label="Application sound volume">
+                      <span
+                        className="bounce-slider-track"
+                        style={{ "--slider-progress": `${appSoundVolume}%` } as CSSProperties}
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={appSoundVolume}
+                        disabled={settings.muteDictationSounds}
+                        onChange={(event) =>
+                          void patchSettings({
+                            appSoundVolume: clampSoundVolume(Number(event.target.value))
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">

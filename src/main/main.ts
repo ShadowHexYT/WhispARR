@@ -34,6 +34,7 @@ import {
   AppSettings,
   CustomThemeColors,
   HudState,
+  AppDiagnostics,
   SaveVoiceProfileInput,
   ShortcutModifier,
   TrainingSample
@@ -177,6 +178,18 @@ function getAppIconPath() {
   return isDev
     ? path.join(app.getAppPath(), "assets", "WhispARR Image.png")
     : path.join(process.resourcesPath, "assets", "WhispARR Image.png");
+}
+
+function getAppDiagnostics(): AppDiagnostics {
+  return {
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    isPackaged: app.isPackaged,
+    exePath: app.getPath("exe"),
+    userDataPath: app.getPath("userData"),
+    appPath: app.getAppPath()
+  };
 }
 
 function createTrayIcon() {
@@ -730,6 +743,9 @@ app.whenReady().then(() => {
   ipcMain.handle("app:show-window", () => {
     showMainWindow();
     return true;
+  });
+  ipcMain.handle("app:diagnostics", () => {
+    return getAppDiagnostics();
   });
 
   createWindow();

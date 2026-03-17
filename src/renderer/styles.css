@@ -104,11 +104,25 @@ textarea {
   margin-bottom: 10px;
 }
 
+.brand-mark-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand-mark-button:hover .brand-mark-image {
+  transform: scale(1.04);
+}
+
 .brand-mark-image {
   width: 28px;
   height: 28px;
   border-radius: 8px;
   object-fit: cover;
+  transition: transform 0.18s ease;
 }
 
 .brand-mark .eyebrow {
@@ -317,41 +331,6 @@ textarea {
   margin-bottom: 20px;
 }
 
-.top-progress {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 18px;
-  align-items: center;
-  padding: 20px 22px;
-  margin-bottom: 20px;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--panel) 90%, var(--accent) 10%),
-    color-mix(in srgb, var(--panel) 96%, black 4%)
-  );
-  box-shadow: var(--shadow);
-}
-
-.top-progress-copy h3 {
-  margin: 0;
-}
-
-.top-progress-meter {
-  display: grid;
-  gap: 12px;
-}
-
-.top-progress-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
 .top-stat {
   padding: 16px 18px;
   border-radius: 20px;
@@ -371,6 +350,19 @@ textarea {
   display: block;
   font-size: 1.15rem;
   line-height: 1.2;
+}
+
+.level-stat.celebrating {
+  border-color: color-mix(in srgb, #ffd54d 48%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #ffd54d 22%, var(--panel) 78%),
+    color-mix(in srgb, var(--accent) 18%, transparent)
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #ffd54d 24%, transparent),
+    0 12px 28px color-mix(in srgb, #ffd54d 18%, transparent);
+  animation: level-stat-celebrate 1s ease-in-out infinite;
 }
 
 .status-pill {
@@ -683,6 +675,60 @@ select option:disabled {
 
 .update-status-card p:last-child {
   margin-bottom: 0;
+}
+
+.dev-mode-panel {
+  margin-top: 16px;
+}
+
+.dev-mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.dev-mode-card {
+  min-height: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+}
+
+.dev-mode-list {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.88rem;
+}
+
+.dev-log-list {
+  display: grid;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.dev-log-entry {
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+}
+
+.dev-log-entry strong {
+  display: block;
+  margin-bottom: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.dev-log-entry p {
+  margin: 0;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 .button-row {
@@ -1032,17 +1078,20 @@ select option:disabled {
   width: min(100%, 760px);
   max-height: min(82vh, 900px);
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 18px;
   padding: 24px;
   border-radius: 28px;
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .achievements-list {
   display: grid;
   gap: 12px;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 6px;
 }
@@ -1251,6 +1300,19 @@ select option:disabled {
   transition: width 0.25s ease;
 }
 
+.bottom-level-bar-fill.celebrating {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, #ffd54d 78%, white 22%),
+      color-mix(in srgb, var(--accent) 78%, white 22%),
+      color-mix(in srgb, #ffd54d 78%, white 22%)
+    );
+  background-size: 220% 100%;
+  animation: level-bar-shimmer 1s linear infinite;
+  box-shadow: 0 0 18px color-mix(in srgb, #ffd54d 28%, transparent);
+}
+
 .bottom-level-bar-meta {
   display: flex;
   justify-content: space-between;
@@ -1258,6 +1320,93 @@ select option:disabled {
   padding-top: 8px;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.level-up-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 10, 14, 0.48);
+  backdrop-filter: blur(16px);
+  z-index: 44;
+  animation: level-up-fade 5s ease both;
+}
+
+.level-up-modal {
+  width: min(100%, 680px);
+  padding: 34px 28px;
+  border-radius: 30px;
+  border: 1px solid color-mix(in srgb, #ffd54d 35%, transparent);
+  background:
+    radial-gradient(circle at top, rgba(255, 213, 77, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28),
+    0 0 40px color-mix(in srgb, #ffd54d 22%, transparent);
+  text-align: center;
+  animation: level-up-pop 5s ease both;
+}
+
+.level-up-modal .eyebrow {
+  margin-bottom: 14px;
+  color: #fff;
+}
+
+.level-up-modal h3 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  line-height: 1.15;
+}
+
+.level-up-modal h3 span {
+  color: #ffd54d;
+}
+
+.dev-mode-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 10, 14, 0.42);
+  backdrop-filter: blur(14px);
+  z-index: 44;
+  animation: dev-mode-fade 4s ease both;
+}
+
+.dev-mode-modal {
+  width: min(100%, 620px);
+  padding: 32px 28px;
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--accent) 24%, transparent), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28),
+    0 0 38px color-mix(in srgb, var(--accent) 24%, transparent);
+  text-align: center;
+  animation: dev-mode-pop 4s ease both;
+}
+
+.dev-mode-modal .eyebrow {
+  color: #fff;
+}
+
+.dev-mode-modal h3 {
+  margin: 0 0 12px;
+  color: #fff;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+
+.dev-mode-modal p:last-child {
+  margin: 0;
+  color: color-mix(in srgb, #fff 85%, var(--accent) 15%);
 }
 
 @media (max-width: 1100px) {
@@ -1273,10 +1422,6 @@ select option:disabled {
     grid-template-columns: 1fr;
   }
 
-  .top-progress {
-    grid-template-columns: 1fr;
-  }
-
   .dictionary-form,
   .bottom-level-bar-meta,
   .custom-theme-editor {
@@ -1287,4 +1432,47 @@ select option:disabled {
   .stats-cards {
     grid-template-columns: 1fr;
   }
+
+  .dev-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes level-stat-celebrate {
+  0%,
+  100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1px) scale(1.03); }
+}
+
+@keyframes level-bar-shimmer {
+  from { background-position: 0% 50%; }
+  to { background-position: 220% 50%; }
+}
+
+@keyframes level-up-pop {
+  0% { transform: scale(0.92); opacity: 0; }
+  10% { transform: scale(1.03); opacity: 1; }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.98); opacity: 0; }
+}
+
+@keyframes level-up-fade {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes dev-mode-pop {
+  0% { transform: scale(0.9) rotate(-2deg); opacity: 0; }
+  12% { transform: scale(1.04) rotate(0deg); opacity: 1; }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.98); opacity: 0; }
+}
+
+@keyframes dev-mode-fade {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  86% { opacity: 1; }
+  100% { opacity: 0; }
 }

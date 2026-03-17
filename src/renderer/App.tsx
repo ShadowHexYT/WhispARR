@@ -12,6 +12,7 @@ import { computeVoiceEmbedding, hasAudibleSpeech, scoreVoiceMatch } from "./lib/
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import {
   ActivationShortcut,
+  AppDiagnostics,
   AppUpdateInfo,
   AppSettings,
   AppThemeName,
@@ -28,6 +29,7 @@ import {
 
 type TabKey = "dictation" | "profiles" | "dictionary" | "notes" | "stats" | "settings" | "help";
 type MicDevice = { deviceId: string; label: string };
+type StatusLogEntry = { timestamp: string; message: string };
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 
@@ -57,7 +59,9 @@ const defaultSettings: AppSettings = {
     secondary: "#54d8ff",
     tertiary: "#ff77c8"
   },
-  onboardingCompleted: false
+  onboardingCompleted: false,
+  devModeUnlocked: false,
+  devModeEnabled: false
 };
 
 type ThemeDefinition = {
@@ -582,6 +586,10 @@ export default function App() {
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [celebratingLevel, setCelebratingLevel] = useState<number | null>(null);
+  const [isDevModeUnlockCelebrationVisible, setIsDevModeUnlockCelebrationVisible] = useState(false);
+  const [appDiagnostics, setAppDiagnostics] = useState<AppDiagnostics | null>(null);
+  const [statusLogs, setStatusLogs] = useState<StatusLogEntry[]>([]);
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -605,6 +613,10 @@ export default function App() {
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
+  const levelUpTimeoutRef = useRef<number | null>(null);
+  const devUnlockTimeoutRef = useRef<number | null>(null);
+  const brandClickCountRef = useRef(0);
+  const lastLoggedStatusRef = useRef("");
   const activeProfileRef = useRef<VoiceProfile | null>(null);
   const settingsRef = useRef<AppSettings>(defaultSettings);
   const recorder = useAudioRecorder(settings.selectedMicId);
@@ -642,6 +654,30 @@ export default function App() {
       setIsOnboardingOpen(true);
     }
   }, [settings.onboardingCompleted]);
+
+  useEffect(() => {
+    if (!status || status === lastLoggedStatusRef.current) {
+      return;
+    }
+
+    lastLoggedStatusRef.current = status;
+    const timestamp = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    setStatusLogs((current) => [{ timestamp, message: status }, ...current].slice(0, 60));
+  }, [status]);
+
+  useEffect(() => {
+    if (!settings.devModeUnlocked) {
+      return;
+    }
+
+    void window.wisprApi.getAppDiagnostics().then(setAppDiagnostics).catch(() => {
+      setAppDiagnostics(null);
+    });
+  }, [settings.devModeUnlocked]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -733,10 +769,30 @@ export default function App() {
         audio.currentTime = 0;
         void audio.play().catch(() => {});
       }
+
+      if (levelUpTimeoutRef.current) {
+        window.clearTimeout(levelUpTimeoutRef.current);
+      }
+      setCelebratingLevel(stats.currentLevel);
+      levelUpTimeoutRef.current = window.setTimeout(() => {
+        setCelebratingLevel(null);
+        levelUpTimeoutRef.current = null;
+      }, 5000);
     }
 
     previousLevelRef.current = stats.currentLevel;
   }, [stats.currentLevel]);
+
+  useEffect(() => {
+    return () => {
+      if (levelUpTimeoutRef.current) {
+        window.clearTimeout(levelUpTimeoutRef.current);
+      }
+      if (devUnlockTimeoutRef.current) {
+        window.clearTimeout(devUnlockTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     void loadInitialData();
@@ -943,6 +999,33 @@ export default function App() {
 
   function goToPreviousOnboardingStep() {
     setOnboardingStep((current) => Math.max(0, current - 1));
+  }
+
+  async function handleBrandMarkClick() {
+    if (settings.devModeUnlocked) {
+      return;
+    }
+
+    brandClickCountRef.current += 1;
+    if (brandClickCountRef.current < 20) {
+      return;
+    }
+
+    brandClickCountRef.current = 0;
+    await patchSettings({
+      devModeUnlocked: true,
+      devModeEnabled: true
+    });
+    setIsDevModeUnlockCelebrationVisible(true);
+    setStatus("Developer mode unlocked.");
+
+    if (devUnlockTimeoutRef.current) {
+      window.clearTimeout(devUnlockTimeoutRef.current);
+    }
+    devUnlockTimeoutRef.current = window.setTimeout(() => {
+      setIsDevModeUnlockCelebrationVisible(false);
+      devUnlockTimeoutRef.current = null;
+    }, 4000);
   }
 
   async function beginGlobalDictation() {
@@ -1191,6 +1274,82 @@ export default function App() {
   const microphoneReady = devices.length > 0;
   const shortcutReady = Boolean(settings.activationShortcut.key);
   const profileReady = profiles.length > 0;
+  const unlockedAchievementCount = achievements.filter((achievement) => {
+    switch (achievement.title) {
+      case "First Words":
+        return stats.totalWords >= 100;
+      case "Warm Up":
+        return stats.totalWords >= 250;
+      case "Getting Comfortable":
+        return stats.totalWords >= 500;
+      case "Quick Notes":
+        return savedNotes.length >= 3;
+      case "Clean Start":
+        return profiles.length >= 1;
+      case "Ready To Roll":
+        return runtimeReady && stats.totalWords > 0;
+      case "Routine Builder":
+        return stats.currentStreakDays >= 3;
+      case "One Thousand Club":
+        return stats.totalWords >= 1000;
+      case "Local Legend":
+        return manualDictionary.length >= 5;
+      case "Weekender":
+        return stats.currentStreakDays >= 5;
+      case "First Level Up":
+        return stats.currentLevel >= 2;
+      case "Steady Flow":
+        return stats.totalWords >= 2500;
+      case "Helpful Habit":
+        return savedNotes.length >= 10;
+      case "Seven Day Rhythm":
+        return stats.currentStreakDays >= 7;
+      case "Daily Driver":
+        return stats.currentStreakDays >= 10;
+      case "Word Worker":
+        return stats.totalWords >= 5000;
+      case "Snippet Saver":
+        return savedNotes.length >= 15;
+      case "Correction Coach":
+        return manualDictionary.length >= 15;
+      case "Two Level Lead":
+        return stats.currentLevel >= 3;
+      case "Ten Thousand Strong":
+        return stats.totalWords >= 10000;
+      case "Reliable Voice":
+        return profiles.length >= 2;
+      case "Workspace Pro":
+        return notes.trim().length >= 1000;
+      case "Two Week Run":
+        return stats.currentStreakDays >= 14;
+      case "Frequent Flyer":
+        return stats.currentStreakDays >= 20;
+      case "Level Climber":
+        return stats.currentLevel >= 5;
+      case "Twenty K":
+        return stats.totalWords >= 20000;
+      case "Iron Streak":
+        return stats.currentStreakDays >= 21;
+      case "Thirty Thousand":
+        return stats.totalWords >= 30000;
+      case "Voice Vault":
+        return savedNotes.length >= 25;
+      case "Level Seven":
+        return stats.currentLevel >= 7;
+      case "Forty Thousand":
+        return stats.totalWords >= 40000;
+      case "Perfect Three Weeks":
+        return stats.currentStreakDays >= 21;
+      case "Level Nine":
+        return stats.currentLevel >= 9;
+      case "Fifty Thousand":
+        return stats.totalWords >= 50000;
+      case "Orbital":
+        return stats.totalWords >= 250000;
+      default:
+        return false;
+    }
+  }).length;
 
   async function copyTranscript(text: string) {
     await navigator.clipboard.writeText(text);
@@ -1269,10 +1428,12 @@ export default function App() {
       <div className="titlebar-drag" aria-hidden="true" />
       <aside className="sidebar">
         <div>
-          <div className="brand-mark">
+          <button className="brand-mark-button" type="button" onClick={() => void handleBrandMarkClick()}>
+            <div className="brand-mark">
             <img src={appIconUrl} alt="WhispARR icon" className="brand-mark-image" />
             <p className="eyebrow">WhispARR</p>
-          </div>
+            </div>
+          </button>
           <div className="sidebar-status">
             <p className="eyebrow">Status</p>
             <h1>{status}</h1>
@@ -1310,15 +1471,10 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="privacy-card">
-          <h2>Resident App</h2>
-          <p>Closing the window keeps the app alive in the tray so shortcut dictation still works.</p>
-          <p>No cloud APIs, no remote sync, and no telemetry are included.</p>
-        </div>
       </aside>
       <main className="content">
         <section className="top-stats">
-          <article className="top-stat">
+          <article className={celebratingLevel ? "top-stat level-stat celebrating" : "top-stat level-stat"}>
             <span>Level</span>
             <strong>{stats.currentLevel}</strong>
           </article>
@@ -1340,33 +1496,8 @@ export default function App() {
           </article>
           <article className="top-stat">
             <span>Total Achievements</span>
-            <strong>{achievements.length}</strong>
+            <strong>{unlockedAchievementCount}</strong>
           </article>
-        </section>
-        <section className="top-progress">
-          <div className="top-progress-copy">
-            <p className="eyebrow">Live XP</p>
-            <h3>
-              Level {stats.currentLevel} Progress
-            </h3>
-          </div>
-          <div className="top-progress-meter">
-            <div className="level-progress-bar">
-              <div
-                className="level-progress-fill"
-                style={{
-                  width: `${Math.min(100, (xpIntoCurrentLevel / xpNeededForCurrentLevel) * 100)}%`
-                }}
-              />
-            </div>
-            <div className="top-progress-meta">
-              <span>
-                {xpIntoCurrentLevel.toLocaleString()} / {xpNeededForCurrentLevel.toLocaleString()} XP in this level
-              </span>
-              <span>Next level at {nextLevelThreshold.toLocaleString()} XP</span>
-              <span>{xpRemainingToNextLevel.toLocaleString()} XP remaining</span>
-            </div>
-          </div>
         </section>
         {tab === "dictation" && (
           <section className="panel-grid">
@@ -1944,6 +2075,15 @@ export default function App() {
                       <p className="eyebrow">Achievements</p>
                       <h3>50 possible goals</h3>
                     </div>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => setIsAchievementsOpen(false)}
+                      aria-label="Close achievements"
+                      title="Close"
+                    >
+                      X
+                    </button>
                   </div>
                   <div className="achievements-list">
                     {achievements.map((achievement, index) => (
@@ -2397,6 +2537,74 @@ export default function App() {
                     "No update check has been run yet. This works after a GitHub releases repo is configured for the app."}
                 </p>
               </div>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Developer</p>
+                  <h3>Developer Mode</h3>
+                </div>
+              </div>
+              <div className="update-status-card">
+                <p className="supporting">
+                  Status: <strong>{settings.devModeUnlocked ? "Unlocked" : "Locked"}</strong>
+                </p>
+                <p className="supporting">
+                  {settings.devModeUnlocked
+                    ? settings.devModeEnabled
+                      ? "Developer mode is on."
+                      : "Developer mode is off."
+                    : "Click the app icon or name in the top-left corner 20 times to unlock it."}
+                </p>
+                {settings.devModeUnlocked && (
+                  <div className="button-row">
+                    <button
+                      className={settings.devModeEnabled ? "primary-button" : "secondary-button"}
+                      type="button"
+                      onClick={() =>
+                        void patchSettings({ devModeEnabled: !settings.devModeEnabled })
+                      }
+                    >
+                      {settings.devModeEnabled ? "Turn developer mode off" : "Turn developer mode on"}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {settings.devModeUnlocked && settings.devModeEnabled && (
+                <div className="dev-mode-panel">
+                  <div className="dev-mode-grid">
+                    <div className="dev-mode-card">
+                      <p className="eyebrow">Diagnostics</p>
+                      <ul className="plain-list dev-mode-list">
+                        <li>Version: {appDiagnostics?.version ?? "Loading..."}</li>
+                        <li>Platform: {appDiagnostics?.platform ?? "Loading..."}</li>
+                        <li>Architecture: {appDiagnostics?.arch ?? "Loading..."}</li>
+                        <li>Packaged: {appDiagnostics ? String(appDiagnostics.isPackaged) : "Loading..."}</li>
+                        <li>Theme: {settings.appTheme}</li>
+                        <li>Whisper ready: {runtimeReady ? "Yes" : "No"}</li>
+                        <li>Profiles: {profiles.length}</li>
+                        <li>Dictionary entries: {manualDictionary.length}</li>
+                        <li>Saved notes: {savedNotes.length}</li>
+                        <li>Selected mic: {settings.selectedMicId ?? "System default"}</li>
+                        <li>Binary path: {settings.whisperBinaryPath || "Not set"}</li>
+                        <li>Model path: {settings.whisperModelPath || "Not set"}</li>
+                      </ul>
+                    </div>
+                    <div className="dev-mode-card">
+                      <p className="eyebrow">Recent Logs</p>
+                      <div className="dev-log-list">
+                        {statusLogs.length === 0 && (
+                          <p className="supporting">No logs yet.</p>
+                        )}
+                        {statusLogs.map((entry, index) => (
+                          <div key={`${entry.timestamp}-${index}`} className="dev-log-entry">
+                            <strong>{entry.timestamp}</strong>
+                            <p>{entry.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
           </section>
         )}
@@ -2640,6 +2848,9 @@ export default function App() {
             )}
 
             <div className="button-row">
+              <button className="ghost-button" type="button" onClick={() => void completeOnboarding()}>
+                Skip setup
+              </button>
               {onboardingStep > 0 && (
                 <button className="ghost-button" type="button" onClick={goToPreviousOnboardingStep}>
                   Back
@@ -2658,10 +2869,27 @@ export default function App() {
           </section>
         </div>
       )}
+      {celebratingLevel && (
+        <div className="level-up-backdrop" role="presentation">
+          <section className="level-up-modal" aria-label="Level up celebration">
+            <p className="eyebrow">Level Up</p>
+            <h3>Congratulations, You are now level <span>{celebratingLevel}</span></h3>
+          </section>
+        </div>
+      )}
+      {isDevModeUnlockCelebrationVisible && (
+        <div className="dev-mode-backdrop" role="presentation">
+          <section className="dev-mode-modal" aria-label="Developer mode unlocked">
+            <p className="eyebrow">Easter Egg Found</p>
+            <h3>Developer Mode Unlocked</h3>
+            <p>Advanced logs and diagnostics are now available in System Settings.</p>
+          </section>
+        </div>
+      )}
       <div className="bottom-level-bar" aria-label="Level progress to next level">
         <div className="bottom-level-bar-fill-wrap">
           <div
-            className="bottom-level-bar-fill"
+            className={celebratingLevel ? "bottom-level-bar-fill celebrating" : "bottom-level-bar-fill"}
             style={{
               width: `${Math.min(100, (xpIntoCurrentLevel / xpNeededForCurrentLevel) * 100)}%`
             }}

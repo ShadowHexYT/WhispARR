@@ -44,7 +44,9 @@ const defaultSettings: AppSettings = {
   activationShortcut: defaultActivationShortcut,
   appTheme: defaultAppTheme,
   customTheme: defaultCustomTheme,
-  onboardingCompleted: false
+  onboardingCompleted: false,
+  devModeUnlocked: false,
+  devModeEnabled: false
 };
 
 const defaultData: LocalData = {

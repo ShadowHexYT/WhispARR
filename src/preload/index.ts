@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  AppDiagnostics,
   AppUpdateInfo,
   AppSettings,
   LocalData,
@@ -44,6 +45,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
   pickFile: () => ipcRenderer.invoke("dialog:pick-file") as Promise<string | null>,
   pasteText: (text: string) => ipcRenderer.invoke("paste:text", text) as Promise<boolean>,
   showWindow: () => ipcRenderer.invoke("app:show-window") as Promise<boolean>,
+  getAppDiagnostics: () => ipcRenderer.invoke("app:diagnostics") as Promise<AppDiagnostics>,
   updateHud: (state: HudState) => ipcRenderer.invoke("hud:update", state) as Promise<boolean>,
   onPushToTalk: (listener: (state: "start" | "stop") => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, state: "start" | "stop") => {

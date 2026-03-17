@@ -4,6 +4,7 @@ import { HudState } from "../shared/types";
 import "./hud.css";
 
 const popSoundUrl = new URL("../../assets/pop_sound.mp3", import.meta.url).href;
+const startHumSoundUrl = new URL("../../assets/start_hum.mp3", import.meta.url).href;
 
 function Hud() {
   const [hudState, setHudState] = useState<HudState>({
@@ -15,13 +16,17 @@ function Hud() {
   const isHeard = hudState.level > 0.03;
   const previousVisibleRef = useRef(false);
   const popAudioRef = useRef<HTMLAudioElement | null>(null);
+  const startHumAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     popAudioRef.current = new Audio(popSoundUrl);
     popAudioRef.current.volume = 0.8;
+    startHumAudioRef.current = new Audio(startHumSoundUrl);
+    startHumAudioRef.current.volume = 0.8;
 
     return () => {
       popAudioRef.current = null;
+      startHumAudioRef.current = null;
     };
   }, []);
 
@@ -32,6 +37,14 @@ function Hud() {
   }, []);
 
   useEffect(() => {
+    if (!previousVisibleRef.current && hudState.visible && hudState.soundEnabled !== false) {
+      const audio = startHumAudioRef.current;
+      if (audio) {
+        audio.currentTime = 0;
+        void audio.play().catch(() => {});
+      }
+    }
+
     if (previousVisibleRef.current && !hudState.visible && hudState.soundEnabled !== false) {
       const audio = popAudioRef.current;
       if (audio) {

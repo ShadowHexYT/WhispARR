@@ -42,6 +42,8 @@ export type AppSettings = {
   appTheme: AppThemeName;
   customTheme: CustomThemeColors;
   onboardingCompleted: boolean;
+  devModeUnlocked: boolean;
+  devModeEnabled: boolean;
 };
 
 export type DictationResult = {
@@ -136,6 +138,16 @@ export type AppUpdateInfo = {
   assetName: string | null;
   htmlUrl: string | null;
   message: string;
+};
+
+export type AppDiagnostics = {
+  version: string;
+  platform: string;
+  arch: string;
+  isPackaged: boolean;
+  exePath: string;
+  userDataPath: string;
+  appPath: string;
 };
 
 export type HudState = {

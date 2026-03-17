@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import {
+  AppDiagnostics,
   AppUpdateInfo,
   AppSettings,
   DictationResult,
@@ -42,6 +43,7 @@ declare global {
       pickFile: () => Promise<string | null>;
       pasteText: (text: string) => Promise<boolean>;
       showWindow: () => Promise<boolean>;
+      getAppDiagnostics: () => Promise<AppDiagnostics>;
       updateHud: (state: HudState) => Promise<boolean>;
       onPushToTalk: (listener: (state: "start" | "stop") => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;

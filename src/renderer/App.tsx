@@ -1524,6 +1524,17 @@ export default function App() {
     setStatus("Drag the pill where you want it, then click stop to save.");
   }
 
+  async function recenterHudPill() {
+    if (isMovingHud) {
+      const nextSettings = await window.wisprApi.stopHudMoveMode();
+      setSettings(nextSettings);
+      setIsMovingHud(false);
+    }
+
+    await patchSettings({ hudPosition: null });
+    setStatus("Pill location reset to the default center position.");
+  }
+
   async function handleBrandMarkClick() {
     if (settings.devModeUnlocked) {
       return;
@@ -2846,6 +2857,13 @@ export default function App() {
                         onClick={() => void toggleHudMoveMode()}
                       >
                         {isMovingHud ? "Stop moving and save pill location" : "Move pill location"}
+                      </button>
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => void recenterHudPill()}
+                      >
+                        Recenter pill
                       </button>
                     </div>
                   </div>

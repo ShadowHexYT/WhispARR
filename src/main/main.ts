@@ -126,11 +126,23 @@ let hudWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let pushToTalkActive = false;
+let isHudMoveMode = false;
 let currentSettings = readData().settings;
+let currentHudState: HudState = {
+  visible: false,
+  level: 0,
+  label: "Ready",
+  soundEnabled: !currentSettings.muteDictationSounds,
+  soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+  moveMode: false
+};
 const pressedKeys = new Set<number>();
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
+const HUD_WIDTH = 156;
+const HUD_HEIGHT = 62;
+const HUD_MARGIN = 6;
 
 const windowsOverlayColors: Record<AppThemeName, string> = {
   aurora: "#061018",
@@ -212,20 +224,38 @@ function hideMainWindowToTray() {
   mainWindow?.setSkipTaskbar(true);
 }
 
+function clampHudPosition(position: { x: number; y: number }, bounds: Electron.Rectangle) {
+  return {
+    x: Math.min(Math.max(position.x, bounds.x), bounds.x + bounds.width - HUD_WIDTH),
+    y: Math.min(Math.max(position.y, bounds.y), bounds.y + bounds.height - HUD_HEIGHT)
+  };
+}
+
+function getDefaultHudPosition(bounds: Electron.Rectangle) {
+  return {
+    x: bounds.x + Math.round((bounds.width - HUD_WIDTH) / 2),
+    y: bounds.y + bounds.height - HUD_HEIGHT - HUD_MARGIN
+  };
+}
+
+function getHudPosition() {
+  const display = screen.getPrimaryDisplay();
+  const bounds = display.workArea;
+  const saved = currentSettings.hudPosition;
+  return saved ? clampHudPosition(saved, bounds) : getDefaultHudPosition(bounds);
+}
+
 function positionHudWindow() {
   if (!hudWindow) {
     return;
   }
 
-  const display = screen.getPrimaryDisplay();
-  const { width, height, x, y } = display.workArea;
-  const hudWidth = 168;
-  const hudHeight = 76;
+  const position = getHudPosition();
   hudWindow.setBounds({
-    width: hudWidth,
-    height: hudHeight,
-    x: x + Math.round((width - hudWidth) / 2),
-    y: y + height - hudHeight - 6
+    width: HUD_WIDTH,
+    height: HUD_HEIGHT,
+    x: position.x,
+    y: position.y
   });
 }
 
@@ -235,8 +265,8 @@ function createHudWindow() {
   }
 
   hudWindow = new BrowserWindow({
-    width: 168,
-    height: 76,
+    width: HUD_WIDTH,
+    height: HUD_HEIGHT,
     frame: false,
     transparent: true,
     resizable: false,
@@ -266,6 +296,24 @@ function createHudWindow() {
   return hudWindow;
 }
 
+function syncHudWindowInteractivity() {
+  if (!hudWindow) {
+    return;
+  }
+
+  hudWindow.setIgnoreMouseEvents(!isHudMoveMode);
+  hudWindow.setFocusable(isHudMoveMode);
+  hudWindow.setMovable(isHudMoveMode);
+}
+
+function getHudPayload(overrides: Partial<HudState> = {}) {
+  return {
+    ...currentHudState,
+    ...overrides,
+    moveMode: isHudMoveMode
+  };
+}
+
 function updateHud(state: HudState) {
   if (!hudWindow) {
     createHudWindow();
@@ -275,16 +323,45 @@ function updateHud(state: HudState) {
     return;
   }
 
+  currentHudState = getHudPayload(state);
+  syncHudWindowInteractivity();
   positionHudWindow();
-  hudWindow.webContents.send("hud:state", state);
+  hudWindow.webContents.send("hud:state", currentHudState);
 
-  const shouldShow = state.visible || currentSettings.alwaysShowPill;
+  const shouldShow = currentHudState.visible || currentSettings.alwaysShowPill || isHudMoveMode;
 
   if (shouldShow) {
-    hudWindow.showInactive();
+    if (isHudMoveMode) {
+      hudWindow.show();
+      hudWindow.focus();
+    } else {
+      hudWindow.showInactive();
+    }
   } else {
     hudWindow.hide();
   }
+}
+
+function startHudMoveMode() {
+  isHudMoveMode = true;
+  updateHud(currentHudState);
+}
+
+function stopHudMoveMode() {
+  if (hudWindow) {
+    const bounds = screen.getPrimaryDisplay().workArea;
+    const nextPosition = clampHudPosition(hudWindow.getBounds(), bounds);
+    currentSettings = updateSettings({
+      hudPosition: {
+        x: nextPosition.x,
+        y: nextPosition.y
+      }
+    });
+  }
+
+  isHudMoveMode = false;
+  updateHud(currentHudState);
+  return currentSettings;
 }
 
 function sendPushToTalkEvent(state: "start" | "stop") {
@@ -662,7 +739,8 @@ app.whenReady().then(() => {
       level: 0,
       label: pushToTalkActive ? "Listening" : "Ready",
       soundEnabled: !next.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, next.appSoundVolume / 100))
+      soundVolume: Math.max(0, Math.min(1, next.appSoundVolume / 100)),
+      moveMode: isHudMoveMode
     });
     return next;
   });
@@ -749,6 +827,13 @@ app.whenReady().then(() => {
   ipcMain.handle("hud:update", (_event, state: HudState) => {
     updateHud(state);
     return true;
+  });
+  ipcMain.handle("hud:move:start", () => {
+    startHudMoveMode();
+    return true;
+  });
+  ipcMain.handle("hud:move:stop", () => {
+    return stopHudMoveMode();
   });
   ipcMain.handle("app:show-window", () => {
     showMainWindow();

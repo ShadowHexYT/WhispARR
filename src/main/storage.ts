@@ -37,6 +37,7 @@ const defaultSettings: AppSettings = {
   autoPaste: true,
   launchOnLogin: false,
   alwaysShowPill: false,
+  hudPosition: null,
   muteDictationSounds: false,
   appSoundVolume: 80,
   muteMusicWhileDictating: false,

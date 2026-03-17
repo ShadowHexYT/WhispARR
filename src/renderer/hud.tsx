@@ -12,7 +12,8 @@ function Hud() {
     level: 0,
     label: "Listening",
     soundEnabled: true,
-    soundVolume: 0.8
+    soundVolume: 0.8,
+    moveMode: false
   });
   const isHeard = hudState.level > 0.03;
   const previousVisibleRef = useRef(false);
@@ -76,14 +77,15 @@ function Hud() {
   }, [hudState.level]);
 
   return (
-    <div className={hudState.visible ? "hud-shell visible" : "hud-shell"}>
-      <div className="hud-pill">
+    <div className={hudState.visible || hudState.moveMode ? "hud-shell visible" : "hud-shell"}>
+      <div className={hudState.moveMode ? "hud-pill move-mode" : "hud-pill"}>
         <div className={isHeard ? "hud-icon heard" : "hud-icon quiet"} />
         <div className="hud-wave">
           {bars.map((height, index) => (
             <span key={index} style={{ height }} />
           ))}
         </div>
+        {hudState.moveMode && <div className="hud-move-badge">Drag pill</div>}
       </div>
     </div>
   );

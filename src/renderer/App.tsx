@@ -50,6 +50,7 @@ const defaultSettings: AppSettings = {
   autoPaste: true,
   launchOnLogin: false,
   alwaysShowPill: false,
+  hudPosition: null,
   muteDictationSounds: false,
   appSoundVolume: 80,
   muteMusicWhileDictating: false,
@@ -638,6 +639,7 @@ export default function App() {
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const [isMovingHud, setIsMovingHud] = useState(false);
   const [isCapturingShortcut, setIsCapturingShortcut] = useState(false);
   const [draftShortcut, setDraftShortcut] = useState<ActivationShortcut | null>(null);
   const [isTrainingProfile, setIsTrainingProfile] = useState(false);
@@ -1196,6 +1198,27 @@ export default function App() {
 
   function goToPreviousOnboardingStep() {
     setOnboardingStep((current) => Math.max(0, current - 1));
+  }
+
+  async function toggleHudMoveMode() {
+    if (isMovingHud) {
+      const nextSettings = await window.wisprApi.stopHudMoveMode();
+      setSettings(nextSettings);
+      setIsMovingHud(false);
+      setStatus("Pill location saved.");
+      return;
+    }
+
+    await window.wisprApi.startHudMoveMode();
+    setIsMovingHud(true);
+    setStatus("Drag the pill where you want it, then click stop to save.");
+  }
+
+  async function stopHudMoveAndSave() {
+    const nextSettings = await window.wisprApi.stopHudMoveMode();
+    setSettings(nextSettings);
+    setIsMovingHud(false);
+    setStatus("Pill location saved.");
   }
 
   async function handleBrandMarkClick() {
@@ -2454,7 +2477,7 @@ export default function App() {
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
                     <strong>Pill always visible</strong>
-                    <p>Leaves the bottom HUD on screen in a ready state even when you are not dictating.</p>
+                    <p>Leaves the HUD on screen in a ready state even when you are not dictating.</p>
                   </div>
                   <button
                     className={settings.alwaysShowPill ? "settings-switch active" : "settings-switch"}
@@ -2467,6 +2490,29 @@ export default function App() {
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
                 </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Allow pill movement</strong>
+                    <p>Turn this on to drag the HUD pill around your screen, then stop and save its new location.</p>
+                  </div>
+                  <button
+                    className={isMovingHud ? "settings-switch active" : "settings-switch"}
+                    onClick={() => void toggleHudMoveMode()}
+                    type="button"
+                    role="switch"
+                    aria-checked={isMovingHud}
+                    aria-label="Toggle allow pill movement"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+                {isMovingHud && (
+                  <div className="button-row">
+                    <button className="primary-button" type="button" onClick={() => void stopHudMoveAndSave()}>
+                      Stop moving and save pill location
+                    </button>
+                  </div>
+                )}
                 <div className="settings-switch-row">
                   <div className="settings-switch-copy">
                     <strong>Dictation sounds</strong>

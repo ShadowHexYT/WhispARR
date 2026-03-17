@@ -45,6 +45,8 @@ declare global {
       showWindow: () => Promise<boolean>;
       getAppDiagnostics: () => Promise<AppDiagnostics>;
       updateHud: (state: HudState) => Promise<boolean>;
+      startHudMoveMode: () => Promise<boolean>;
+      stopHudMoveMode: () => Promise<AppSettings>;
       onPushToTalk: (listener: (state: "start" | "stop") => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;
     };

@@ -24,6 +24,11 @@ export type ActivationShortcut = {
   key: string | null;
 };
 
+export type HudPosition = {
+  x: number;
+  y: number;
+};
+
 export type AppSettings = {
   selectedMicId: string | null;
   whisperBinaryPath: string;
@@ -34,6 +39,7 @@ export type AppSettings = {
   autoPaste: boolean;
   launchOnLogin: boolean;
   alwaysShowPill: boolean;
+  hudPosition: HudPosition | null;
   muteDictationSounds: boolean;
   appSoundVolume: number;
   muteMusicWhileDictating: boolean;
@@ -158,4 +164,5 @@ export type HudState = {
   label?: string;
   soundEnabled?: boolean;
   soundVolume?: number;
+  moveMode?: boolean;
 };

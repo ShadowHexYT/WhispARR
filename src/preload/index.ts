@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld("wisprApi", {
   showWindow: () => ipcRenderer.invoke("app:show-window") as Promise<boolean>,
   getAppDiagnostics: () => ipcRenderer.invoke("app:diagnostics") as Promise<AppDiagnostics>,
   updateHud: (state: HudState) => ipcRenderer.invoke("hud:update", state) as Promise<boolean>,
+  startHudMoveMode: () => ipcRenderer.invoke("hud:move:start") as Promise<boolean>,
+  stopHudMoveMode: () => ipcRenderer.invoke("hud:move:stop") as Promise<AppSettings>,
   onPushToTalk: (listener: (state: "start" | "stop") => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, state: "start" | "stop") => {
       listener(state);

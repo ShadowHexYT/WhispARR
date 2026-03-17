@@ -124,6 +124,19 @@ export type RuntimeInstallResult = {
   message: string;
 };
 
+export type AppUpdateInfo = {
+  configured: boolean;
+  currentVersion: string;
+  latestVersion: string | null;
+  hasUpdate: boolean;
+  releaseName: string | null;
+  releaseNotes: string | null;
+  downloadUrl: string | null;
+  assetName: string | null;
+  htmlUrl: string | null;
+  message: string;
+};
+
 export type HudState = {
   visible: boolean;
   level: number;

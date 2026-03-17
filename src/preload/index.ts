@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  AppUpdateInfo,
   AppSettings,
   LocalData,
   ManualDictionaryEntry,
@@ -29,6 +30,9 @@ contextBridge.exposeInMainWorld("wisprApi", {
   getWhisperStatus: () => ipcRenderer.invoke("whisper:status"),
   discoverRuntime: () => ipcRenderer.invoke("runtime:discover") as Promise<RuntimeDiscoveryResult>,
   installRuntime: () => ipcRenderer.invoke("runtime:install") as Promise<RuntimeInstallResult>,
+  checkForAppUpdates: () => ipcRenderer.invoke("app:update:check") as Promise<AppUpdateInfo>,
+  downloadAndInstallAppUpdate: () =>
+    ipcRenderer.invoke("app:update:download-and-install") as Promise<string>,
   transcribe: (sample: TrainingSample) => ipcRenderer.invoke("dictation:transcribe", sample),
   trackTranscriptStats: (transcript: string) =>
     ipcRenderer.invoke("stats:track-transcript", transcript) as Promise<UserStats>,

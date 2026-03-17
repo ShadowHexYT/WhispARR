@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import {
+  AppUpdateInfo,
   AppSettings,
   DictationResult,
   HudState,
@@ -31,6 +32,8 @@ declare global {
       getWhisperStatus: () => Promise<WhisperConfigStatus>;
       discoverRuntime: () => Promise<RuntimeDiscoveryResult>;
       installRuntime: () => Promise<RuntimeInstallResult>;
+      checkForAppUpdates: () => Promise<AppUpdateInfo>;
+      downloadAndInstallAppUpdate: () => Promise<string>;
       transcribe: (sample: TrainingSample) => Promise<DictationResult>;
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
       saveTranscriptHistory: (history: string[], limit: number) => Promise<string[]>;

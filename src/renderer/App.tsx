@@ -3,6 +3,7 @@ import { computeVoiceEmbedding, hasAudibleSpeech, scoreVoiceMatch } from "./lib/
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import {
   ActivationShortcut,
+  AppUpdateInfo,
   AppSettings,
   AppThemeName,
   CustomThemeColors,
@@ -548,6 +549,9 @@ export default function App() {
   const [runtimeDiscovery, setRuntimeDiscovery] = useState<RuntimeDiscoveryResult | null>(null);
   const [runtimeInstallMessage, setRuntimeInstallMessage] = useState("");
   const [isInstallingRuntime, setIsInstallingRuntime] = useState(false);
+  const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
+  const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
+  const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [isCapturingShortcut, setIsCapturingShortcut] = useState(false);
   const [draftShortcut, setDraftShortcut] = useState<ActivationShortcut | null>(null);
@@ -848,6 +852,31 @@ export default function App() {
       setStatus(message);
     } finally {
       setIsInstallingRuntime(false);
+    }
+  }
+
+  async function checkForUpdates() {
+    try {
+      setIsCheckingForUpdates(true);
+      const info = await window.wisprApi.checkForAppUpdates();
+      setAppUpdateInfo(info);
+      setStatus(info.message);
+    } catch (caught) {
+      setStatus(caught instanceof Error ? caught.message : "Update check failed.");
+    } finally {
+      setIsCheckingForUpdates(false);
+    }
+  }
+
+  async function downloadAndInstallUpdate() {
+    try {
+      setIsInstallingAppUpdate(true);
+      const message = await window.wisprApi.downloadAndInstallAppUpdate();
+      setStatus(message);
+    } catch (caught) {
+      setStatus(caught instanceof Error ? caught.message : "Update install failed.");
+    } finally {
+      setIsInstallingAppUpdate(false);
     }
   }
 
@@ -2250,6 +2279,54 @@ export default function App() {
                   </button>
                 </div>
               </label>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Updates</p>
+                  <h3>Application Updates</h3>
+                </div>
+              </div>
+              <p className="supporting">
+                Check GitHub releases for a newer installer so you can update from inside the app.
+              </p>
+              <div className="button-row">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void checkForUpdates()}
+                  disabled={isCheckingForUpdates}
+                >
+                  {isCheckingForUpdates ? "Checking..." : "Check for updates"}
+                </button>
+                {appUpdateInfo?.hasUpdate && appUpdateInfo.downloadUrl && (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => void downloadAndInstallUpdate()}
+                    disabled={isInstallingAppUpdate}
+                  >
+                    {isInstallingAppUpdate ? "Preparing installer..." : "Download and install update"}
+                  </button>
+                )}
+              </div>
+              <div className="update-status-card">
+                <p className="supporting">
+                  Current version: <strong>{appUpdateInfo?.currentVersion ?? "Not checked yet"}</strong>
+                </p>
+                {appUpdateInfo?.latestVersion && (
+                  <p className="supporting">
+                    Latest release: <strong>{appUpdateInfo.latestVersion}</strong>
+                  </p>
+                )}
+                {appUpdateInfo?.releaseName && (
+                  <p className="supporting">
+                    Release: <strong>{appUpdateInfo.releaseName}</strong>
+                  </p>
+                )}
+                <p className="supporting">
+                  {appUpdateInfo?.message ??
+                    "No update check has been run yet. This works after a GitHub releases repo is configured for the app."}
+                </p>
+              </div>
             </section>
           </section>
         )}

@@ -7,10 +7,11 @@ import {
   Menu,
   Tray,
   nativeImage,
-  screen
+  screen,
+  shell
 } from "electron";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { uIOhook, UiohookKey, UiohookKeyboardEvent } from "uiohook-napi";
 import {
   deleteManualDictionaryEntry,
@@ -26,6 +27,7 @@ import {
 } from "./storage";
 import { discoverRuntime, installRuntime } from "./runtime";
 import { getWhisperConfigStatus, transcribeLocally } from "./whisper";
+import { checkForAppUpdates, downloadAppUpdate } from "./updates";
 import {
   ActivationShortcut,
   AppThemeName,
@@ -667,6 +669,29 @@ app.whenReady().then(() => {
       });
     }
     return installResult;
+  });
+  ipcMain.handle("app:update:check", async () => {
+    return checkForAppUpdates();
+  });
+  ipcMain.handle("app:update:download-and-install", async () => {
+    const result = await downloadAppUpdate();
+    if (!result.filePath) {
+      return result.message;
+    }
+
+    if (process.platform === "win32") {
+      const installer = spawn(result.filePath, [], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false
+      });
+      installer.unref();
+      app.quit();
+      return "Update installer launched.";
+    }
+
+    await shell.openPath(result.filePath);
+    return `Downloaded update to ${result.filePath}. Open the installer to continue.`;
   });
   ipcMain.handle("dictation:transcribe", async (_event, sample: TrainingSample) => {
     const data = readData();

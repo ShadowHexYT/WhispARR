@@ -441,11 +441,12 @@ function getLearnableWords(originalTranscript: string, correctedTranscript: stri
 function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedClipboardText: string) {
   const learnableTerms = getLearnableWords(sourceTranscript, correctedClipboardText);
   if (learnableTerms.length === 0) {
-    return;
+    return [];
   }
 
   const data = readData();
   const knownTerms = new Set(data.manualDictionary.map((entry) => entry.term.toLowerCase()));
+  const savedTerms: string[] = [];
 
   for (const term of learnableTerms) {
     if (knownTerms.has(term.toLowerCase())) {
@@ -454,7 +455,10 @@ function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedCl
 
     saveManualDictionaryEntry({ term, addedBySystem: true });
     knownTerms.add(term.toLowerCase());
+    savedTerms.push(term);
   }
+
+  return savedTerms;
 }
 
 function startClipboardLearningWatch(sourceTranscript: string) {
@@ -478,7 +482,10 @@ function startClipboardLearningWatch(sourceTranscript: string) {
       return;
     }
 
-    maybeLearnDictionaryFromClipboard(sourceTranscript, nextClipboardText);
+    const savedTerms = maybeLearnDictionaryFromClipboard(sourceTranscript, nextClipboardText);
+    if (savedTerms.length > 0) {
+      mainWindow?.webContents.send("dictionary:auto-learned", savedTerms);
+    }
     clearClipboardLearningWatch();
   }, 1000);
 

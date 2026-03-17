@@ -66,5 +66,14 @@ contextBridge.exposeInMainWorld("wisprApi", {
     return () => {
       ipcRenderer.removeListener("hud:state", wrapped);
     };
+  },
+  onAutoDictionaryLearned: (listener: (terms: string[]) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, terms: string[]) => {
+      listener(terms);
+    };
+    ipcRenderer.on("dictionary:auto-learned", wrapped);
+    return () => {
+      ipcRenderer.removeListener("dictionary:auto-learned", wrapped);
+    };
   }
 });

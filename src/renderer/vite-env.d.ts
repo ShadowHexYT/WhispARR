@@ -49,6 +49,7 @@ declare global {
       stopHudMoveMode: () => Promise<AppSettings>;
       onPushToTalk: (listener: (state: "start" | "stop") => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;
+      onAutoDictionaryLearned: (listener: (terms: string[]) => void) => () => void;
     };
   }
 }

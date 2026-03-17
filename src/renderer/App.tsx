@@ -975,9 +975,18 @@ export default function App() {
         void finishGlobalDictation();
       }
     });
+    const unsubscribeAutoLearn = window.wisprApi.onAutoDictionaryLearned((terms) => {
+      void refreshLocalData();
+      if (terms.length === 1) {
+        setStatus(`Auto dictionary learning saved "${terms[0]}".`);
+      } else if (terms.length > 1) {
+        setStatus(`Auto dictionary learning saved ${terms.length} new terms.`);
+      }
+    });
 
     return () => {
       unsubscribe();
+      unsubscribeAutoLearn();
     };
   }, []);
 
@@ -1404,7 +1413,11 @@ export default function App() {
 
       if (options.pasteResult && currentSettings.autoPaste && result.transcript.trim()) {
         await window.wisprApi.pasteText(result.transcript);
-        setStatus("Transcribed locally and pasted into the active app.");
+        setStatus(
+          currentSettings.autoLearnDictionary
+            ? "Transcribed locally and pasted. Copy your corrected text within 45 seconds to auto-learn dictionary terms."
+            : "Transcribed locally and pasted into the active app."
+        );
       } else {
         setStatus("Local dictation completed.");
       }
@@ -1505,19 +1518,10 @@ export default function App() {
     if (isRecordingPronunciation) {
       try {
         const sample = await recorder.stop();
-        if (!hasAudibleSpeech(sample.pcm)) {
-          setStatus("No speech detected. Try saying the word again.");
-          return;
-        }
-
         const intended = pronunciationTerm.trim();
         const existingMatch = manualDictionary.find(
           (entry) => entry.term.toLowerCase() === intended.toLowerCase()
         );
-        const transcription = await window.wisprApi.transcribe({
-          pcm: Array.from(sample.pcm),
-          sampleRate: sample.sampleRate
-        });
         const savedEntry = await window.wisprApi.saveManualDictionaryEntry({
           id: existingMatch?.id,
           term: intended
@@ -1525,6 +1529,20 @@ export default function App() {
 
         setManualDictionary((current) => [savedEntry, ...current.filter((item) => item.id !== savedEntry.id)]);
         setSelectedPronunciationEntryId(savedEntry.id);
+
+        if (!hasAudibleSpeech(sample.pcm)) {
+          setLastPronunciationResult({
+            intended: savedEntry.term,
+            heard: "No speech detected"
+          });
+          setStatus(`Saved "${savedEntry.term}" to your local dictionary, but no speech was detected to check pronunciation.`);
+          return;
+        }
+
+        const transcription = await window.wisprApi.transcribe({
+          pcm: Array.from(sample.pcm),
+          sampleRate: sample.sampleRate
+        });
         setLastPronunciationResult({
           intended: savedEntry.term,
           heard: transcription.transcript.trim() || "No clear transcript detected"
@@ -2098,6 +2116,20 @@ export default function App() {
                   {isRecordingPronunciation ? "Stop and check word" : "Say this word"}
                 </button>
               </div>
+              {isRecordingPronunciation && (
+                <div className="microphone-test-card">
+                  <div className="microphone-test-header">
+                    <strong>Pronunciation input</strong>
+                    <span>{recorder.level > 0.03 ? "Input detected" : "Listening..."}</span>
+                  </div>
+                  <div className="microphone-test-meter" aria-hidden="true">
+                    <div
+                      className="microphone-test-fill"
+                      style={{ width: `${Math.max(8, recorder.level * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               {lastPronunciationResult && (
                 <div className="pronunciation-result">
                   <div>

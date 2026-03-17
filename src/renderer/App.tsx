@@ -2477,14 +2477,6 @@ export default function App() {
                       )}
                     </div>
                   </label>
-                  {lastResult && (
-                    <div className="metrics">
-                      <span>{Math.round(lastResult.elapsedMs)} ms</span>
-                      {typeof lastResult.speakerScore === "number" && (
-                        <span>speaker {lastResult.speakerScore}</span>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
               <div className="transcript-history">

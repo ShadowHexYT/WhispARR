@@ -511,6 +511,7 @@ textarea {
 .panel-actions {
   display: flex;
   align-items: flex-start;
+  justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
 }

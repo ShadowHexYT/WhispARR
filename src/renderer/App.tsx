@@ -1040,11 +1040,26 @@ export default function App() {
             <img src={appIconUrl} alt="WhispARR icon" className="brand-mark-image" />
             <p className="eyebrow">WhispARR</p>
           </div>
-          <h1>System Dictation</h1>
-          <p className="intro">
-            Hold <strong>{activeShortcutLabel}</strong> anywhere on the computer to talk. Release
-            the shortcut to run local transcription and paste the result back into the active app.
-          </p>
+          <div className="sidebar-status">
+            <p className="eyebrow">Status</p>
+            <h1>{status}</h1>
+            <div className="status-pill">
+              <span
+                className={
+                  isPushToTalkActive || recorder.state === "recording"
+                    ? "dot ready"
+                    : whisperStatus.binaryExists && whisperStatus.modelExists
+                      ? "dot ready"
+                      : "dot"
+                }
+              />
+              {isPushToTalkActive
+                ? "Push-to-talk live"
+                : whisperStatus.binaryExists && whisperStatus.modelExists
+                  ? `Ready on ${activeShortcutLabel}`
+                  : "Local engine needs setup"}
+            </div>
+          </div>
         </div>
         <nav className="nav">
           {navItems.map(({ key, label, icon }) => (
@@ -1069,28 +1084,6 @@ export default function App() {
         </div>
       </aside>
       <main className="content">
-        <header className="hero">
-          <div>
-            <p className="eyebrow">Status</p>
-            <h2>{status}</h2>
-          </div>
-          <div className="status-pill">
-            <span
-              className={
-                isPushToTalkActive || recorder.state === "recording"
-                  ? "dot ready"
-                  : whisperStatus.binaryExists && whisperStatus.modelExists
-                    ? "dot ready"
-                    : "dot"
-              }
-            />
-            {isPushToTalkActive
-              ? "Push-to-talk live"
-              : whisperStatus.binaryExists && whisperStatus.modelExists
-                ? `Ready on ${activeShortcutLabel}`
-                : "Local engine needs setup"}
-          </div>
-        </header>
         <section className="top-stats">
           <article className="top-stat">
             <span>Level</span>

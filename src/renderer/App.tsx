@@ -3,7 +3,7 @@ import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } fr
 import {
   BookText,
   ChartColumnBig,
-  FileText,
+  Clock3,
   Mic,
   Settings2,
   SquareTerminal,
@@ -33,7 +33,7 @@ import {
   WhisperConfigStatus
 } from "../shared/types";
 
-type TabKey = "dictation" | "profiles" | "dictionary" | "notes" | "stats" | "settings" | "developer" | "help";
+type TabKey = "dictation" | "profiles" | "dictionary" | "stats" | "settings" | "developer" | "help";
 type MicDevice = { deviceId: string; label: string };
 type StatusLogEntry = { timestamp: string; message: string };
 type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
@@ -460,7 +460,6 @@ const navItems: Array<{
   { key: "dictation", label: "Dictation", Icon: Mic, iconClassName: "nav-icon-dictation" },
   { key: "profiles", label: "Voice Profiles", Icon: UserRound, iconClassName: "nav-icon-profiles" },
   { key: "dictionary", label: "Dictionary", Icon: BookText, iconClassName: "nav-icon-dictionary" },
-  { key: "notes", label: "Notes", Icon: FileText, iconClassName: "nav-icon-notes" },
   { key: "stats", label: "Statistics", Icon: ChartColumnBig, iconClassName: "nav-icon-stats" },
   { key: "settings", label: "System", Icon: Settings2, iconClassName: "nav-icon-settings" },
   { key: "help", label: "Help", Icon: HelpQuestionIcon, iconClassName: "nav-icon-help" },
@@ -473,40 +472,33 @@ const achievements = [
   { title: "Short Session", description: "Dictate 3 separate times in one day.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Getting Comfortable", description: "Reach 500 total words.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Day One Done", description: "Use WhispARR on 2 different days.", difficulty: "Easy" as AchievementDifficulty },
-  { title: "Quick Notes", description: "Save 3 notes in the notes workspace.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Clean Start", description: "Create your first voice profile.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Ready To Roll", description: "Install the runtime and complete a successful dictation.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Routine Builder", description: "Reach a 3-day streak.", difficulty: "Easy" as AchievementDifficulty },
   { title: "One Thousand Club", description: "Reach 1,000 total words.", difficulty: "Easy" as AchievementDifficulty },
-  { title: "Clipboard Captain", description: "Copy notes or transcripts 10 times.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Local Legend", description: "Save 5 dictionary entries.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Weekender", description: "Use WhispARR on 5 different days.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Double Take", description: "Dictate 2 times back to back.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Focused Voice", description: "Complete a dictation with no edits afterward.", difficulty: "Easy" as AchievementDifficulty },
   { title: "First Level Up", description: "Reach Level 2.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Steady Flow", description: "Reach 2,500 total words.", difficulty: "Easy" as AchievementDifficulty },
-  { title: "Helpful Habit", description: "Save 10 local notes.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Seven Day Rhythm", description: "Reach a 7-day streak.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Daily Driver", description: "Use WhispARR on 10 different days.", difficulty: "Easy" as AchievementDifficulty },
   { title: "Word Worker", description: "Reach 5,000 total words.", difficulty: "Medium" as AchievementDifficulty },
-  { title: "Snippet Saver", description: "Save 15 separate notes.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Correction Coach", description: "Add 15 learned words to the dictionary.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Two Level Lead", description: "Reach Level 3.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Quiet Consistency", description: "Dictate on 12 different days in one month.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Meeting Ready", description: "Dictate 10 separate times in a single day.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Ten Thousand Strong", description: "Reach 10,000 total words.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Reliable Voice", description: "Train 2 separate voice profiles.", difficulty: "Medium" as AchievementDifficulty },
-  { title: "Workspace Pro", description: "Keep 1,000 characters or more in notes for a full week.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Long Form", description: "Complete one dictation over 1,000 words.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Two Week Run", description: "Reach a 14-day streak.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Frequent Flyer", description: "Use WhispARR on 20 different days.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Level Climber", description: "Reach Level 5.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Twenty K", description: "Reach 20,000 total words.", difficulty: "Medium" as AchievementDifficulty },
-  { title: "Daily Notes", description: "Save at least 1 note on 10 different days.", difficulty: "Medium" as AchievementDifficulty },
   { title: "Power Session", description: "Dictate 5,000 words in a single day.", difficulty: "Hard" as AchievementDifficulty },
   { title: "Iron Streak", description: "Reach a 21-day streak.", difficulty: "Hard" as AchievementDifficulty },
   { title: "Thirty Thousand", description: "Reach 30,000 total words.", difficulty: "Hard" as AchievementDifficulty },
-  { title: "Voice Vault", description: "Maintain 25 saved notes at the same time.", difficulty: "Hard" as AchievementDifficulty },
   { title: "Level Seven", description: "Reach Level 7.", difficulty: "Hard" as AchievementDifficulty },
   { title: "Always On", description: "Use WhispARR on 25 different days in one month.", difficulty: "Hard" as AchievementDifficulty },
   { title: "Marathon Dictator", description: "Dictate 20 separate times in one day.", difficulty: "Hard" as AchievementDifficulty },
@@ -652,12 +644,6 @@ function compactStatus(message: string) {
     [/pronunciation capture failed/, "Pronunciation failed"],
     [/say \".*\" clearly, then press stop/, "Recording pronunciation"],
     [/transcript copied/, "Transcript copied"],
-    [/notes copied/, "Notes copied"],
-    [/clipboard pasted into notes/, "Pasted into notes"],
-    [/notes saved locally/, "Notes saved"],
-    [/saved a local note item/, "Note saved"],
-    [/removed the saved note item/, "Saved note removed"],
-    [/saved note copied/, "Saved note copied"],
     [/saved \".*\" to your local dictionary and checked how it was heard/, "Dictionary updated"],
     [/saved \".*\" to your local dictionary, but no speech was detected/, "Dictionary updated"],
     [/saved \".*\" to your local dictionary/, "Dictionary saved"],
@@ -919,10 +905,6 @@ export default function App() {
     intended: string;
     heard: string;
   } | null>(null);
-  const [notes, setNotes] = useState("");
-  const [savedNotes, setSavedNotes] = useState<string[]>([]);
-  const [savedNoteDraft, setSavedNoteDraft] = useState("");
-  const [isSavedNoteComposerOpen, setIsSavedNoteComposerOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [achievementFilter, setAchievementFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
@@ -967,7 +949,6 @@ export default function App() {
   const [draftShortcut, setDraftShortcut] = useState<ActivationShortcut | null>(null);
   const [isTrainingProfile, setIsTrainingProfile] = useState(false);
   const transcriptHistoryRef = useRef<string[]>([]);
-  const notesRef = useRef("");
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1201,10 +1182,6 @@ export default function App() {
   }, [transcriptHistory]);
 
   useEffect(() => {
-    notesRef.current = notes;
-  }, [notes]);
-
-  useEffect(() => {
     activeProfileRef.current = activeProfile;
   }, [activeProfile]);
 
@@ -1218,46 +1195,6 @@ export default function App() {
     setTranscriptHistory(trimmedHistory);
     void window.wisprApi.saveTranscriptHistory(trimmedHistory, settings.transcriptHistoryLimit);
   }, [settings.transcriptHistoryLimit]);
-
-  useEffect(() => {
-    if (!hasLoadedInitialDataRef.current) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      void window.wisprApi.saveNotes(notesRef.current);
-    }, 100);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [notes]);
-
-  useEffect(() => {
-    function flushNotesIfNeeded() {
-      if (!hasLoadedInitialDataRef.current) {
-        return;
-      }
-
-      void window.wisprApi.saveNotes(notesRef.current);
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "hidden") {
-        flushNotesIfNeeded();
-      }
-    }
-
-    window.addEventListener("beforeunload", flushNotesIfNeeded);
-    window.addEventListener("pagehide", flushNotesIfNeeded);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("beforeunload", flushNotesIfNeeded);
-      window.removeEventListener("pagehide", flushNotesIfNeeded);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
 
   useEffect(() => {
     const visible = recorder.state === "recording" || settings.alwaysShowPill || isPreviewingHudScale;
@@ -1396,7 +1333,7 @@ export default function App() {
         setStatus(`Unlocked ${result.newlyUnlocked.length} achievements (+${rewardXp} XP).`);
       }
     });
-  }, [manualDictionary.length, notes, profiles.length, savedNotes.length, stats.currentLevel, stats.currentStreakDays, stats.totalWords, whisperStatus.binaryExists, whisperStatus.modelExists]);
+  }, [manualDictionary.length, profiles.length, stats.currentLevel, stats.currentStreakDays, stats.totalWords, whisperStatus.binaryExists, whisperStatus.modelExists]);
 
   useEffect(() => {
     if (!isCapturingShortcut) {
@@ -1471,8 +1408,6 @@ export default function App() {
     setStats(data.stats);
     setUnlockedAchievements(data.unlockedAchievements);
     setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
-    setNotes(data.notes);
-    setSavedNotes(data.savedNotes);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
@@ -1502,8 +1437,6 @@ export default function App() {
     setStats(data.stats);
     setUnlockedAchievements(data.unlockedAchievements);
     setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
-    setNotes(data.notes);
-    setSavedNotes(data.savedNotes);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
@@ -2059,8 +1992,6 @@ export default function App() {
         return stats.totalWords >= 250;
       case "Getting Comfortable":
         return stats.totalWords >= 500;
-      case "Quick Notes":
-        return savedNotes.length >= 3;
       case "Clean Start":
         return profiles.length >= 1;
       case "Ready To Roll":
@@ -2077,16 +2008,12 @@ export default function App() {
         return stats.currentLevel >= 2;
       case "Steady Flow":
         return stats.totalWords >= 2500;
-      case "Helpful Habit":
-        return savedNotes.length >= 10;
       case "Seven Day Rhythm":
         return stats.currentStreakDays >= 7;
       case "Daily Driver":
         return stats.currentStreakDays >= 10;
       case "Word Worker":
         return stats.totalWords >= 5000;
-      case "Snippet Saver":
-        return savedNotes.length >= 15;
       case "Correction Coach":
         return manualDictionary.length >= 15;
       case "Two Level Lead":
@@ -2095,8 +2022,6 @@ export default function App() {
         return stats.totalWords >= 10000;
       case "Reliable Voice":
         return profiles.length >= 2;
-      case "Workspace Pro":
-        return notes.trim().length >= 1000;
       case "Two Week Run":
         return stats.currentStreakDays >= 14;
       case "Frequent Flyer":
@@ -2109,8 +2034,6 @@ export default function App() {
         return stats.currentStreakDays >= 21;
       case "Thirty Thousand":
         return stats.totalWords >= 30000;
-      case "Voice Vault":
-        return savedNotes.length >= 25;
       case "Level Seven":
         return stats.currentLevel >= 7;
       case "Forty Thousand":
@@ -2151,47 +2074,6 @@ export default function App() {
     setStatus("Transcript copied to clipboard.");
   }
 
-  async function copyNotes() {
-    await navigator.clipboard.writeText(notes);
-    setStatus("Notes copied to clipboard.");
-  }
-
-  async function pasteIntoNotes() {
-    const clipboardText = await navigator.clipboard.readText();
-    setNotes((current) => {
-      if (!current.trim()) {
-        return clipboardText;
-      }
-
-      if (!clipboardText.trim()) {
-        return current;
-      }
-
-      return `${current}${current.endsWith("\n") ? "" : "\n"}${clipboardText}`;
-    });
-    setStatus("Clipboard pasted into notes.");
-  }
-
-  async function saveNotesNow() {
-    await window.wisprApi.saveNotes(notesRef.current);
-    setStatus("Notes saved locally.");
-  }
-
-  async function addSavedNote() {
-    const nextNote = savedNoteDraft.trim();
-    if (!nextNote) {
-      setStatus("Add a note before saving it to the right-side list.");
-      return;
-    }
-
-    const nextSavedNotes = [nextNote, ...savedNotes];
-    await window.wisprApi.saveSavedNotes(nextSavedNotes);
-    setSavedNotes(nextSavedNotes);
-    setSavedNoteDraft("");
-    setIsSavedNoteComposerOpen(false);
-    setStatus("Saved a local note item.");
-  }
-
   function handleTranscriptHistoryCustomClick() {
     if (transcriptHistoryClickTimeoutRef.current) {
       window.clearTimeout(transcriptHistoryClickTimeoutRef.current);
@@ -2209,18 +2091,6 @@ export default function App() {
     }
     setIsTranscriptHistoryMenuOpen(false);
     setIsEditingTranscriptHistoryLimit(true);
-  }
-
-  async function removeSavedNote(index: number) {
-    const nextSavedNotes = savedNotes.filter((_, noteIndex) => noteIndex !== index);
-    await window.wisprApi.saveSavedNotes(nextSavedNotes);
-    setSavedNotes(nextSavedNotes);
-    setStatus("Removed the saved note item.");
-  }
-
-  async function copySavedNote(note: string) {
-    await navigator.clipboard.writeText(note);
-    setStatus("Saved note copied to clipboard.");
   }
 
   async function saveDictionaryEntry() {
@@ -2292,7 +2162,7 @@ export default function App() {
           >
             <span className="nav-button-content">
               <span className="nav-icon" aria-hidden="true">
-                <HelpQuestionIcon className="nav-icon-glyph nav-icon-help" />
+                <Clock3 className="nav-icon-glyph nav-icon-settings" strokeWidth={1.8} />
               </span>
               <span>{isCheckingForUpdates ? "Checking..." : "Check for updates"}</span>
             </span>
@@ -2765,125 +2635,6 @@ export default function App() {
                 ))}
               </div>
             </section>
-          </section>
-        )}
-        {tab === "notes" && (
-          <section className="panel-grid">
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Notes</p>
-                  <h3>Local Notes Workspace</h3>
-                </div>
-                <div className="button-row compact">
-                  <button className="ghost-button" onClick={() => void pasteIntoNotes()}>
-                    Paste from clipboard
-                  </button>
-                  <button className="ghost-button" onClick={() => void copyNotes()}>
-                    Copy notes
-                  </button>
-                  <button className="primary-button" onClick={() => void saveNotesNow()}>
-                    Save now
-                  </button>
-                </div>
-              </div>
-              <p className="supporting">
-                Keep personal notes inside WhispARR and come back to them later. Notes are saved
-                locally on this device and auto-save while you type.
-              </p>
-              <label className="field">
-                <span>Your notes</span>
-                <textarea
-                  className="notes-textarea"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Write anything here. You can paste text in, keep reminders, or save snippets you want to reuse later."
-                />
-              </label>
-              <div className="notes-workspace-actions">
-                <button
-                  className="notes-add-button"
-                  type="button"
-                  onClick={() => setIsSavedNoteComposerOpen(true)}
-                  aria-label="Add a saved note"
-                  title="Add saved note"
-                >
-                  +
-                </button>
-              </div>
-            </section>
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Saved Notes</p>
-                </div>
-              </div>
-              <div className="dictionary-list">
-                {savedNotes.length === 0 && (
-                  <p className="supporting">
-                    No saved notes yet. Use the plus button under the workspace to add one.
-                  </p>
-                )}
-                {savedNotes.map((note, index) => (
-                  <div key={`${index}-${note.slice(0, 24)}`} className="dictionary-card">
-                    <div>
-                      <strong>Saved note {index + 1}</strong>
-                      <p>{note}</p>
-                    </div>
-                    <div className="button-row compact">
-                      <button
-                        className="ghost-button"
-                        onClick={() => void copySavedNote(note)}
-                      >
-                        Copy
-                      </button>
-                      <button
-                        className="ghost-button danger"
-                        onClick={() => void removeSavedNote(index)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {isSavedNoteComposerOpen && (
-              <div className="notes-composer-backdrop" role="presentation">
-                <section className="notes-composer" aria-label="Saved note composer">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">New Note</p>
-                      <h3>Saved note</h3>
-                    </div>
-                  </div>
-                  <label className="field">
-                    <span>Write note</span>
-                    <textarea
-                      className="saved-note-input"
-                      value={savedNoteDraft}
-                      onChange={(event) => setSavedNoteDraft(event.target.value)}
-                      placeholder="Write a short note, reminder, or snippet."
-                    />
-                  </label>
-                  <div className="button-row">
-                    <button className="primary-button" type="button" onClick={() => void addSavedNote()}>
-                      Save note
-                    </button>
-                    <button
-                      className="ghost-button"
-                      type="button"
-                      onClick={() => {
-                        setIsSavedNoteComposerOpen(false);
-                        setSavedNoteDraft("");
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </section>
-              </div>
-            )}
           </section>
         )}
         {tab === "stats" && (
@@ -3656,7 +3407,6 @@ export default function App() {
                       <li>Whisper ready: {runtimeReady ? "Yes" : "No"}</li>
                       <li>Profiles: {profiles.length}</li>
                       <li>Dictionary entries: {manualDictionary.length}</li>
-                      <li>Saved notes: {savedNotes.length}</li>
                       <li>Selected mic: {settings.selectedMicId ?? "System default"}</li>
                       <li>Binary path: {settings.whisperBinaryPath || "Not set"}</li>
                       <li>Model path: {settings.whisperModelPath || "Not set"}</li>

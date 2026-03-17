@@ -392,35 +392,65 @@ textarea {
 }
 
 .saved-note-input {
-  min-height: 100px;
+  min-height: 160px;
   line-height: 1.6;
 }
 
-.notes-info-button {
+.notes-workspace-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.notes-add-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
-  border-radius: 999px;
+  border-radius: 14px;
   background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
   color: var(--text);
   cursor: pointer;
-  font-weight: 700;
+  font-size: 1.4rem;
   line-height: 1;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-.notes-info-popover {
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
-  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+.notes-add-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--button-top) 100%, white 10%),
+    color-mix(in srgb, var(--button-bottom) 100%, white 8%)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.notes-info-popover p {
-  margin: 0;
+.notes-composer-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 11, 14, 0.5);
+  backdrop-filter: blur(10px);
+  z-index: 30;
+}
+
+.notes-composer {
+  width: min(100%, 520px);
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
 
 select {
@@ -495,6 +525,87 @@ select option:disabled {
 
 .button-row.compact {
   gap: 8px;
+}
+
+.settings-switch-list {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.settings-switch-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.settings-switch-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-switch-copy strong {
+  line-height: 1.2;
+}
+
+.settings-switch-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.settings-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--button-bottom) 88%, black 12%);
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--button-border) 100%, transparent),
+    inset 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+.settings-switch:hover {
+  transform: translateY(-1px);
+}
+
+.settings-switch.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.settings-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.18s ease;
+}
+
+.settings-switch.active .settings-switch-thumb {
+  transform: translateX(20px);
 }
 
 .primary-button {

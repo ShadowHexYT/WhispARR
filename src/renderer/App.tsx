@@ -474,7 +474,7 @@ export default function App() {
   const [notes, setNotes] = useState("");
   const [savedNotes, setSavedNotes] = useState<string[]>([]);
   const [savedNoteDraft, setSavedNoteDraft] = useState("");
-  const [showNotesInfo, setShowNotesInfo] = useState(false);
+  const [isSavedNoteComposerOpen, setIsSavedNoteComposerOpen] = useState(false);
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
@@ -1002,6 +1002,7 @@ export default function App() {
     await window.wisprApi.saveSavedNotes(nextSavedNotes);
     setSavedNotes(nextSavedNotes);
     setSavedNoteDraft("");
+    setIsSavedNoteComposerOpen(false);
     setStatus("Saved a local note item.");
   }
 
@@ -1098,7 +1099,7 @@ export default function App() {
             <strong>{xpRemainingToNextLevel.toLocaleString()}</strong>
           </article>
           <article className="top-stat">
-            <span>Words</span>
+            <span>Total Words</span>
             <strong>{stats.totalWords.toLocaleString()}</strong>
           </article>
           <article className="top-stat">
@@ -1420,15 +1421,6 @@ export default function App() {
                   <h3>Local Notes Workspace</h3>
                 </div>
                 <div className="button-row compact">
-                  <button
-                    className="notes-info-button"
-                    onClick={() => setShowNotesInfo((current) => !current)}
-                    type="button"
-                    aria-label="More information about notes"
-                    title="More information"
-                  >
-                    i
-                  </button>
                   <button className="ghost-button" onClick={() => void pasteIntoNotes()}>
                     Paste from clipboard
                   </button>
@@ -1444,15 +1436,6 @@ export default function App() {
                 Keep personal notes inside WhispARR and come back to them later. Notes are saved
                 locally on this device and auto-save while you type.
               </p>
-              {showNotesInfo && (
-                <div className="notes-info-popover">
-                  <p className="supporting">
-                    Your main notes area is a scratchpad for anything you want to keep nearby while
-                    dictating. It auto-saves locally. The right side is for shorter saved note items
-                    you want to keep as separate pieces you can copy or remove individually.
-                  </p>
-                </div>
-              )}
               <label className="field">
                 <span>Your notes</span>
                 <textarea
@@ -1462,32 +1445,28 @@ export default function App() {
                   placeholder="Write anything here. You can paste text in, keep reminders, or save snippets you want to reuse later."
                 />
               </label>
+              <div className="notes-workspace-actions">
+                <button
+                  className="notes-add-button"
+                  type="button"
+                  onClick={() => setIsSavedNoteComposerOpen(true)}
+                  aria-label="Add a saved note"
+                  title="Add saved note"
+                >
+                  +
+                </button>
+              </div>
             </section>
             <section className="panel">
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Saved Notes</p>
-                  <h3>Stored Local Note Items</h3>
                 </div>
-              </div>
-              <label className="field">
-                <span>Add a saved note</span>
-                <textarea
-                  className="saved-note-input"
-                  value={savedNoteDraft}
-                  onChange={(event) => setSavedNoteDraft(event.target.value)}
-                  placeholder="Save a short note, reminder, or snippet here."
-                />
-              </label>
-              <div className="button-row">
-                <button className="primary-button" onClick={() => void addSavedNote()}>
-                  Add saved note
-                </button>
               </div>
               <div className="dictionary-list">
                 {savedNotes.length === 0 && (
                   <p className="supporting">
-                    No saved note items yet. Add one here and it will stay on this device locally.
+                    No saved notes yet. Use the plus button under the workspace to add one.
                   </p>
                 )}
                 {savedNotes.map((note, index) => (
@@ -1514,6 +1493,42 @@ export default function App() {
                 ))}
               </div>
             </section>
+            {isSavedNoteComposerOpen && (
+              <div className="notes-composer-backdrop" role="presentation">
+                <section className="notes-composer" aria-label="Saved note composer">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">New Note</p>
+                      <h3>Saved note</h3>
+                    </div>
+                  </div>
+                  <label className="field">
+                    <span>Write note</span>
+                    <textarea
+                      className="saved-note-input"
+                      value={savedNoteDraft}
+                      onChange={(event) => setSavedNoteDraft(event.target.value)}
+                      placeholder="Write a short note, reminder, or snippet."
+                    />
+                  </label>
+                  <div className="button-row">
+                    <button className="primary-button" type="button" onClick={() => void addSavedNote()}>
+                      Save note
+                    </button>
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => {
+                        setIsSavedNoteComposerOpen(false);
+                        setSavedNoteDraft("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
           </section>
         )}
         {tab === "stats" && (
@@ -1630,163 +1645,147 @@ export default function App() {
 
               <div className="panel-header">
                 <div>
-                  <p className="eyebrow">Requirements</p>
-                  <h3>Speech Runtime Setup</h3>
-                </div>
-              </div>
-              <div className="button-row">
-                <button
-                  className="primary-button"
-                  onClick={() => void installEverything()}
-                  disabled={isInstallingRuntime}
-                >
-                  {isInstallingRuntime ? "Installing..." : "Install everything"}
-                </button>
-                <button className="primary-button" onClick={() => void autoConfigureRuntime()}>
-                  Auto-find runtime
-                </button>
-              </div>
-              <p className="supporting">
-                `Install everything` downloads the local speech runtime into the app data folder
-                and configures it automatically. Packaged builds can also ship the runtime already
-                embedded, and the app will auto-detect it on launch.
-              </p>
-              {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
-              {runtimeDiscovery?.selected && (
-                <p className="supporting">
-                  Active match: <strong>{runtimeDiscovery.selected.source}</strong>
-                </p>
-              )}
-              {runtimeDiscovery && runtimeDiscovery.candidates.length > 1 && (
-                <p className="supporting">
-                  Additional matches found: <strong>{runtimeDiscovery.candidates.length - 1}</strong>
-                </p>
-              )}
-
-              <div className="panel-header">
-                <div>
                   <p className="eyebrow">System</p>
                   <h3>Background Behavior</h3>
                 </div>
               </div>
-              <div className="button-row">
-                <button
-                  className={settings.autoPaste ? "primary-button" : "secondary-button"}
-                  onClick={() => void patchSettings({ autoPaste: !settings.autoPaste })}
-                >
-                  {settings.autoPaste ? "Auto-paste on" : "Auto-paste off"}
-                </button>
-                <button
-                  className={settings.launchOnLogin ? "primary-button" : "secondary-button"}
-                  onClick={() => void patchSettings({ launchOnLogin: !settings.launchOnLogin })}
-                >
-                  {settings.launchOnLogin ? "Launch at login on" : "Launch at login off"}
-                </button>
-                <button
-                  className={settings.alwaysShowPill ? "primary-button" : "secondary-button"}
-                  onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
-                >
-                  {settings.alwaysShowPill ? "Pill always visible" : "Pill only while dictating"}
-                </button>
-                <button
-                  className={settings.muteDictationSounds ? "secondary-button" : "primary-button"}
-                  onClick={() =>
-                    void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
-                  }
-                >
-                  {settings.muteDictationSounds ? "Dictation sounds muted" : "Dictation sounds on"}
-                </button>
-                <button
-                  className={settings.muteMusicWhileDictating ? "primary-button" : "secondary-button"}
-                  onClick={() =>
-                    void patchSettings({
-                      muteMusicWhileDictating: !settings.muteMusicWhileDictating
-                    })
-                  }
-                >
-                  {settings.muteMusicWhileDictating ? "Mute music while dictating on" : "Mute music while dictating off"}
-                </button>
-                <button
-                  className={settings.autoLearnDictionary ? "primary-button" : "secondary-button"}
-                  onClick={() =>
-                    void patchSettings({
-                      autoLearnDictionary: !settings.autoLearnDictionary
-                    })
-                  }
-                >
-                  {settings.autoLearnDictionary ? "Auto dictionary learning on" : "Auto dictionary learning off"}
-                </button>
-                <button
-                  className={settings.smartFormatting ? "primary-button" : "secondary-button"}
-                  onClick={() =>
-                    void patchSettings({
-                      smartFormatting: !settings.smartFormatting
-                    })
-                  }
-                >
-                  {settings.smartFormatting ? "Smart formatting on" : "Smart formatting off"}
-                </button>
-              </div>
-              <p className="supporting">
-                Auto-paste uses the system clipboard plus a local paste keystroke so the dictated
-                text lands back in the app you were using.
-              </p>
-              <p className="supporting">
-                `Launch at login` keeps WhispARR ready after restart. `Pill always visible` leaves
-                the bottom HUD on screen in a ready state even when you are not dictating.
-              </p>
-              <p className="supporting">
-                `Dictation sounds` controls WhispARR sound cues like the pill pop and level-up
-                sound. `Mute music while dictating` uses a best-effort media pause/resume approach
-                during push-to-talk.
-              </p>
-              <p className="supporting">
-                `Auto dictionary learning` watches for a copied corrected version of the last pasted
-                transcript and adds likely corrected words to your local dictionary so future
-                dictation is less likely to miss them.
-              </p>
-              <p className="supporting">
-                `Smart formatting` auto-capitalizes text and cleans up common spoken structure cues
-                like lists, bullets, numbered items, and line breaks before the text is pasted.
-              </p>
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Engine</p>
-                  <h3>whisper.cpp Paths</h3>
-                </div>
-              </div>
-              <label className="field">
-                <span>Local binary</span>
-                <div className="path-field">
-                  <input
-                    value={settings.whisperBinaryPath}
-                    readOnly
-                    placeholder="Path to main binary"
-                  />
+              <div className="settings-switch-list">
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Auto-paste</strong>
+                    <p>
+                      Uses the system clipboard plus a local paste keystroke so dictated text lands
+                      back in the app you were using.
+                    </p>
+                  </div>
                   <button
-                    className="ghost-button"
-                    onClick={() => void chooseFile("whisperBinaryPath")}
+                    className={settings.autoPaste ? "settings-switch active" : "settings-switch"}
+                    onClick={() => void patchSettings({ autoPaste: !settings.autoPaste })}
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.autoPaste}
+                    aria-label="Toggle auto-paste"
                   >
-                    Browse
+                    <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
                 </div>
-              </label>
-              <label className="field">
-                <span>Local model</span>
-                <div className="path-field">
-                  <input
-                    value={settings.whisperModelPath}
-                    readOnly
-                    placeholder="Path to GGML model"
-                  />
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Launch at login</strong>
+                    <p>Keeps WhispARR ready after restart so dictation is available right away.</p>
+                  </div>
                   <button
-                    className="ghost-button"
-                    onClick={() => void chooseFile("whisperModelPath")}
+                    className={settings.launchOnLogin ? "settings-switch active" : "settings-switch"}
+                    onClick={() => void patchSettings({ launchOnLogin: !settings.launchOnLogin })}
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.launchOnLogin}
+                    aria-label="Toggle launch at login"
                   >
-                    Browse
+                    <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>
                 </div>
-              </label>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Pill always visible</strong>
+                    <p>Leaves the bottom HUD on screen in a ready state even when you are not dictating.</p>
+                  </div>
+                  <button
+                    className={settings.alwaysShowPill ? "settings-switch active" : "settings-switch"}
+                    onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.alwaysShowPill}
+                    aria-label="Toggle always show pill"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Dictation sounds</strong>
+                    <p>Controls WhispARR sound cues like the pill pop and the level-up sound.</p>
+                  </div>
+                  <button
+                    className={!settings.muteDictationSounds ? "settings-switch active" : "settings-switch"}
+                    onClick={() =>
+                      void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
+                    }
+                    type="button"
+                    role="switch"
+                    aria-checked={!settings.muteDictationSounds}
+                    aria-label="Toggle dictation sounds"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Mute music while dictating</strong>
+                    <p>Uses a best-effort media pause and resume approach during push-to-talk.</p>
+                  </div>
+                  <button
+                    className={settings.muteMusicWhileDictating ? "settings-switch active" : "settings-switch"}
+                    onClick={() =>
+                      void patchSettings({
+                        muteMusicWhileDictating: !settings.muteMusicWhileDictating
+                      })
+                    }
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.muteMusicWhileDictating}
+                    aria-label="Toggle mute music while dictating"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Auto dictionary learning</strong>
+                    <p>
+                      Watches for copied corrections from the last pasted transcript and saves likely
+                      corrected words into your local dictionary.
+                    </p>
+                  </div>
+                  <button
+                    className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
+                    onClick={() =>
+                      void patchSettings({
+                        autoLearnDictionary: !settings.autoLearnDictionary
+                      })
+                    }
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.autoLearnDictionary}
+                    aria-label="Toggle auto dictionary learning"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Smart formatting</strong>
+                    <p>
+                      Auto-capitalizes text and cleans up spoken structure cues like bullets,
+                      numbered items, lists, and line breaks before paste.
+                    </p>
+                  </div>
+                  <button
+                    className={settings.smartFormatting ? "settings-switch active" : "settings-switch"}
+                    onClick={() =>
+                      void patchSettings({
+                        smartFormatting: !settings.smartFormatting
+                      })
+                    }
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.smartFormatting}
+                    aria-label="Toggle smart formatting"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
             </section>
             <section className="panel">
               <div className="panel-header">
@@ -1909,6 +1908,78 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Requirements</p>
+                  <h3>Speech Runtime Setup</h3>
+                </div>
+              </div>
+              <div className="button-row">
+                <button
+                  className="primary-button"
+                  onClick={() => void installEverything()}
+                  disabled={isInstallingRuntime}
+                >
+                  {isInstallingRuntime ? "Installing..." : "Install everything"}
+                </button>
+                <button className="primary-button" onClick={() => void autoConfigureRuntime()}>
+                  Auto-find runtime
+                </button>
+              </div>
+              <p className="supporting">
+                `Install everything` downloads the local speech runtime into the app data folder
+                and configures it automatically. Packaged builds can also ship the runtime already
+                embedded, and the app will auto-detect it on launch.
+              </p>
+              {runtimeInstallMessage && <p className="supporting">{runtimeInstallMessage}</p>}
+              {runtimeDiscovery?.selected && (
+                <p className="supporting">
+                  Active match: <strong>{runtimeDiscovery.selected.source}</strong>
+                </p>
+              )}
+              {runtimeDiscovery && runtimeDiscovery.candidates.length > 1 && (
+                <p className="supporting">
+                  Additional matches found: <strong>{runtimeDiscovery.candidates.length - 1}</strong>
+                </p>
+              )}
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Engine</p>
+                  <h3>whisper.cpp Paths</h3>
+                </div>
+              </div>
+              <label className="field">
+                <span>Local binary</span>
+                <div className="path-field">
+                  <input
+                    value={settings.whisperBinaryPath}
+                    readOnly
+                    placeholder="Path to main binary"
+                  />
+                  <button
+                    className="ghost-button"
+                    onClick={() => void chooseFile("whisperBinaryPath")}
+                  >
+                    Browse
+                  </button>
+                </div>
+              </label>
+              <label className="field">
+                <span>Local model</span>
+                <div className="path-field">
+                  <input
+                    value={settings.whisperModelPath}
+                    readOnly
+                    placeholder="Path to GGML model"
+                  />
+                  <button
+                    className="ghost-button"
+                    onClick={() => void chooseFile("whisperModelPath")}
+                  >
+                    Browse
+                  </button>
+                </div>
+              </label>
             </section>
           </section>
         )}

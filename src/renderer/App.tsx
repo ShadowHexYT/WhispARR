@@ -5,6 +5,7 @@ import {
   ChartColumnBig,
   Clock3,
   Mic,
+  Play,
   RefreshCw,
   Settings2,
   SquareTerminal,
@@ -46,7 +47,7 @@ type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3?v=20260317", import.meta.url).href;
 const notificationSoundUrl = new URL("../../assets/Notif.mp3?v=20260317", import.meta.url).href;
-const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317b", import.meta.url).href;
+const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317c", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
 
@@ -69,6 +70,12 @@ const defaultSettings: AppSettings = {
   hudScale: 100,
   muteDictationSounds: false,
   appSoundVolume: 80,
+  levelUpSoundPath: "",
+  levelUpSoundVolume: 100,
+  achievementSoundPath: "",
+  achievementSoundVolume: 50,
+  dictionarySoundPath: "",
+  dictionarySoundVolume: 100,
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
   smartFormatting: true,
@@ -606,6 +613,10 @@ function clampSoundVolume(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function getCombinedSoundVolume(masterVolume: number, individualVolume: number) {
+  return Math.max(0, Math.min(1, (clampSoundVolume(masterVolume) / 100) * (clampSoundVolume(individualVolume) / 100)));
+}
+
 function clampHudScale(value: number) {
   return Math.max(60, Math.min(160, Math.round(value)));
 }
@@ -993,6 +1004,30 @@ function getDictionaryEntryKind(entry: ManualDictionaryEntry) {
   return "Phrase";
 }
 
+function toRendererAudioUrl(path: string, fallback: string) {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  if (/^(https?:|file:|data:|blob:)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const normalized = trimmed.replace(/\\/g, "/");
+  const withLeadingSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
+  return encodeURI(`file://${withLeadingSlash}`);
+}
+
+function getPathLeaf(path: string) {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.split(/[\\/]/).pop() ?? trimmed;
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabKey>("dictation");
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -1093,6 +1128,32 @@ export default function App() {
   );
   const visibleStatus = compactStatus(status);
   const transcriptHistoryOptions = [3, 5, 10, 20];
+  const customSoundRows = [
+    {
+      key: "dictionarySoundPath" as const,
+      volumeKey: "dictionarySoundVolume" as const,
+      title: "Dictionary sound",
+      description: "Used when WhispARR auto-adds something to your dictionary.",
+      path: settings.dictionarySoundPath,
+      volume: clampSoundVolume(settings.dictionarySoundVolume)
+    },
+    {
+      key: "achievementSoundPath" as const,
+      volumeKey: "achievementSoundVolume" as const,
+      title: "Achievement sound",
+      description: "Used for achievement popups in the app.",
+      path: settings.achievementSoundPath,
+      volume: clampSoundVolume(settings.achievementSoundVolume)
+    },
+    {
+      key: "levelUpSoundPath" as const,
+      volumeKey: "levelUpSoundVolume" as const,
+      title: "Level-up sound",
+      description: "Used when a profile levels up.",
+      path: settings.levelUpSoundPath,
+      volume: clampSoundVolume(settings.levelUpSoundVolume)
+    }
+  ];
 
   useEffect(() => {
     recorderRef.current = recorder;
@@ -1204,34 +1265,54 @@ export default function App() {
   }, [currentTheme]);
 
   useEffect(() => {
-    levelUpAudioRef.current = new Audio(levelUpSoundUrl);
-    levelUpAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
-    notificationAudioRef.current = new Audio(notificationSoundUrl);
-    notificationAudioRef.current.volume = (clampSoundVolume(settingsRef.current.appSoundVolume) / 100) * 0.5;
-    dictionaryNotificationAudioRef.current = new Audio(dictionaryNotificationSoundUrl);
-    dictionaryNotificationAudioRef.current.volume = Math.min(1, (clampSoundVolume(settingsRef.current.appSoundVolume) / 100) * 1.5);
+    levelUpAudioRef.current = new Audio(
+      toRendererAudioUrl(settings.levelUpSoundPath, levelUpSoundUrl)
+    );
+    levelUpAudioRef.current.volume = getCombinedSoundVolume(
+      settingsRef.current.appSoundVolume,
+      settingsRef.current.levelUpSoundVolume
+    );
+    notificationAudioRef.current = new Audio(
+      toRendererAudioUrl(settings.achievementSoundPath, notificationSoundUrl)
+    );
+    notificationAudioRef.current.volume = getCombinedSoundVolume(
+      settingsRef.current.appSoundVolume,
+      settingsRef.current.achievementSoundVolume
+    );
+    dictionaryNotificationAudioRef.current = new Audio(
+      toRendererAudioUrl(settings.dictionarySoundPath, dictionaryNotificationSoundUrl)
+    );
+    dictionaryNotificationAudioRef.current.volume = getCombinedSoundVolume(
+      settingsRef.current.appSoundVolume,
+      settingsRef.current.dictionarySoundVolume
+    );
 
     return () => {
       levelUpAudioRef.current = null;
       notificationAudioRef.current = null;
       dictionaryNotificationAudioRef.current = null;
     };
-  }, []);
+  }, [settings.levelUpSoundPath, settings.achievementSoundPath, settings.dictionarySoundPath]);
 
   useEffect(() => {
     const audio = levelUpAudioRef.current;
     if (audio) {
-      audio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
+      audio.volume = getCombinedSoundVolume(settings.appSoundVolume, settings.levelUpSoundVolume);
     }
     const notificationAudio = notificationAudioRef.current;
     if (notificationAudio) {
-      notificationAudio.volume = (clampSoundVolume(settings.appSoundVolume) / 100) * 0.5;
+      notificationAudio.volume = getCombinedSoundVolume(settings.appSoundVolume, settings.achievementSoundVolume);
     }
     const dictionaryNotificationAudio = dictionaryNotificationAudioRef.current;
     if (dictionaryNotificationAudio) {
-      dictionaryNotificationAudio.volume = Math.min(1, (clampSoundVolume(settings.appSoundVolume) / 100) * 1.5);
+      dictionaryNotificationAudio.volume = getCombinedSoundVolume(settings.appSoundVolume, settings.dictionarySoundVolume);
     }
-  }, [settings.appSoundVolume]);
+  }, [
+    settings.appSoundVolume,
+    settings.levelUpSoundVolume,
+    settings.achievementSoundVolume,
+    settings.dictionarySoundVolume
+  ]);
 
   function playNotificationSound() {
     if (settingsRef.current.muteDictationSounds) {
@@ -1713,6 +1794,47 @@ export default function App() {
     if (filePath) {
       await patchSettings({ [key]: filePath } as Partial<AppSettings>);
     }
+  }
+
+  async function chooseSoundFile(key: "levelUpSoundPath" | "achievementSoundPath" | "dictionarySoundPath") {
+    const filePath = await window.wisprApi.pickFile();
+    if (!filePath) {
+      return;
+    }
+
+    await patchSettings({ [key]: filePath } as Partial<AppSettings>);
+    setStatus(`Custom sound selected: ${getPathLeaf(filePath)}.`);
+  }
+
+  async function resetSoundFile(key: "levelUpSoundPath" | "achievementSoundPath" | "dictionarySoundPath") {
+    await patchSettings({ [key]: "" } as Partial<AppSettings>);
+    setStatus("Sound reset to built-in default.");
+  }
+
+  function previewSound(key: "levelUpSoundPath" | "achievementSoundPath" | "dictionarySoundPath") {
+    if (settings.muteDictationSounds) {
+      setStatus("Turn dictation sounds on to preview audio.");
+      return;
+    }
+
+    if (key === "levelUpSoundPath") {
+      const audio = levelUpAudioRef.current;
+      if (audio) {
+        audio.currentTime = 0;
+        void audio.play().catch(() => {});
+        setStatus("Previewing level-up sound.");
+      }
+      return;
+    }
+
+    if (key === "achievementSoundPath") {
+      playNotificationSound();
+      setStatus("Previewing achievement sound.");
+      return;
+    }
+
+    playDictionaryNotificationSound();
+    setStatus("Previewing dictionary sound.");
   }
 
   async function saveShortcut(shortcut: ActivationShortcut) {
@@ -3877,8 +3999,78 @@ export default function App() {
                   aria-disabled={settings.muteDictationSounds}
                 >
                   <div className="settings-slider-copy">
+                    <strong>Application sound files</strong>
+                    <p>Pick custom files and tune each sound before the master app volume is applied.</p>
+                  </div>
+                  <div className="settings-sound-file-list">
+                    {customSoundRows.map((soundRow) => (
+                      <div key={soundRow.key} className="settings-sound-file-row">
+                        <div className="settings-sound-file-header">
+                          <div className="settings-sound-file-copy">
+                            <strong>{soundRow.title}</strong>
+                            <p>{soundRow.description}</p>
+                            {soundRow.path && (
+                              <span className="settings-sound-file-name">
+                                {getPathLeaf(soundRow.path)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="button-row compact settings-sound-file-actions">
+                            <button
+                              className="icon-button settings-sound-preview-button"
+                              type="button"
+                              disabled={settings.muteDictationSounds}
+                              onClick={() => previewSound(soundRow.key)}
+                              aria-label={`Preview ${soundRow.title.toLowerCase()}`}
+                              title={`Preview ${soundRow.title.toLowerCase()}`}
+                            >
+                              <Play aria-hidden="true" />
+                            </button>
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              disabled={settings.muteDictationSounds}
+                              onClick={() => void chooseSoundFile(soundRow.key)}
+                            >
+                              Choose file
+                            </button>
+                            <button
+                              className="ghost-button"
+                              type="button"
+                              disabled={settings.muteDictationSounds || !soundRow.path}
+                              onClick={() => void resetSoundFile(soundRow.key)}
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        </div>
+                        <div className="settings-sound-inline-slider">
+                          <div className="settings-sound-inline-readout">
+                            <span>Volume</span>
+                            <strong>{soundRow.volume}%</strong>
+                          </div>
+                          <ElasticSettingSlider
+                            ariaLabel={`${soundRow.title} volume`}
+                            value={soundRow.volume}
+                            disabled={settings.muteDictationSounds}
+                            onChange={(nextValue) =>
+                              void patchSettings({
+                                [soundRow.volumeKey]: clampSoundVolume(nextValue)
+                              } as Partial<AppSettings>)
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div
+                  className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
+                  aria-disabled={settings.muteDictationSounds}
+                >
+                  <div className="settings-slider-copy">
                     <strong>Application sound volume</strong>
-                    <p>Adjusts the volume for HUD cues, level-up audio, and other built-in app sounds.</p>
+                    <p>Master volume for every app sound, including HUD cues and your custom sound choices.</p>
                   </div>
                   <div className="bounce-slider-shell">
                     <div className="bounce-slider-readout">

@@ -930,8 +930,18 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("voice-profile:save", (_event, input: SaveVoiceProfileInput) => saveVoiceProfile(input));
   ipcMain.handle("voice-profile:delete", (_event, id: string) => deleteVoiceProfile(id));
-  ipcMain.handle("dictionary:save", (_event, input: { id?: string; term: string; addedBySystem?: boolean }) =>
-    saveManualDictionaryEntry(input)
+  ipcMain.handle(
+    "dictionary:save",
+    (
+      _event,
+      input: {
+        id?: string;
+        term: string;
+        replacement?: string;
+        entryTypeOverride?: "Abbreviation" | "Word" | "Phrase" | "Sentence";
+        addedBySystem?: boolean;
+      }
+    ) => saveManualDictionaryEntry(input)
   );
   ipcMain.handle("dictionary:delete", (_event, id: string) => deleteManualDictionaryEntry(id));
   ipcMain.handle("whisper:status", () => getWhisperConfigStatus(readData().settings));

@@ -43,6 +43,12 @@ export type AppSettings = {
   hudScale: number;
   muteDictationSounds: boolean;
   appSoundVolume: number;
+  levelUpSoundPath: string;
+  levelUpSoundVolume: number;
+  achievementSoundPath: string;
+  achievementSoundVolume: number;
+  dictionarySoundPath: string;
+  dictionarySoundVolume: number;
   muteMusicWhileDictating: boolean;
   autoLearnDictionary: boolean;
   smartFormatting: boolean;

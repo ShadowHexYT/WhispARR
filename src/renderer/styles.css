@@ -1613,6 +1613,11 @@ select option:disabled {
 
 .achievements-panel {
   margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.stats-grid {
+  margin-top: var(--space-2);
 }
 
 .onboarding-backdrop {

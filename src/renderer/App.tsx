@@ -1627,6 +1627,10 @@ export default function App() {
   async function patchSettings(patch: Partial<AppSettings>) {
     const next = await window.wisprApi.updateSettings(patch);
     setSettings(next);
+    if ("activeProfileId" in patch) {
+      await refreshLocalData();
+      return;
+    }
     if ("whisperBinaryPath" in patch || "whisperModelPath" in patch) {
       setWhisperStatus(await window.wisprApi.getWhisperStatus());
     }
@@ -2820,7 +2824,9 @@ export default function App() {
                   <div key={profile.id} className="profile-card">
                     <div>
                       <strong>{profile.name}</strong>
-                      <p>{profile.sampleCount} samples</p>
+                      <p>
+                        Level {profile.stats.currentLevel} · {profile.unlockedAchievements.length} achievements · {profile.sampleCount} samples
+                      </p>
                     </div>
                     <div className="button-row compact">
                       <button

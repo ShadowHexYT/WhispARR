@@ -75,6 +75,14 @@ const defaultData: LocalData = {
   savedNotes: []
 };
 
+const defaultUserStats: UserStats = {
+  totalWords: 0,
+  totalXp: 0,
+  currentLevel: 1,
+  currentStreakDays: 0,
+  lastUsedOn: null
+};
+
 function toDateKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -91,6 +99,40 @@ function getLevelFromXp(totalXp: number) {
   }
 
   return Math.floor((totalXp - 1000) / 500) + 2;
+}
+
+function normalizeUserStats(stats: Partial<UserStats> | undefined): UserStats {
+  return {
+    ...defaultUserStats,
+    ...stats
+  };
+}
+
+function getActiveProfile(current: LocalData) {
+  if (!current.settings.activeProfileId) {
+    return null;
+  }
+
+  return current.voiceProfiles.find((profile) => profile.id === current.settings.activeProfileId) ?? null;
+}
+
+function syncActiveProfileProgress(current: LocalData) {
+  const activeProfile = getActiveProfile(current);
+  if (!activeProfile) {
+    current.stats = normalizeUserStats(current.stats);
+    current.unlockedAchievements = Array.isArray(current.unlockedAchievements)
+      ? current.unlockedAchievements.filter((entry): entry is string => typeof entry === "string")
+      : [];
+    return current;
+  }
+
+  activeProfile.stats = normalizeUserStats(activeProfile.stats);
+  activeProfile.unlockedAchievements = Array.isArray(activeProfile.unlockedAchievements)
+    ? activeProfile.unlockedAchievements.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  current.stats = activeProfile.stats;
+  current.unlockedAchievements = activeProfile.unlockedAchievements;
+  return current;
 }
 
 function getDataFilePath() {
@@ -140,14 +182,31 @@ export function readData(): LocalData {
         ...defaultSettings,
         ...parsed.settings
       },
-      stats: {
-        ...defaultData.stats,
-        ...parsed.stats
-      },
+      stats: normalizeUserStats(parsed.stats),
       unlockedAchievements: Array.isArray((parsed as { unlockedAchievements?: unknown }).unlockedAchievements)
         ? ((parsed as { unlockedAchievements?: unknown[] }).unlockedAchievements ?? []).filter(
             (entry): entry is string => typeof entry === "string"
           )
+        : [],
+      voiceProfiles: Array.isArray(parsed.voiceProfiles)
+        ? parsed.voiceProfiles.filter(
+            (entry): entry is VoiceProfile =>
+              Boolean(entry) &&
+              typeof entry.id === "string" &&
+              typeof entry.name === "string" &&
+              typeof entry.createdAt === "string" &&
+              typeof entry.updatedAt === "string" &&
+              typeof entry.sampleCount === "number" &&
+              Boolean(entry.averageEmbedding)
+          ).map((entry) => ({
+            ...entry,
+            stats: normalizeUserStats((entry as Partial<VoiceProfile>).stats),
+            unlockedAchievements: Array.isArray((entry as Partial<VoiceProfile>).unlockedAchievements)
+              ? ((entry as Partial<VoiceProfile>).unlockedAchievements ?? []).filter(
+                  (achievement): achievement is string => typeof achievement === "string"
+                )
+              : []
+          }))
         : [],
       manualDictionary: Array.isArray(parsed.manualDictionary)
         ? parsed.manualDictionary.filter(
@@ -196,8 +255,36 @@ export function readData(): LocalData {
       nextData.onboardingProfileKey = currentUserProfileKey;
     }
 
+    if (
+      nextData.settings.activeProfileId &&
+      !nextData.voiceProfiles.some((profile) => profile.id === nextData.settings.activeProfileId)
+    ) {
+      nextData.settings.activeProfileId = nextData.voiceProfiles[0]?.id ?? null;
+    }
+
+    if (nextData.settings.activeProfileId) {
+      const activeProfile = nextData.voiceProfiles.find((profile) => profile.id === nextData.settings.activeProfileId);
+      if (activeProfile) {
+        const shouldMigrateLegacyProgress =
+          activeProfile.stats.totalWords === 0 &&
+          activeProfile.stats.totalXp === 0 &&
+          activeProfile.stats.currentLevel === 1 &&
+          activeProfile.stats.currentStreakDays === 0 &&
+          activeProfile.stats.lastUsedOn === null &&
+          activeProfile.unlockedAchievements.length === 0 &&
+          (nextData.stats.totalWords > 0 || nextData.stats.totalXp > 0 || nextData.unlockedAchievements.length > 0);
+
+        if (shouldMigrateLegacyProgress) {
+          activeProfile.stats = normalizeUserStats(nextData.stats);
+          activeProfile.unlockedAchievements = [...nextData.unlockedAchievements];
+        }
+      }
+    }
+
     nextData.settings.onboardingCompleted =
       nextData.settings.onboardingCompleted && nextData.onboardingProfileKey === currentUserProfileKey;
+
+    syncActiveProfileProgress(nextData);
 
     const serializedNext = JSON.stringify(nextData);
     const serializedParsed = JSON.stringify(parsed);
@@ -234,6 +321,7 @@ export function updateSettings(patch: Partial<AppSettings>) {
     onboardingProfileKey: nextOnboardingCompleted ? getCurrentUserProfileKey() : null,
     transcriptHistory: current.transcriptHistory.slice(0, nextTranscriptHistoryLimit)
   };
+  syncActiveProfileProgress(next);
   writeData(next);
   return next.settings;
 }
@@ -263,7 +351,9 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
       name: input.name,
       updatedAt: now,
       sampleCount: existing.sampleCount + input.incrementSamplesBy,
-      averageEmbedding: blendEmbeddings(existing.averageEmbedding, input.embedding, existing.sampleCount)
+      averageEmbedding: blendEmbeddings(existing.averageEmbedding, input.embedding, existing.sampleCount),
+      stats: normalizeUserStats(existing.stats),
+      unlockedAchievements: Array.isArray(existing.unlockedAchievements) ? existing.unlockedAchievements : []
     };
     current.voiceProfiles = current.voiceProfiles.map((item) =>
       item.id === existing.id ? profile : item
@@ -275,7 +365,9 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
       createdAt: now,
       updatedAt: now,
       sampleCount: input.incrementSamplesBy,
-      averageEmbedding: input.embedding
+      averageEmbedding: input.embedding,
+      stats: { ...defaultUserStats },
+      unlockedAchievements: []
     };
     current.voiceProfiles = [profile, ...current.voiceProfiles];
     current.settings.activeProfileId = profile.id;
@@ -289,8 +381,9 @@ export function deleteVoiceProfile(id: string) {
   const current = readData();
   current.voiceProfiles = current.voiceProfiles.filter((profile) => profile.id !== id);
   if (current.settings.activeProfileId === id) {
-    current.settings.activeProfileId = null;
+    current.settings.activeProfileId = current.voiceProfiles[0]?.id ?? null;
   }
+  syncActiveProfileProgress(current);
   writeData(current);
   return current.voiceProfiles;
 }
@@ -347,12 +440,14 @@ export function updateStatsFromTranscript(transcript: string): UserStats {
     .filter(Boolean).length;
 
   if (words === 0) {
-    return current.stats;
+    return syncActiveProfileProgress(current).stats;
   }
 
+  const activeProfile = getActiveProfile(current);
+  const sourceStats = activeProfile ? normalizeUserStats(activeProfile.stats) : normalizeUserStats(current.stats);
   const today = toDateKey();
-  const lastUsedOn = current.stats.lastUsedOn;
-  let currentStreakDays = current.stats.currentStreakDays;
+  const lastUsedOn = sourceStats.lastUsedOn;
+  let currentStreakDays = sourceStats.currentStreakDays;
 
   if (lastUsedOn === today) {
     currentStreakDays = Math.max(1, currentStreakDays);
@@ -362,11 +457,11 @@ export function updateStatsFromTranscript(transcript: string): UserStats {
     currentStreakDays = 1;
   }
 
-  const totalWords = current.stats.totalWords + words;
-  const totalXp = current.stats.totalXp + words;
+  const totalWords = sourceStats.totalWords + words;
+  const totalXp = sourceStats.totalXp + words;
   const currentLevel = getLevelFromXp(totalXp);
 
-  current.stats = {
+  const nextStats: UserStats = {
     totalWords,
     totalXp,
     currentLevel,
@@ -374,13 +469,23 @@ export function updateStatsFromTranscript(transcript: string): UserStats {
     lastUsedOn: today
   };
 
+  if (activeProfile) {
+    activeProfile.stats = nextStats;
+  }
+  current.stats = nextStats;
+
   writeData(current);
-  return current.stats;
+  return syncActiveProfileProgress(current).stats;
 }
 
 export function syncAchievementUnlocks(unlocked: AchievementUnlockInput[]): AchievementSyncResult {
   const current = readData();
-  const known = new Set(current.unlockedAchievements);
+  const activeProfile = getActiveProfile(current);
+  const sourceUnlocks = activeProfile
+    ? (Array.isArray(activeProfile.unlockedAchievements) ? activeProfile.unlockedAchievements : [])
+    : current.unlockedAchievements;
+  const sourceStats = activeProfile ? normalizeUserStats(activeProfile.stats) : normalizeUserStats(current.stats);
+  const known = new Set(sourceUnlocks);
   const newlyUnlocked: string[] = [];
   let xpAward = 0;
 
@@ -395,12 +500,24 @@ export function syncAchievementUnlocks(unlocked: AchievementUnlockInput[]): Achi
   }
 
   if (newlyUnlocked.length > 0) {
-    current.unlockedAchievements = [...current.unlockedAchievements, ...newlyUnlocked];
-    current.stats.totalXp += xpAward;
-    current.stats.currentLevel = getLevelFromXp(current.stats.totalXp);
+    const nextUnlocks = [...sourceUnlocks, ...newlyUnlocked];
+    const nextStats: UserStats = {
+      ...sourceStats,
+      totalXp: sourceStats.totalXp + xpAward,
+      currentLevel: getLevelFromXp(sourceStats.totalXp + xpAward)
+    };
+
+    if (activeProfile) {
+      activeProfile.unlockedAchievements = nextUnlocks;
+      activeProfile.stats = nextStats;
+    }
+
+    current.unlockedAchievements = nextUnlocks;
+    current.stats = nextStats;
     writeData(current);
   }
 
+  syncActiveProfileProgress(current);
   return {
     unlockedAchievements: current.unlockedAchievements,
     newlyUnlocked,

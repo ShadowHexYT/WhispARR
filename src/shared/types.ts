@@ -74,6 +74,8 @@ export type VoiceProfile = {
   updatedAt: string;
   sampleCount: number;
   averageEmbedding: VoiceEmbedding;
+  stats: UserStats;
+  unlockedAchievements: string[];
 };
 
 export type ManualDictionaryEntry = {

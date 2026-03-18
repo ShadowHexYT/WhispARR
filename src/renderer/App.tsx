@@ -45,6 +45,8 @@ type AutoDictionaryToast = { terms: string[]; id: number } | null;
 type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
+const notificationSoundUrl = new URL("../../assets/Notif.mp3", import.meta.url).href;
+const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
 
@@ -1015,6 +1017,8 @@ export default function App() {
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+  const dictionaryNotificationAudioRef = useRef<HTMLAudioElement | null>(null);
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
@@ -1100,76 +1104,6 @@ export default function App() {
   }, [settings.devModeUnlocked]);
 
   useEffect(() => {
-    function playRetroZombieSound() {
-      const AudioContextConstructor =
-        window.AudioContext ||
-        (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextConstructor) {
-        return;
-      }
-
-      const audioContext = new AudioContextConstructor();
-      const duration = 1.4;
-      const now = audioContext.currentTime;
-
-      const master = audioContext.createGain();
-      master.gain.setValueAtTime(0.0001, now);
-      const targetVolume = Math.max(0.0001, (settingsRef.current.appSoundVolume / 100) * 0.18);
-      master.gain.exponentialRampToValueAtTime(targetVolume, now + 0.05);
-      master.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-      master.connect(audioContext.destination);
-
-      const oscillator = audioContext.createOscillator();
-      oscillator.type = "sawtooth";
-      oscillator.frequency.setValueAtTime(210, now);
-      oscillator.frequency.exponentialRampToValueAtTime(92, now + duration);
-
-      const subOscillator = audioContext.createOscillator();
-      subOscillator.type = "square";
-      subOscillator.frequency.setValueAtTime(105, now);
-      subOscillator.frequency.exponentialRampToValueAtTime(56, now + duration);
-
-      const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * duration, audioContext.sampleRate);
-      const noiseData = noiseBuffer.getChannelData(0);
-      for (let index = 0; index < noiseData.length; index += 1) {
-        noiseData[index] = (Math.random() * 2 - 1) * 0.16;
-      }
-
-      const noiseSource = audioContext.createBufferSource();
-      noiseSource.buffer = noiseBuffer;
-      const noiseFilter = audioContext.createBiquadFilter();
-      noiseFilter.type = "bandpass";
-      noiseFilter.frequency.setValueAtTime(620, now);
-      noiseFilter.Q.setValueAtTime(0.7, now);
-
-      const wobble = audioContext.createOscillator();
-      wobble.type = "triangle";
-      wobble.frequency.setValueAtTime(5.5, now);
-      const wobbleDepth = audioContext.createGain();
-      wobbleDepth.gain.setValueAtTime(17, now);
-      wobble.connect(wobbleDepth);
-      wobbleDepth.connect(oscillator.frequency);
-
-      oscillator.connect(master);
-      subOscillator.connect(master);
-      noiseSource.connect(noiseFilter);
-      noiseFilter.connect(master);
-
-      oscillator.start(now);
-      subOscillator.start(now);
-      noiseSource.start(now);
-      wobble.start(now);
-
-      oscillator.stop(now + duration);
-      subOscillator.stop(now + duration);
-      noiseSource.stop(now + duration);
-      wobble.stop(now + duration);
-
-      window.setTimeout(() => {
-        void audioContext.close().catch(() => undefined);
-      }, Math.ceil(duration * 1000) + 200);
-    }
-
     function handleKonamiCode(event: KeyboardEvent) {
       const expectedKey = konamiSequence[konamiProgressRef.current];
       const normalizedKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
@@ -1231,9 +1165,15 @@ export default function App() {
   useEffect(() => {
     levelUpAudioRef.current = new Audio(levelUpSoundUrl);
     levelUpAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
+    notificationAudioRef.current = new Audio(notificationSoundUrl);
+    notificationAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
+    dictionaryNotificationAudioRef.current = new Audio(dictionaryNotificationSoundUrl);
+    dictionaryNotificationAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
 
     return () => {
       levelUpAudioRef.current = null;
+      notificationAudioRef.current = null;
+      dictionaryNotificationAudioRef.current = null;
     };
   }, []);
 
@@ -1242,7 +1182,43 @@ export default function App() {
     if (audio) {
       audio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
     }
+    const notificationAudio = notificationAudioRef.current;
+    if (notificationAudio) {
+      notificationAudio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
+    }
+    const dictionaryNotificationAudio = dictionaryNotificationAudioRef.current;
+    if (dictionaryNotificationAudio) {
+      dictionaryNotificationAudio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
+    }
   }, [settings.appSoundVolume]);
+
+  function playNotificationSound() {
+    if (settingsRef.current.muteDictationSounds) {
+      return;
+    }
+
+    const audio = notificationAudioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  }
+
+  function playDictionaryNotificationSound() {
+    if (settingsRef.current.muteDictationSounds) {
+      return;
+    }
+
+    const audio = dictionaryNotificationAudioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  }
 
   useEffect(() => {
     transcriptHistoryRef.current = transcriptHistory;
@@ -1375,6 +1351,22 @@ export default function App() {
       }
     };
   }, [status]);
+
+  useEffect(() => {
+    if (!autoDictionaryToast) {
+      return;
+    }
+
+    playDictionaryNotificationSound();
+  }, [autoDictionaryToast]);
+
+  useEffect(() => {
+    if (!achievementToast) {
+      return;
+    }
+
+    playNotificationSound();
+  }, [achievementToast]);
 
   useEffect(() => {
     return () => {
@@ -1907,8 +1899,87 @@ export default function App() {
     }, 4000);
   }
 
+  function playRetroZombieSound() {
+    if (settingsRef.current.muteDictationSounds) {
+      return;
+    }
+
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    const audioContext = new AudioContextConstructor();
+    const duration = 1.4;
+    const now = audioContext.currentTime;
+
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    const targetVolume = Math.max(0.0001, (settingsRef.current.appSoundVolume / 100) * 0.18);
+    master.gain.exponentialRampToValueAtTime(targetVolume, now + 0.05);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    master.connect(audioContext.destination);
+
+    const oscillator = audioContext.createOscillator();
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(210, now);
+    oscillator.frequency.exponentialRampToValueAtTime(92, now + duration);
+
+    const subOscillator = audioContext.createOscillator();
+    subOscillator.type = "square";
+    subOscillator.frequency.setValueAtTime(105, now);
+    subOscillator.frequency.exponentialRampToValueAtTime(56, now + duration);
+
+    const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * duration, audioContext.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noiseData.length; index += 1) {
+      noiseData[index] = (Math.random() * 2 - 1) * 0.16;
+    }
+
+    const noiseSource = audioContext.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = "bandpass";
+    noiseFilter.frequency.setValueAtTime(620, now);
+    noiseFilter.Q.setValueAtTime(0.7, now);
+
+    const wobble = audioContext.createOscillator();
+    wobble.type = "triangle";
+    wobble.frequency.setValueAtTime(5.5, now);
+    const wobbleDepth = audioContext.createGain();
+    wobbleDepth.gain.setValueAtTime(17, now);
+    wobble.connect(wobbleDepth);
+    wobbleDepth.connect(oscillator.frequency);
+
+    oscillator.connect(master);
+    subOscillator.connect(master);
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(master);
+
+    oscillator.start(now);
+    subOscillator.start(now);
+    noiseSource.start(now);
+    wobble.start(now);
+
+    oscillator.stop(now + duration);
+    subOscillator.stop(now + duration);
+    noiseSource.stop(now + duration);
+    wobble.stop(now + duration);
+
+    window.setTimeout(() => {
+      void audioContext.close().catch(() => undefined);
+    }, Math.ceil(duration * 1000) + 200);
+  }
+
   function previewLevelUpCelebration() {
     const previewLevel = Math.max(stats.currentLevel + 1, 2);
+    const audio = levelUpAudioRef.current;
+    if (audio && !settingsRef.current.muteDictationSounds) {
+      audio.currentTime = 0;
+      void audio.play().catch(() => {});
+    }
     if (levelUpTimeoutRef.current) {
       window.clearTimeout(levelUpTimeoutRef.current);
     }
@@ -1933,6 +2004,7 @@ export default function App() {
   }
 
   function previewRetroCelebration() {
+    playRetroZombieSound();
     if (retroCelebrationTimeoutRef.current) {
       window.clearTimeout(retroCelebrationTimeoutRef.current);
     }
@@ -2866,7 +2938,7 @@ export default function App() {
                 it as a preferred vocabulary during transcript cleanup.
               </p>
               <label className="field">
-                <span>Word or phrase to learn</span>
+                <span className="dictionary-input-label">Word or phrase to learn</span>
                 <input
                   value={dictionaryTerm}
                   onChange={(event) => setDictionaryTerm(event.target.value)}
@@ -2883,14 +2955,29 @@ export default function App() {
                   <p className="eyebrow">Saved Terms</p>
                   <h3>Your Local Dictionary</h3>
                 </div>
+                <button
+                  className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
+                  type="button"
+                  onClick={() =>
+                    void patchSettings({
+                      autoLearnDictionary: !settings.autoLearnDictionary
+                    })
+                  }
+                  role="switch"
+                  aria-checked={settings.autoLearnDictionary}
+                  aria-label="Toggle auto dictionary learning"
+                  title={settings.autoLearnDictionary ? "Auto dictionary on" : "Auto dictionary off"}
+                >
+                  <span className="settings-switch-thumb" aria-hidden="true" />
+                </button>
               </div>
-              <div className="dictionary-list">
-                {manualDictionary.length === 0 && (
-                  <p className="supporting">
-                    No dictionary entries yet. Add words, names, or phrases you want WhispARR to keep in mind.
-                  </p>
-                )}
-                {manualDictionary.map((entry) => (
+              {manualDictionary.length === 0 ? (
+                <p className="supporting dictionary-empty-state">
+                  No dictionary entries yet. Add words, names, or phrases you want WhispARR to keep in mind.
+                </p>
+              ) : (
+                <div className="dictionary-list">
+                  {manualDictionary.map((entry) => (
                   <div key={entry.id} className="dictionary-card">
                     <button
                       className="dictionary-delete-button"
@@ -2914,8 +3001,9 @@ export default function App() {
                       </span>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           </section>
         )}

@@ -4,8 +4,8 @@ import ReactDOM from "react-dom/client";
 import { HudState } from "../shared/types";
 import "./hud.css";
 
-const popSoundUrl = new URL("../../assets/pop_sound.mp3", import.meta.url).href;
-const startHumSoundUrl = new URL("../../assets/start_hum.mp3", import.meta.url).href;
+const exitSoundUrl = new URL("../../assets/Exit.mp3", import.meta.url).href;
+const entranceSoundUrl = new URL("../../assets/Entrance.mp3", import.meta.url).href;
 
 function Hud() {
   const [hudState, setHudState] = useState<HudState>({
@@ -19,28 +19,28 @@ function Hud() {
   });
   const isHeard = hudState.level > 0.03;
   const previousVisibleRef = useRef(false);
-  const popAudioRef = useRef<HTMLAudioElement | null>(null);
-  const startHumAudioRef = useRef<HTMLAudioElement | null>(null);
+  const exitAudioRef = useRef<HTMLAudioElement | null>(null);
+  const entranceAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    popAudioRef.current = new Audio(popSoundUrl);
-    popAudioRef.current.volume = hudState.soundVolume ?? 0.8;
-    startHumAudioRef.current = new Audio(startHumSoundUrl);
-    startHumAudioRef.current.volume = hudState.soundVolume ?? 0.8;
+    exitAudioRef.current = new Audio(exitSoundUrl);
+    exitAudioRef.current.volume = hudState.soundVolume ?? 0.8;
+    entranceAudioRef.current = new Audio(entranceSoundUrl);
+    entranceAudioRef.current.volume = hudState.soundVolume ?? 0.8;
 
     return () => {
-      popAudioRef.current = null;
-      startHumAudioRef.current = null;
+      exitAudioRef.current = null;
+      entranceAudioRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const volume = hudState.soundVolume ?? 0.8;
-    if (popAudioRef.current) {
-      popAudioRef.current.volume = volume;
+    if (exitAudioRef.current) {
+      exitAudioRef.current.volume = volume;
     }
-    if (startHumAudioRef.current) {
-      startHumAudioRef.current.volume = volume;
+    if (entranceAudioRef.current) {
+      entranceAudioRef.current.volume = volume;
     }
   }, [hudState.soundVolume]);
 
@@ -52,7 +52,7 @@ function Hud() {
 
   useEffect(() => {
     if (!previousVisibleRef.current && hudState.visible && hudState.soundEnabled !== false) {
-      const audio = startHumAudioRef.current;
+      const audio = entranceAudioRef.current;
       if (audio) {
         audio.currentTime = 0;
         void audio.play().catch(() => {});
@@ -60,7 +60,7 @@ function Hud() {
     }
 
     if (previousVisibleRef.current && !hudState.visible && hudState.soundEnabled !== false) {
-      const audio = popAudioRef.current;
+      const audio = exitAudioRef.current;
       if (audio) {
         audio.currentTime = 0;
         void audio.play().catch(() => {});

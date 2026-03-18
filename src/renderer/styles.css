@@ -113,8 +113,8 @@ textarea {
 .brand-mark {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
   min-width: 0;
 }
 
@@ -136,10 +136,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  border-radius: 14px;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  border-radius: 18px;
   border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
   background:
     radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent-soft) 30%, transparent), transparent 58%),
@@ -150,9 +150,9 @@ textarea {
 }
 
 .brand-mark-image {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   object-fit: cover;
   transition: transform 0.18s ease;
 }
@@ -165,10 +165,10 @@ textarea {
 
 .brand-mark-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.35rem;
   line-height: 1;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--text) 74%, var(--accent-soft) 26%);
   white-space: nowrap;
@@ -178,6 +178,13 @@ textarea {
   display: grid;
   gap: var(--space-2);
   min-width: 0;
+}
+
+.sidebar-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
 }
 
 .sidebar-status .eyebrow {
@@ -193,6 +200,45 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.sidebar-status-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--accent);
+  opacity: 0.72;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sidebar-status-refresh-button svg {
+  width: 10px;
+  height: 10px;
+}
+
+.sidebar-status-refresh-button .runtime-refresh-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.sidebar-status-refresh-button:hover {
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
+}
+
+.sidebar-status-refresh-button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .eyebrow {
@@ -524,6 +570,33 @@ textarea {
   background: var(--status-background);
   color: var(--muted);
   height: fit-content;
+}
+
+.status-pill-button {
+  width: fit-content;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.status-pill-button:hover:not(:disabled),
+.status-pill-button.active {
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--status-background) 84%, var(--accent) 16%);
+  color: var(--text);
+}
+
+.status-pill-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.status-pill-button:disabled {
+  cursor: default;
 }
 
 .dot {

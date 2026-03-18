@@ -2730,15 +2730,40 @@ export default function App() {
             </div>
           </button>
           <div className="sidebar-status">
-            <p className="eyebrow eyebrow-with-status-light">
-              <span
-                className={whisperStatus.binaryExists && whisperStatus.modelExists ? "status-light green" : "status-light red"}
-                aria-hidden="true"
-              />
-              Status
-            </p>
+            <div className="sidebar-status-header">
+              <p className="eyebrow eyebrow-with-status-light">
+                <span
+                  className={whisperStatus.binaryExists && whisperStatus.modelExists ? "status-light green" : "status-light red"}
+                  aria-hidden="true"
+                />
+                Status
+              </p>
+              <button
+                className="sidebar-status-refresh-button"
+                type="button"
+                onClick={() => void refreshRuntimeEngine()}
+                disabled={isRefreshingRuntime || isInstallingRuntime || isAutoFindingRuntime}
+                aria-label={isRefreshingRuntime ? "Refreshing engine" : "Refresh engine"}
+                title={isRefreshingRuntime ? "Refreshing engine..." : "Refresh engine"}
+              >
+                <RefreshCw
+                  className={isRefreshingRuntime ? "runtime-refresh-icon spinning" : "runtime-refresh-icon"}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
             <h1>{visibleStatus}</h1>
-            <div className="status-pill">
+            <button
+              className={isCapturingShortcut ? "status-pill status-pill-button active" : "status-pill status-pill-button"}
+              type="button"
+              onClick={() => {
+                setIsCapturingShortcut(true);
+                setDraftShortcut(null);
+              }}
+              disabled={isPushToTalkActive || recorder.state === "recording"}
+              aria-label={isCapturingShortcut ? "Recording shortcut" : "Change activation shortcut"}
+              title={isCapturingShortcut ? "Hold combo and release to save" : "Click to change shortcut"}
+            >
               <span
                 className={
                   isPushToTalkActive || recorder.state === "recording"
@@ -2748,12 +2773,14 @@ export default function App() {
                       : "dot"
                 }
               />
-              {isPushToTalkActive
+              {isCapturingShortcut
+                ? "Hold combo and release"
+                : isPushToTalkActive
                 ? "Push-to-talk live"
                 : whisperStatus.binaryExists && whisperStatus.modelExists
                   ? `Ready on ${activeShortcutLabel}`
                   : "Local engine needs setup"}
-            </div>
+            </button>
           </div>
         </div>
         <nav className="nav">

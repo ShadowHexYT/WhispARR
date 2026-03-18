@@ -4,7 +4,7 @@ import sharp from "sharp";
 import toIco from "to-ico";
 
 const rootDir = process.cwd();
-const sourcePngPath = path.join(rootDir, "assets", "WhispARR Image.png");
+const sourcePngPath = path.join(rootDir, "assets", "WhispARR new logo.png");
 const buildDir = path.join(rootDir, "build");
 const outputPngPath = path.join(buildDir, "icon.png");
 const outputIcoPath = path.join(buildDir, "icon.ico");

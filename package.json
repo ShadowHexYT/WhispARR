@@ -30,15 +30,15 @@
       "dist/**/*",
       "dist-electron/**/*",
       "package.json",
-      "assets/WhispARR Image.png"
+      "assets/WhispARR new logo.png"
     ],
     "asarUnpack": [
       "node_modules/uiohook-napi/**/*"
     ],
     "extraResources": [
       {
-        "from": "assets/WhispARR Image.png",
-        "to": "assets/WhispARR Image.png"
+        "from": "assets/WhispARR new logo.png",
+        "to": "assets/WhispARR new logo.png"
       },
       {
         "from": "runtime",

@@ -51,7 +51,7 @@ const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3?v=20260317", import.meta.url).href;
 const notificationSoundUrl = new URL("../../assets/Notif.mp3?v=20260317", import.meta.url).href;
 const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317c", import.meta.url).href;
-const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
+const appIconUrl = new URL("../../assets/WhispARR new logo.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
 
 const defaultShortcut: ActivationShortcut = {

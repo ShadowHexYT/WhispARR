@@ -136,10 +136,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
-  flex: 0 0 58px;
-  border-radius: 18px;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border-radius: 22px;
   border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
   background:
     radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent-soft) 30%, transparent), transparent 58%),
@@ -150,10 +150,12 @@ textarea {
 }
 
 .brand-mark-image {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   object-fit: cover;
+  object-position: center;
+  transform: scale(1.44);
   transition: transform 0.18s ease;
 }
 

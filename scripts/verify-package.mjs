@@ -29,7 +29,7 @@ if (!fs.existsSync(unpackedDir)) {
 
 assertExists(path.join("release", "win-unpacked", "WhispARR.exe"));
 assertExists(path.join("release", "win-unpacked", "resources", "app.asar"));
-assertExists(path.join("release", "win-unpacked", "resources", "assets", "WhispARR Image.png"));
+assertExists(path.join("release", "win-unpacked", "resources", "assets", "WhispARR new logo.png"));
 assertExists(
   path.join(
     "release",

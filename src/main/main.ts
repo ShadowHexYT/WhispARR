@@ -211,8 +211,8 @@ function getWindowOverlayColor(theme: AppThemeName, customTheme: CustomThemeColo
 
 function getAppIconPath() {
   return isDev
-    ? path.join(app.getAppPath(), "assets", "WhispARR Image.png")
-    : path.join(process.resourcesPath, "assets", "WhispARR Image.png");
+    ? path.join(app.getAppPath(), "assets", "WhispARR new logo.png")
+    : path.join(process.resourcesPath, "assets", "WhispARR new logo.png");
 }
 
 function getAppDiagnostics(): AppDiagnostics {
@@ -230,7 +230,7 @@ function getAppDiagnostics(): AppDiagnostics {
 function createTrayIcon() {
   return nativeImage
     .createFromPath(getAppIconPath())
-    .resize({ width: 20, height: 20 });
+    .resize({ width: 24, height: 24 });
 }
 
 function showMainWindow() {

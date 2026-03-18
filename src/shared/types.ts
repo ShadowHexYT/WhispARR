@@ -51,6 +51,7 @@ export type AppSettings = {
   dictionarySoundVolume: number;
   muteMusicWhileDictating: boolean;
   autoLearnDictionary: boolean;
+  codingLanguageMode: boolean;
   smartFormatting: boolean;
   filterProfanity: boolean;
   activationShortcut: ActivationShortcut;
@@ -173,10 +174,19 @@ export type AchievementSyncResult = {
   stats: UserStats;
 };
 
+export type SpokenPunctuationPreference = {
+  punctuationBias: number;
+  literalBias: number;
+  updatedAt: string | null;
+};
+
+export type SpokenPunctuationPreferenceMap = Record<string, SpokenPunctuationPreference>;
+
 export type LocalData = {
   installRegistrationKey: string;
   onboardingCompletedKeys: string[];
   skippedAppUpdateVersion: string | null;
+  spokenPunctuationPreferences: SpokenPunctuationPreferenceMap;
   settings: AppSettings;
   voiceProfiles: VoiceProfile[];
   manualDictionary: ManualDictionaryEntry[];

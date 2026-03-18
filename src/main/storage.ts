@@ -16,6 +16,7 @@ import {
   LocalData,
   ManualDictionaryEntry,
   SaveVoiceProfileInput,
+  SpokenPunctuationPreferenceMap,
   UserStats,
   VoiceEmbedding,
   VoiceProfile
@@ -55,6 +56,7 @@ const defaultSettings: AppSettings = {
   dictionarySoundVolume: 50,
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
+  codingLanguageMode: false,
   smartFormatting: true,
   filterProfanity: false,
   activationShortcut: defaultActivationShortcut,
@@ -87,6 +89,7 @@ const defaultData: LocalData = {
   installRegistrationKey: randomUUID(),
   onboardingCompletedKeys: [],
   skippedAppUpdateVersion: null,
+  spokenPunctuationPreferences: {},
   settings: defaultSettings,
   voiceProfiles: [],
   manualDictionary: [],
@@ -120,6 +123,35 @@ const defaultUserStats: UserStats = {
   currentStreakDays: 0,
   lastUsedOn: null
 };
+
+function normalizeSpokenPunctuationPreferences(
+  value: SpokenPunctuationPreferenceMap | unknown
+): SpokenPunctuationPreferenceMap {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => Boolean(entry) && typeof entry === "object")
+      .map(([key, entry]) => {
+        const nextEntry = entry as {
+          punctuationBias?: unknown;
+          literalBias?: unknown;
+          updatedAt?: unknown;
+        };
+
+        return [
+          key,
+          {
+            punctuationBias: Math.max(0, Number(nextEntry.punctuationBias ?? 0) || 0),
+            literalBias: Math.max(0, Number(nextEntry.literalBias ?? 0) || 0),
+            updatedAt: typeof nextEntry.updatedAt === "string" ? nextEntry.updatedAt : null
+          }
+        ];
+      })
+  );
+}
 
 const DEFAULT_PROFILE_EMOJI = "🎙️";
 
@@ -557,6 +589,9 @@ export function readData(): LocalData {
         (parsed as { skippedAppUpdateVersion?: string }).skippedAppUpdateVersion?.trim()
           ? (parsed as { skippedAppUpdateVersion: string }).skippedAppUpdateVersion.trim()
           : null,
+      spokenPunctuationPreferences: normalizeSpokenPunctuationPreferences(
+        (parsed as { spokenPunctuationPreferences?: unknown }).spokenPunctuationPreferences
+      ),
       onboardingCompletedKeys: Array.isArray((parsed as { onboardingCompletedKeys?: unknown }).onboardingCompletedKeys)
         ? ((parsed as { onboardingCompletedKeys?: unknown[] }).onboardingCompletedKeys ?? []).filter(
             (entry): entry is string => typeof entry === "string" && entry.trim().length > 0
@@ -836,6 +871,59 @@ export function setSkippedAppUpdateVersion(version: string | null) {
   current.skippedAppUpdateVersion = typeof version === "string" && version.trim() ? version.trim() : null;
   writeData(current);
   return current.skippedAppUpdateVersion;
+}
+
+export function recordSpokenPunctuationDecision(
+  key: string,
+  resolution: "punctuation" | "literal",
+  weight = 1
+) {
+  return recordSpokenPunctuationDecisions([{ key, resolution, weight }])[key] ?? null;
+}
+
+export function recordSpokenPunctuationDecisions(
+  decisions: Array<{
+    key: string;
+    resolution: "punctuation" | "literal";
+    weight?: number;
+  }>
+) {
+  if (decisions.length === 0) {
+    return {};
+  }
+
+  const current = readData();
+  const updates: Record<string, { punctuationBias: number; literalBias: number; updatedAt: string | null }> = {};
+
+  for (const decision of decisions) {
+    const weight = Math.max(1, Math.round(decision.weight ?? 1));
+    const existing =
+      updates[decision.key] ??
+      current.spokenPunctuationPreferences[decision.key] ?? {
+        punctuationBias: 0,
+        literalBias: 0,
+        updatedAt: null
+      };
+
+    updates[decision.key] = {
+      punctuationBias:
+        decision.resolution === "punctuation"
+          ? Math.min(24, existing.punctuationBias + weight)
+          : Math.max(0, existing.punctuationBias - Math.min(weight, 1)),
+      literalBias:
+        decision.resolution === "literal"
+          ? Math.min(24, existing.literalBias + weight)
+          : Math.max(0, existing.literalBias - Math.min(weight, 1)),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  current.spokenPunctuationPreferences = {
+    ...current.spokenPunctuationPreferences,
+    ...updates
+  };
+  writeData(current);
+  return updates;
 }
 
 export function saveManualDictionaryEntry(input: {

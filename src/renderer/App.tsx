@@ -88,6 +88,7 @@ const defaultSettings: AppSettings = {
   dictionarySoundVolume: 50,
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
+  codingLanguageMode: false,
   smartFormatting: true,
   filterProfanity: false,
   activationShortcut: defaultShortcut,
@@ -4028,6 +4029,29 @@ export default function App() {
                     role="switch"
                     aria-checked={settings.autoLearnDictionary}
                     aria-label="Toggle auto dictionary learning"
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Coding language mode</strong>
+                    <p>
+                      Keeps commands, file names, extensions, flags, and code-style punctuation easier
+                      to recognize, with less prose-style auto-capitalization.
+                    </p>
+                  </div>
+                  <button
+                    className={settings.codingLanguageMode ? "settings-switch active" : "settings-switch"}
+                    onClick={() =>
+                      void patchSettings({
+                        codingLanguageMode: !settings.codingLanguageMode
+                      })
+                    }
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.codingLanguageMode}
+                    aria-label="Toggle coding language mode"
                   >
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>

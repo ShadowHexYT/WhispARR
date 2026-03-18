@@ -2,10 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { readData, recordSpokenPunctuationDecisions } from "./storage";
 import {
   AppSettings,
   DictationResult,
   ManualDictionaryEntry,
+  SpokenPunctuationPreferenceMap,
   WhisperConfigStatus
 } from "../shared/types";
 
@@ -135,23 +137,264 @@ function normalizeTranscript(transcript: string) {
   return silentPhrases.has(simplified) ? "" : trimmed;
 }
 
-function applySpokenPunctuation(transcript: string) {
-  return transcript
-    .replace(/\bexclamation mark\b/gi, "!")
-    .replace(/\bquestion mark\b/gi, "?")
-    .replace(/\bcomma\b/gi, ",")
-    .replace(/\bperiod\b/gi, ".")
-    .replace(/\bfull stop\b/gi, ".")
-    .replace(/\bcolon\b/gi, ":")
-    .replace(/\bsemicolon\b/gi, ";")
-    .replace(/\bopen parenthesis\b/gi, "(")
-    .replace(/\bclose parenthesis\b/gi, ")")
-    .replace(/\bopen quote\b/gi, "\"")
-    .replace(/\bclose quote\b/gi, "\"")
-    .replace(/\bquote\b/gi, "\"")
+type SpokenPunctuationToken = {
+  key: string;
+  phrase: string;
+  symbol: string;
+};
+
+const spokenPunctuationTokens: SpokenPunctuationToken[] = [
+  { key: "exclamation-mark", phrase: "exclamation mark", symbol: "!" },
+  { key: "question-mark", phrase: "question mark", symbol: "?" },
+  { key: "comma", phrase: "comma", symbol: "," },
+  { key: "period", phrase: "period", symbol: "." },
+  { key: "full-stop", phrase: "full stop", symbol: "." },
+  { key: "colon", phrase: "colon", symbol: ":" },
+  { key: "semicolon", phrase: "semicolon", symbol: ";" },
+  { key: "open-parenthesis", phrase: "open parenthesis", symbol: "(" },
+  { key: "close-parenthesis", phrase: "close parenthesis", symbol: ")" },
+  { key: "open-quote", phrase: "open quote", symbol: "\"" },
+  { key: "close-quote", phrase: "close quote", symbol: "\"" },
+  { key: "quote", phrase: "quote", symbol: "\"" }
+];
+
+type SpokenPunctuationDecision = {
+  key: string;
+  resolution: "punctuation" | "literal";
+  confidence: "high" | "medium" | "low";
+};
+
+function getLastWords(segment: string, count: number) {
+  return segment
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-count);
+}
+
+function getFirstWords(segment: string, count: number) {
+  return segment
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, count);
+}
+
+function decideSpokenPunctuationResolution(
+  token: SpokenPunctuationToken,
+  before: string,
+  after: string,
+  preferences: SpokenPunctuationPreferenceMap
+): {
+  resolution: "punctuation" | "literal";
+  confidence: "high" | "medium" | "low";
+} {
+  const beforeWords = getLastWords(before, 4);
+  const afterWords = getFirstWords(after, 4);
+  const beforeText = beforeWords.join(" ");
+  const afterText = afterWords.join(" ");
+  const combinedContext = `${beforeText} ${afterText}`.trim();
+  const preference = preferences[token.key];
+  const preferenceDelta = (preference?.punctuationBias ?? 0) - (preference?.literalBias ?? 0);
+
+  const literalCuePattern =
+    /\b(?:word|literal|actual|spelled|spell|spelling|called|named|term|text|string)\b/;
+  const punctuationCuePattern =
+    /\b(?:insert|type|add|with|using|end|ending|ends|close|closed|open|opens)\b/;
+  const explanatoryPattern =
+    /\b(?:is|means|means the|looks like|spelled as|called)\b/;
+  const terminalAfter = after.trim().length === 0 || /^[)\]}\s"'`]*$/.test(after.trim());
+  const nextStartsNewSentence = /^[\s"'`)\]}]*[A-Z0-9]/.test(after);
+  const previousEndsLikeClause = /[A-Za-z0-9"'\])]\s*$/.test(before);
+
+  if (literalCuePattern.test(beforeText) || explanatoryPattern.test(afterText)) {
+    return { resolution: "literal" as const, confidence: "high" as const };
+  }
+
+  if (punctuationCuePattern.test(combinedContext)) {
+    return { resolution: "punctuation" as const, confidence: "high" as const };
+  }
+
+  if ((terminalAfter || nextStartsNewSentence) && previousEndsLikeClause) {
+    return { resolution: "punctuation" as const, confidence: "medium" as const };
+  }
+
+  if (beforeWords.length === 0 && afterWords.length > 0) {
+    return { resolution: "literal" as const, confidence: "medium" as const };
+  }
+
+  if (Math.abs(preferenceDelta) >= 3) {
+    return {
+      resolution: preferenceDelta > 0 ? "punctuation" : "literal",
+      confidence: "low" as const
+    };
+  }
+
+  return {
+    resolution: token.symbol === "," || token.symbol === "." || token.symbol === "!" || token.symbol === "?"
+      ? ("punctuation" as const)
+      : ("literal" as const),
+    confidence: "low" as const
+  };
+}
+
+function applySpokenPunctuation(
+  transcript: string,
+  preferences: SpokenPunctuationPreferenceMap
+) {
+  let updatedTranscript = transcript;
+  const decisions: SpokenPunctuationDecision[] = [];
+
+  for (const token of spokenPunctuationTokens) {
+    const pattern = new RegExp(`\\b${escapeRegExp(token.phrase)}\\b`, "gi");
+    updatedTranscript = updatedTranscript.replace(pattern, (match, offset: number, input: string) => {
+      const before = input.slice(0, offset);
+      const after = input.slice(offset + match.length);
+      const decision = decideSpokenPunctuationResolution(token, before, after, preferences);
+
+      decisions.push({
+        key: token.key,
+        resolution: decision.resolution,
+        confidence: decision.confidence
+      });
+
+      return decision.resolution === "punctuation" ? token.symbol : match.toLowerCase();
+    });
+  }
+
+  updatedTranscript = updatedTranscript
     .replace(/\s+([,.;:!?)(\]])/g, "$1")
     .replace(/([(\[])\s+/g, "$1")
     .replace(/([,.;:!?])([A-Za-z0-9])/g, "$1 $2")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  recordSpokenPunctuationDecisions(
+    decisions
+      .filter((decision) => decision.confidence !== "low")
+      .map((decision) => ({
+        key: decision.key,
+        resolution: decision.resolution,
+        weight: decision.confidence === "high" ? 2 : 1
+      }))
+  );
+
+  return updatedTranscript;
+}
+
+function applyCodingLanguageFormatting(transcript: string) {
+  const extensionWords = [
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "json",
+    "md",
+    "html",
+    "css",
+    "scss",
+    "py",
+    "cs",
+    "cpp",
+    "c",
+    "h",
+    "hpp",
+    "java",
+    "kt",
+    "go",
+    "rs",
+    "php",
+    "rb",
+    "yml",
+    "yaml",
+    "toml",
+    "env",
+    "sh",
+    "sql"
+  ];
+
+  const lowerCaseTerms = [
+    "npm",
+    "pnpm",
+    "yarn",
+    "bun",
+    "npx",
+    "git",
+    "github",
+    "gitlab",
+    "powershell",
+    "bash",
+    "zsh",
+    "cmd",
+    "json",
+    "yaml",
+    "toml",
+    "markdown",
+    "typescript",
+    "javascript",
+    "node",
+    "react",
+    "vite",
+    "electron",
+    "tsx",
+    "jsx",
+    "html",
+    "css",
+    "scss",
+    "sql"
+  ];
+
+  let formatted = transcript
+    .replace(/\bdot dot\b/gi, "..")
+    .replace(/\bdash dash\b/gi, "--")
+    .replace(/\bdouble dash\b/gi, "--")
+    .replace(/\bforward slash\b/gi, "/")
+    .replace(/\bback slash\b/gi, "\\")
+    .replace(/\bslash\b/gi, "/")
+    .replace(/\bbackslash\b/gi, "\\")
+    .replace(/\bunderscore\b/gi, "_")
+    .replace(/\bhyphen\b/gi, "-")
+    .replace(/\bdot\b/gi, ".")
+    .replace(/\bcolon\b/gi, ":")
+    .replace(/\bsemicolon\b/gi, ";")
+    .replace(/\bcomma\b/gi, ",")
+    .replace(/\bequals\b/gi, "=")
+    .replace(/\bplus\b/gi, "+")
+    .replace(/\bminus\b/gi, "-")
+    .replace(/\basterisk\b/gi, "*")
+    .replace(/\bpipe\b/gi, "|")
+    .replace(/\bbacktick\b/gi, "`")
+    .replace(/\bopen bracket\b/gi, "[")
+    .replace(/\bclose bracket\b/gi, "]")
+    .replace(/\bopen brace\b/gi, "{")
+    .replace(/\bclose brace\b/gi, "}")
+    .replace(/\bopen parenthesis\b/gi, "(")
+    .replace(/\bclose parenthesis\b/gi, ")")
+    .replace(/\bdouble quote\b/gi, "\"")
+    .replace(/\bquote\b/gi, "\"")
+    .replace(/\bsingle quote\b/gi, "'")
+    .replace(/\bpackage dot json\b/gi, "package.json")
+    .replace(/\bpackage json\b/gi, "package.json")
+    .replace(/\bread me dot md\b/gi, "README.md")
+    .replace(/\bread me\b/gi, "README")
+    .replace(/\bgit ignore\b/gi, ".gitignore")
+    .replace(/\benv\b/gi, ".env")
+    .replace(/\s+([/\\._,:;!?=+\-*|)\]}])/g, "$1")
+    .replace(/([/\\([{])\s+/g, "$1");
+
+  for (const extension of extensionWords) {
+    const pattern = new RegExp(`\\b([A-Za-z0-9_-]+)\\s*\\.\\s*${extension}\\b`, "g");
+    formatted = formatted.replace(pattern, (_match, fileBase: string) => `${fileBase}.${extension}`);
+  }
+
+  for (const term of lowerCaseTerms) {
+    const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
+    formatted = formatted.replace(pattern, term);
+  }
+
+  return formatted
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -177,7 +420,7 @@ function applyProfanityFilter(transcript: string) {
     .trim();
 }
 
-function applySmartFormatting(transcript: string) {
+function applySmartFormatting(transcript: string, preserveCodeStyle = false) {
   const numberWords: Record<string, string> = {
     zero: "0",
     one: "1",
@@ -211,6 +454,13 @@ function applySmartFormatting(transcript: string) {
     .trim();
 
   const lines = formatted.split("\n").map((line) => line.trim());
+  if (preserveCodeStyle) {
+    return lines
+      .join("\n")
+      .replace(/([a-z0-9])([.!?])([A-Za-z])/g, "$1$2 $3")
+      .trim();
+  }
+
   formatted = lines
     .map((line) => {
       if (!line) {
@@ -330,9 +580,12 @@ export async function transcribeLocally(args: {
   const normalizedTranscript = normalizeTranscript(
     applyManualDictionary(rawTranscript, args.manualDictionary)
   );
-  const punctuationNormalizedTranscript = applySpokenPunctuation(normalizedTranscript);
+  const spokenPunctuationPreferences = readData().spokenPunctuationPreferences;
+  const punctuationNormalizedTranscript = args.settings.codingLanguageMode
+    ? applyCodingLanguageFormatting(applySpokenPunctuation(normalizedTranscript, spokenPunctuationPreferences))
+    : applySpokenPunctuation(normalizedTranscript, spokenPunctuationPreferences);
   const formattedTranscript = args.settings.smartFormatting
-    ? applySmartFormatting(punctuationNormalizedTranscript)
+    ? applySmartFormatting(punctuationNormalizedTranscript, args.settings.codingLanguageMode)
     : punctuationNormalizedTranscript;
   const transcript = args.settings.filterProfanity
     ? applyProfanityFilter(formattedTranscript)

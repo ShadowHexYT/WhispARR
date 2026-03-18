@@ -86,6 +86,7 @@ const defaultDailyChallengeProgress: DailyChallengeProgress = {
 const defaultData: LocalData = {
   installRegistrationKey: randomUUID(),
   onboardingCompletedKeys: [],
+  skippedAppUpdateVersion: null,
   settings: defaultSettings,
   voiceProfiles: [],
   manualDictionary: [],
@@ -551,6 +552,11 @@ export function readData(): LocalData {
       ...defaultData,
       ...parsed,
       installRegistrationKey,
+      skippedAppUpdateVersion:
+        typeof (parsed as { skippedAppUpdateVersion?: unknown }).skippedAppUpdateVersion === "string" &&
+        (parsed as { skippedAppUpdateVersion?: string }).skippedAppUpdateVersion?.trim()
+          ? (parsed as { skippedAppUpdateVersion: string }).skippedAppUpdateVersion.trim()
+          : null,
       onboardingCompletedKeys: Array.isArray((parsed as { onboardingCompletedKeys?: unknown }).onboardingCompletedKeys)
         ? ((parsed as { onboardingCompletedKeys?: unknown[] }).onboardingCompletedKeys ?? []).filter(
             (entry): entry is string => typeof entry === "string" && entry.trim().length > 0
@@ -823,6 +829,13 @@ export function deleteVoiceProfile(id: string) {
   syncActiveProfileProgress(current);
   writeData(current);
   return current.voiceProfiles;
+}
+
+export function setSkippedAppUpdateVersion(version: string | null) {
+  const current = readData();
+  current.skippedAppUpdateVersion = typeof version === "string" && version.trim() ? version.trim() : null;
+  writeData(current);
+  return current.skippedAppUpdateVersion;
 }
 
 export function saveManualDictionaryEntry(input: {

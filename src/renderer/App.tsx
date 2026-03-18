@@ -1136,6 +1136,7 @@ export default function App() {
   const [isRefreshingRuntime, setIsRefreshingRuntime] = useState(false);
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [appUpdateState, setAppUpdateState] = useState<AppUpdateState>(defaultAppUpdateState);
+  const [skippedAppUpdateVersion, setSkippedAppUpdateVersion] = useState<string | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
   const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
@@ -1176,6 +1177,7 @@ export default function App() {
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
   const lastLoggedStatusRef = useRef("");
+  const hasCheckedForLaunchUpdateRef = useRef(false);
   const activeProfileRef = useRef<VoiceProfile | null>(null);
   const settingsRef = useRef<AppSettings>(defaultSettings);
   const recorder = useAudioRecorder(settings.selectedMicId);
@@ -1852,6 +1854,10 @@ export default function App() {
     applyLoadedData(data);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
+    if (!hasCheckedForLaunchUpdateRef.current) {
+      hasCheckedForLaunchUpdateRef.current = true;
+      void checkForLaunchUpdates(data.skippedAppUpdateVersion);
+    }
     hasLoadedInitialDataRef.current = true;
     setStatus(`Hold ${shortcutToLabel(data.settings.activationShortcut)} anywhere to dictate.`);
   }
@@ -1859,6 +1865,7 @@ export default function App() {
   function applyLoadedData(data: LocalData) {
     setSettings(data.settings);
     setProfiles(data.voiceProfiles);
+    setSkippedAppUpdateVersion(data.skippedAppUpdateVersion);
     setManualDictionary(data.manualDictionary);
     setStats(data.stats);
     setDailyChallenges(data.dailyChallenges);
@@ -2131,6 +2138,10 @@ export default function App() {
       const info = await window.wisprApi.checkForAppUpdates();
       setAppUpdateInfo(info);
       setStatus(info.message);
+      if (info.latestVersion && skippedAppUpdateVersion === info.latestVersion) {
+        setSkippedAppUpdateVersion(null);
+        void window.wisprApi.skipAppUpdateVersion(null);
+      }
       if (info.hasUpdate) {
         setUpdateDialogMessage(info.message);
         setUpdateDialogState("available");
@@ -2148,9 +2159,30 @@ export default function App() {
     }
   }
 
+  async function checkForLaunchUpdates(skippedVersion: string | null) {
+    try {
+      const info = await window.wisprApi.checkForAppUpdates({ silent: true });
+      setAppUpdateInfo(info);
+      if (!info.hasUpdate || !info.latestVersion) {
+        return;
+      }
+      if (skippedVersion && skippedVersion === info.latestVersion) {
+        return;
+      }
+      setUpdateDialogMessage(info.message);
+      setUpdateDialogState("available");
+    } catch {
+      // Quiet on launch: update issues should not interrupt startup.
+    }
+  }
+
   async function downloadAndInstallUpdate() {
     try {
       setIsInstallingAppUpdate(true);
+      if (skippedAppUpdateVersion) {
+        setSkippedAppUpdateVersion(null);
+        await window.wisprApi.skipAppUpdateVersion(null);
+      }
       const message = await window.wisprApi.downloadAndInstallAppUpdate();
       setStatus(message);
       setUpdateDialogMessage(message);
@@ -2161,6 +2193,18 @@ export default function App() {
       setUpdateDialogState("error");
       setIsInstallingAppUpdate(false);
     }
+  }
+
+  async function skipCurrentUpdateVersion() {
+    if (!appUpdateInfo?.latestVersion) {
+      setUpdateDialogState("closed");
+      return;
+    }
+
+    const skippedVersion = await window.wisprApi.skipAppUpdateVersion(appUpdateInfo.latestVersion);
+    setSkippedAppUpdateVersion(skippedVersion);
+    setUpdateDialogState("closed");
+    setStatus(`Skipping update ${appUpdateInfo.latestVersion} until a newer version is available.`);
   }
 
   async function completeOnboarding() {
@@ -4520,6 +4564,25 @@ export default function App() {
                           <button className="secondary-button" type="button" onClick={() => previewUpdateDialog("error")}>
                             Test update error
                           </button>
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => void checkForUpdates()}
+                            disabled={isCheckingForUpdates}
+                          >
+                            {isCheckingForUpdates ? "Checking real update..." : "Check real update"}
+                          </button>
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => void downloadAndInstallUpdate()}
+                            disabled={
+                              isInstallingAppUpdate ||
+                              !(appUpdateInfo?.hasUpdate || appUpdateState.stage === "available" || appUpdateState.stage === "downloaded")
+                            }
+                          >
+                            {isInstallingAppUpdate ? "Starting real update..." : "Run real update"}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -4959,7 +5022,15 @@ export default function App() {
                     onClick={() => setUpdateDialogState("closed")}
                     disabled={isInstallingAppUpdate}
                   >
-                    Later
+                    Decline
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => void skipCurrentUpdateVersion()}
+                    disabled={isInstallingAppUpdate}
+                  >
+                    Skip this update
                   </button>
                   <button
                     className="primary-button"

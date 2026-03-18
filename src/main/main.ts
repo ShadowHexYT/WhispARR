@@ -23,6 +23,7 @@ import {
   saveSavedNotes,
   saveVoiceProfile,
   saveTranscriptHistory,
+  setSkippedAppUpdateVersion,
   syncAchievementUnlocks,
   updateSettings,
   updateStatsFromTranscript
@@ -1010,12 +1011,15 @@ app.whenReady().then(() => {
     }
     return installResult;
   });
-  ipcMain.handle("app:update:check", async () => {
-    return checkForAppUpdates();
+  ipcMain.handle("app:update:check", async (_event, options?: { silent?: boolean }) => {
+    return checkForAppUpdates(options);
   });
   ipcMain.handle("app:update:download-and-install", async () => {
     const result = await downloadAppUpdate();
     return result.message;
+  });
+  ipcMain.handle("app:update:skip-version", (_event, version: string | null) => {
+    return setSkippedAppUpdateVersion(version);
   });
   ipcMain.handle("dictation:transcribe", async (_event, sample: TrainingSample) => {
     const data = readData();

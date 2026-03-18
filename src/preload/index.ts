@@ -38,9 +38,12 @@ contextBridge.exposeInMainWorld("wisprApi", {
   discoverRuntime: () => ipcRenderer.invoke("runtime:discover") as Promise<RuntimeDiscoveryResult>,
   refreshRuntime: () => ipcRenderer.invoke("runtime:refresh") as Promise<RuntimeDiscoveryResult>,
   installRuntime: () => ipcRenderer.invoke("runtime:install") as Promise<RuntimeInstallResult>,
-  checkForAppUpdates: () => ipcRenderer.invoke("app:update:check") as Promise<AppUpdateInfo>,
+  checkForAppUpdates: (options?: { silent?: boolean }) =>
+    ipcRenderer.invoke("app:update:check", options) as Promise<AppUpdateInfo>,
   downloadAndInstallAppUpdate: () =>
     ipcRenderer.invoke("app:update:download-and-install") as Promise<string>,
+  skipAppUpdateVersion: (version: string | null) =>
+    ipcRenderer.invoke("app:update:skip-version", version) as Promise<string | null>,
   transcribe: (sample: TrainingSample) => ipcRenderer.invoke("dictation:transcribe", sample),
   trackTranscriptStats: (transcript: string) =>
     ipcRenderer.invoke("stats:track-transcript", transcript) as Promise<UserStats>,

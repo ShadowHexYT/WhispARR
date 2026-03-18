@@ -2,6 +2,8 @@ import { app } from "electron";
 import { autoUpdater, type UpdateInfo } from "electron-updater";
 import { AppUpdateInfo, AppUpdateState } from "../shared/types";
 
+type UpdateCheckMode = "interactive" | "silent";
+
 let lastKnownInfo: AppUpdateInfo | null = null;
 let currentState: AppUpdateState = {
   stage: "idle",
@@ -11,6 +13,7 @@ let currentState: AppUpdateState = {
 };
 let updaterInitialized = false;
 let shouldInstallWhenDownloaded = false;
+let currentCheckMode: UpdateCheckMode = "interactive";
 
 const listeners = new Set<(state: AppUpdateState) => void>();
 
@@ -85,6 +88,14 @@ function emitState(nextState: AppUpdateState) {
   }
 }
 
+function shouldEmitUpdateCheckState(stage: AppUpdateState["stage"]) {
+  if (currentCheckMode !== "silent") {
+    return true;
+  }
+
+  return stage === "downloading" || stage === "downloaded" || stage === "installing";
+}
+
 function ensureUpdaterReady() {
   if (updaterInitialized) {
     return;
@@ -94,6 +105,9 @@ function ensureUpdaterReady() {
   autoUpdater.autoInstallOnAppQuit = false;
 
   autoUpdater.on("checking-for-update", () => {
+    if (!shouldEmitUpdateCheckState("checking")) {
+      return;
+    }
     emitState({
       stage: "checking",
       message: "Checking for updates...",
@@ -104,6 +118,10 @@ function ensureUpdaterReady() {
 
   autoUpdater.on("update-available", (updateInfo) => {
     const info = buildUpdateInfo(updateInfo, `Version ${updateInfo.version} is available.`);
+    if (!shouldEmitUpdateCheckState("available")) {
+      lastKnownInfo = info;
+      return;
+    }
     emitState({
       stage: "available",
       message: info.message,
@@ -114,6 +132,10 @@ function ensureUpdaterReady() {
 
   autoUpdater.on("update-not-available", (updateInfo) => {
     const info = buildUpdateInfo(updateInfo, `You are up to date on version ${app.getVersion()}.`);
+    if (!shouldEmitUpdateCheckState("none")) {
+      lastKnownInfo = info;
+      return;
+    }
     emitState({
       stage: "none",
       message: info.message,
@@ -157,6 +179,9 @@ function ensureUpdaterReady() {
   });
 
   autoUpdater.on("error", (error) => {
+    if (!shouldEmitUpdateCheckState("error")) {
+      return;
+    }
     emitState({
       stage: "error",
       message: error == null ? "Update service failed." : error.message,
@@ -176,7 +201,8 @@ export function subscribeToAppUpdateState(listener: (state: AppUpdateState) => v
   };
 }
 
-export async function checkForAppUpdates(): Promise<AppUpdateInfo> {
+export async function checkForAppUpdates(options?: { silent?: boolean }): Promise<AppUpdateInfo> {
+  const isSilent = options?.silent === true;
   if (!app.isPackaged) {
     const info: AppUpdateInfo = {
       configured: false,
@@ -191,27 +217,34 @@ export async function checkForAppUpdates(): Promise<AppUpdateInfo> {
       message: "Updates only work in the installed packaged app."
     };
 
-    emitState({
-      stage: "error",
-      message: info.message,
-      progress: null,
-      info
-    });
+    if (!isSilent) {
+      emitState({
+        stage: "error",
+        message: info.message,
+        progress: null,
+        info
+      });
+    }
 
     return info;
   }
 
   ensureUpdaterReady();
   shouldInstallWhenDownloaded = false;
+  currentCheckMode = isSilent ? "silent" : "interactive";
 
-  const result = await autoUpdater.checkForUpdates();
-  const info = buildUpdateInfo(
-    result?.updateInfo ?? null,
-    lastKnownInfo?.message ?? `You are up to date on version ${app.getVersion()}.`
-  );
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const info = buildUpdateInfo(
+      result?.updateInfo ?? null,
+      lastKnownInfo?.message ?? `You are up to date on version ${app.getVersion()}.`
+    );
 
-  lastKnownInfo = info;
-  return info;
+    lastKnownInfo = info;
+    return info;
+  } finally {
+    currentCheckMode = "interactive";
+  }
 }
 
 export async function downloadAppUpdate(): Promise<{ message: string; filePath: string | null }> {

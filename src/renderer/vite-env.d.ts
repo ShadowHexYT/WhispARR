@@ -40,8 +40,9 @@ declare global {
       discoverRuntime: () => Promise<RuntimeDiscoveryResult>;
       refreshRuntime: () => Promise<RuntimeDiscoveryResult>;
       installRuntime: () => Promise<RuntimeInstallResult>;
-      checkForAppUpdates: () => Promise<AppUpdateInfo>;
+      checkForAppUpdates: (options?: { silent?: boolean }) => Promise<AppUpdateInfo>;
       downloadAndInstallAppUpdate: () => Promise<string>;
+      skipAppUpdateVersion: (version: string | null) => Promise<string | null>;
       transcribe: (sample: TrainingSample) => Promise<DictationResult>;
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
       syncAchievements: (unlocked: AchievementUnlockInput[]) => Promise<AchievementSyncResult>;

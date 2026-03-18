@@ -215,6 +215,18 @@ function getAppIconPath() {
     : path.join(process.resourcesPath, "assets", "WhispARR new logo.png");
 }
 
+function createZoomedIcon(zoom: number, size: number) {
+  const image = nativeImage.createFromPath(getAppIconPath());
+  const { width, height } = image.getSize();
+  const cropSize = Math.max(1, Math.round(Math.min(width, height) / zoom));
+  const x = Math.max(0, Math.floor((width - cropSize) / 2));
+  const y = Math.max(0, Math.floor((height - cropSize) / 2));
+
+  return image
+    .crop({ x, y, width: cropSize, height: cropSize })
+    .resize({ width: size, height: size });
+}
+
 function getAppDiagnostics(): AppDiagnostics {
   return {
     version: app.getVersion(),
@@ -228,9 +240,7 @@ function getAppDiagnostics(): AppDiagnostics {
 }
 
 function createTrayIcon() {
-  return nativeImage
-    .createFromPath(getAppIconPath())
-    .resize({ width: 24, height: 24 });
+  return createZoomedIcon(1.44, 24);
 }
 
 function showMainWindow() {
@@ -570,7 +580,7 @@ function startClipboardLearningWatch(sourceTranscript: string) {
         new Notification({
           title: "WhispARR Dictionary Updated",
           body,
-          icon: getAppIconPath(),
+          icon: createZoomedIcon(1.7, 256),
           silent: false
         }).show();
       }
@@ -663,7 +673,7 @@ function createWindow() {
     minHeight: 760,
     backgroundColor: "#08131a",
     title: "WhispARR",
-    icon: getAppIconPath(),
+    icon: createZoomedIcon(1.7, 256),
     autoHideMenuBar: true,
     ...windowsChromeOptions,
     webPreferences: {

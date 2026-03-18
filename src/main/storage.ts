@@ -235,6 +235,7 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
       averageEmbedding: input.embedding
     };
     current.voiceProfiles = [profile, ...current.voiceProfiles];
+    current.settings.activeProfileId = profile.id;
   }
 
   writeData(current);

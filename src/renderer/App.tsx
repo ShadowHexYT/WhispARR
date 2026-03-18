@@ -614,7 +614,8 @@ function compactStatus(message: string) {
 
   const mappedStatuses: Array<[RegExp, string]> = [
     [/loading local workspace/, "Loading workspace"],
-    [/hold .* anywhere to dictate/, "Ready to dictate"],
+    [/hold .* anywhere to dictate/, "Ready to Dictate!"],
+    [/ready to dictate/, "Ready to Dictate!"],
     [/activation shortcut updated/, "Shortcut updated"],
     [/configured local runtime/, "Engine configured"],
     [/no bundled or local runtime/, "Engine not found"],
@@ -950,6 +951,7 @@ export default function App() {
   const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
   const autoDictionaryToastTimeoutRef = useRef<number | null>(null);
+  const pastedStatusTimeoutRef = useRef<number | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
@@ -1234,6 +1236,34 @@ export default function App() {
   }, [stats.currentLevel]);
 
   useEffect(() => {
+    const lowerStatus = status.toLowerCase();
+
+    if (!lowerStatus.includes("pasted")) {
+      if (pastedStatusTimeoutRef.current) {
+        window.clearTimeout(pastedStatusTimeoutRef.current);
+        pastedStatusTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (pastedStatusTimeoutRef.current) {
+      window.clearTimeout(pastedStatusTimeoutRef.current);
+    }
+
+    pastedStatusTimeoutRef.current = window.setTimeout(() => {
+      setStatus((current) => (current.toLowerCase().includes("pasted") ? "Ready to Dictate!" : current));
+      pastedStatusTimeoutRef.current = null;
+    }, 5000);
+
+    return () => {
+      if (pastedStatusTimeoutRef.current) {
+        window.clearTimeout(pastedStatusTimeoutRef.current);
+        pastedStatusTimeoutRef.current = null;
+      }
+    };
+  }, [status]);
+
+  useEffect(() => {
     return () => {
       if (transcriptHistoryClickTimeoutRef.current) {
         window.clearTimeout(transcriptHistoryClickTimeoutRef.current);
@@ -1252,6 +1282,9 @@ export default function App() {
       }
       if (autoDictionaryToastTimeoutRef.current) {
         window.clearTimeout(autoDictionaryToastTimeoutRef.current);
+      }
+      if (pastedStatusTimeoutRef.current) {
+        window.clearTimeout(pastedStatusTimeoutRef.current);
       }
     };
   }, []);

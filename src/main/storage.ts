@@ -46,6 +46,7 @@ const defaultSettings: AppSettings = {
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
   smartFormatting: true,
+  filterProfanity: false,
   activationShortcut: defaultActivationShortcut,
   appTheme: defaultAppTheme,
   customTheme: defaultCustomTheme,

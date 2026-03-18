@@ -67,6 +67,7 @@ const defaultSettings: AppSettings = {
   muteMusicWhileDictating: false,
   autoLearnDictionary: false,
   smartFormatting: true,
+  filterProfanity: false,
   activationShortcut: defaultShortcut,
   appTheme: "aurora",
   customTheme: {
@@ -2898,6 +2899,28 @@ export default function App() {
                     role="switch"
                     aria-checked={settings.smartFormatting}
                     aria-label="Toggle smart formatting"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                </div>
+                <div className="settings-switch-row">
+                  <div className="settings-switch-copy">
+                    <strong>Filter profanity</strong>
+                    <p>
+                      Masks common profanity in the final transcript before it is pasted or saved.
+                    </p>
+                  </div>
+                  <button
+                    className={settings.filterProfanity ? "settings-switch active" : "settings-switch"}
+                    onClick={() =>
+                      void patchSettings({
+                        filterProfanity: !settings.filterProfanity
+                      })
+                    }
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.filterProfanity}
+                    aria-label="Toggle profanity filter"
                   >
                     <span className="settings-switch-thumb" aria-hidden="true" />
                   </button>

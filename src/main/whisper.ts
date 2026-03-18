@@ -128,6 +128,48 @@ function normalizeTranscript(transcript: string) {
   return silentPhrases.has(simplified) ? "" : trimmed;
 }
 
+function applySpokenPunctuation(transcript: string) {
+  return transcript
+    .replace(/\bexclamation mark\b/gi, "!")
+    .replace(/\bquestion mark\b/gi, "?")
+    .replace(/\bcomma\b/gi, ",")
+    .replace(/\bperiod\b/gi, ".")
+    .replace(/\bfull stop\b/gi, ".")
+    .replace(/\bcolon\b/gi, ":")
+    .replace(/\bsemicolon\b/gi, ";")
+    .replace(/\bopen parenthesis\b/gi, "(")
+    .replace(/\bclose parenthesis\b/gi, ")")
+    .replace(/\bopen quote\b/gi, "\"")
+    .replace(/\bclose quote\b/gi, "\"")
+    .replace(/\bquote\b/gi, "\"")
+    .replace(/\s+([,.;:!?)(\]])/g, "$1")
+    .replace(/([(\[])\s+/g, "$1")
+    .replace(/([,.;:!?])([A-Za-z0-9])/g, "$1 $2")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function applyProfanityFilter(transcript: string) {
+  const profanityPatterns = [
+    /\bfuck(?:ing|ed|er|ers)?\b/gi,
+    /\bshit(?:ty|ting|ted|s)?\b/gi,
+    /\bbitch(?:es)?\b/gi,
+    /\basshole(?:s)?\b/gi,
+    /\bdamn\b/gi,
+    /\bcrap\b/gi,
+    /\bbastard(?:s)?\b/gi,
+    /\bdick(?:head|heads)?\b/gi,
+    /\bpiss(?:ed|ing)?\b/gi
+  ];
+
+  return profanityPatterns
+    .reduce((current, pattern) => current.replace(pattern, " "), transcript)
+    .replace(/\s+([,.;:!?)(\]])/g, "$1")
+    .replace(/([(\[])\s+/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function applySmartFormatting(transcript: string) {
   const numberWords: Record<string, string> = {
     zero: "0",
@@ -281,9 +323,13 @@ export async function transcribeLocally(args: {
   const normalizedTranscript = normalizeTranscript(
     applyManualDictionary(rawTranscript, args.manualDictionary)
   );
-  const transcript = args.settings.smartFormatting
-    ? applySmartFormatting(normalizedTranscript)
-    : normalizedTranscript;
+  const punctuationNormalizedTranscript = applySpokenPunctuation(normalizedTranscript);
+  const formattedTranscript = args.settings.smartFormatting
+    ? applySmartFormatting(punctuationNormalizedTranscript)
+    : punctuationNormalizedTranscript;
+  const transcript = args.settings.filterProfanity
+    ? applyProfanityFilter(formattedTranscript)
+    : formattedTranscript;
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 

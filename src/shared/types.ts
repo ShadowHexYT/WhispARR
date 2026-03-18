@@ -46,6 +46,7 @@ export type AppSettings = {
   muteMusicWhileDictating: boolean;
   autoLearnDictionary: boolean;
   smartFormatting: boolean;
+  filterProfanity: boolean;
   activationShortcut: ActivationShortcut;
   appTheme: AppThemeName;
   customTheme: CustomThemeColors;

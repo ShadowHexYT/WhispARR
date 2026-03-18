@@ -5,6 +5,7 @@ import {
   AchievementUnlockInput,
   AppDiagnostics,
   AppUpdateInfo,
+  AppUpdateState,
   AppSettings,
   DictationResult,
   HudState,
@@ -57,6 +58,7 @@ declare global {
       onPushToTalk: (listener: (event: PushToTalkEvent) => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;
       onAutoDictionaryLearned: (listener: (terms: string[]) => void) => () => void;
+      onAppUpdateState: (listener: (state: AppUpdateState) => void) => () => void;
     };
   }
 }

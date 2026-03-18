@@ -22,6 +22,7 @@ import {
   ActivationShortcut,
   AppDiagnostics,
   AppUpdateInfo,
+  AppUpdateState,
   AppSettings,
   AppThemeName,
   CustomThemeColors,
@@ -90,6 +91,13 @@ const defaultSettings: AppSettings = {
   onboardingCompleted: false,
   devModeUnlocked: false,
   devModeEnabled: false
+};
+
+const defaultAppUpdateState: AppUpdateState = {
+  stage: "idle",
+  message: "Update service idle.",
+  progress: null,
+  info: null
 };
 
 type ThemeDefinition = {
@@ -644,6 +652,10 @@ function compactStatus(message: string) {
     [/installation finished, but readiness could not be confirmed/, "Engine needs attention"],
     [/install failed/, "Install failed"],
     [/update installer launched/, "Installing update"],
+    [/checking for updates/, "Checking updates"],
+    [/downloading update/, "Downloading update"],
+    [/installing update and restarting/, "Installing update"],
+    [/update downloaded/, "Installing update"],
     [/you are up to date/, "No updates available"],
     [/version .* is available/, "Update available"],
     [/update check failed/, "Update check failed"],
@@ -1070,6 +1082,7 @@ export default function App() {
   const [isAutoFindingRuntime, setIsAutoFindingRuntime] = useState(false);
   const [isRefreshingRuntime, setIsRefreshingRuntime] = useState(false);
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
+  const [appUpdateState, setAppUpdateState] = useState<AppUpdateState>(defaultAppUpdateState);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
   const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
@@ -1593,10 +1606,37 @@ export default function App() {
         setStatus(`Auto dictionary learning saved ${terms.length} new terms.`);
       }
     });
+    const unsubscribeUpdateState = window.wisprApi.onAppUpdateState((nextState) => {
+      setAppUpdateState(nextState);
+      if (nextState.info) {
+        setAppUpdateInfo(nextState.info);
+      }
+
+      if (nextState.stage === "downloading" || nextState.stage === "downloaded" || nextState.stage === "installing") {
+        setUpdateDialogState("available");
+        setUpdateDialogMessage(nextState.message);
+        setStatus(nextState.message);
+      } else if (nextState.stage === "error") {
+        setIsInstallingAppUpdate(false);
+        setIsCheckingForUpdates(false);
+        setUpdateDialogState("error");
+        setUpdateDialogMessage(nextState.message);
+        setStatus(nextState.message);
+      } else if (nextState.stage === "none") {
+        setIsCheckingForUpdates(false);
+        setUpdateDialogState("none");
+        setUpdateDialogMessage("No new updates are available right now.");
+      } else if (nextState.stage === "available") {
+        setIsCheckingForUpdates(false);
+        setUpdateDialogState("available");
+        setUpdateDialogMessage(nextState.message);
+      }
+    });
 
     return () => {
       unsubscribe();
       unsubscribeAutoLearn();
+      unsubscribeUpdateState();
     };
   }, []);
 
@@ -1963,15 +2003,18 @@ export default function App() {
   async function checkForUpdates() {
     try {
       setIsCheckingForUpdates(true);
+      setAppUpdateState((current) => ({
+        ...current,
+        stage: "checking",
+        message: "Checking for updates...",
+        progress: null
+      }));
       const info = await window.wisprApi.checkForAppUpdates();
       setAppUpdateInfo(info);
       setStatus(info.message);
-      if (info.hasUpdate && info.downloadUrl) {
+      if (info.hasUpdate) {
         setUpdateDialogMessage(info.message);
         setUpdateDialogState("available");
-      } else if (info.hasUpdate) {
-        setUpdateDialogMessage(info.message);
-        setUpdateDialogState("error");
       } else {
         setUpdateDialogMessage("No new updates are available right now.");
         setUpdateDialogState("none");
@@ -1992,13 +2035,11 @@ export default function App() {
       const message = await window.wisprApi.downloadAndInstallAppUpdate();
       setStatus(message);
       setUpdateDialogMessage(message);
-      setUpdateDialogState("closed");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Update install failed.";
       setStatus(message);
       setUpdateDialogMessage(message);
       setUpdateDialogState("error");
-    } finally {
       setIsInstallingAppUpdate(false);
     }
   }
@@ -4531,7 +4572,11 @@ export default function App() {
               <div>
                 <p className="eyebrow">Updates</p>
                 <h3>
-                  {updateDialogState === "available"
+                  {appUpdateState.stage === "downloading"
+                    ? "Downloading Update"
+                    : appUpdateState.stage === "installing" || appUpdateState.stage === "downloaded"
+                      ? "Installing Update"
+                      : updateDialogState === "available"
                     ? "New Update Ready"
                     : updateDialogState === "none"
                       ? "No New Updates"
@@ -4570,6 +4615,21 @@ export default function App() {
                 <p>{appUpdateInfo.releaseNotes}</p>
               </div>
             )}
+            {appUpdateState.progress !== null && (
+              <div className="update-dialog-progress">
+                <div className="runtime-progress-track" aria-hidden="true">
+                  <div
+                    className="runtime-progress-fill"
+                    style={{ width: `${appUpdateState.progress}%` }}
+                  />
+                </div>
+                <p className="supporting">
+                  {appUpdateState.stage === "installing"
+                    ? "Restarting app to finish install."
+                    : `${appUpdateState.progress}% downloaded`}
+                </p>
+              </div>
+            )}
             <div className="button-row">
               {updateDialogState === "available" ? (
                 <>
@@ -4587,7 +4647,13 @@ export default function App() {
                     onClick={() => void downloadAndInstallUpdate()}
                     disabled={isInstallingAppUpdate}
                   >
-                    {isInstallingAppUpdate ? "Downloading update..." : "Download and install update"}
+                    {appUpdateState.stage === "downloading"
+                      ? `Downloading... ${appUpdateState.progress ?? 0}%`
+                      : appUpdateState.stage === "installing" || appUpdateState.stage === "downloaded"
+                        ? "Installing update..."
+                        : isInstallingAppUpdate
+                          ? "Preparing update..."
+                          : "Download and install update"}
                   </button>
                 </>
               ) : (

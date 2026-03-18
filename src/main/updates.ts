@@ -1,119 +1,18 @@
 import { app } from "electron";
-import fs from "node:fs";
-import https from "node:https";
-import os from "node:os";
-import path from "node:path";
-import { pipeline } from "node:stream/promises";
-import { AppUpdateInfo } from "../shared/types";
+import { autoUpdater, type UpdateInfo } from "electron-updater";
+import { AppUpdateInfo, AppUpdateState } from "../shared/types";
 
-type GitHubAsset = {
-  name: string;
-  browser_download_url: string;
+let lastKnownInfo: AppUpdateInfo | null = null;
+let currentState: AppUpdateState = {
+  stage: "idle",
+  message: "Update service idle.",
+  progress: null,
+  info: null
 };
+let updaterInitialized = false;
+let shouldInstallWhenDownloaded = false;
 
-type GitHubRelease = {
-  tag_name?: string;
-  name?: string;
-  body?: string;
-  html_url?: string;
-  assets?: GitHubAsset[];
-};
-
-type RepoTarget = {
-  owner: string;
-  repo: string;
-};
-
-function requestJson<T>(url: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    https
-      .get(
-        url,
-        {
-          headers: {
-            "User-Agent": "whisparr"
-          }
-        },
-        (response) => {
-          if (
-            response.statusCode &&
-            response.statusCode >= 300 &&
-            response.statusCode < 400 &&
-            response.headers.location
-          ) {
-            resolve(requestJson<T>(response.headers.location));
-            return;
-          }
-
-          if (response.statusCode !== 200) {
-            reject(new Error(`Update check failed with status ${response.statusCode ?? "unknown"}.`));
-            return;
-          }
-
-          let body = "";
-          response.setEncoding("utf8");
-          response.on("data", (chunk) => {
-            body += chunk;
-          });
-          response.on("end", () => {
-            try {
-              resolve(JSON.parse(body) as T);
-            } catch (error) {
-              reject(error);
-            }
-          });
-        }
-      )
-      .on("error", reject);
-  });
-}
-
-async function downloadToFile(url: string, filePath: string): Promise<void> {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-
-  await new Promise<void>((resolve, reject) => {
-    https
-      .get(
-        url,
-        {
-          headers: {
-            "User-Agent": "whisparr"
-          }
-        },
-        async (response) => {
-          if (
-            response.statusCode &&
-            response.statusCode >= 300 &&
-            response.statusCode < 400 &&
-            response.headers.location
-          ) {
-            response.resume();
-            try {
-              await downloadToFile(response.headers.location, filePath);
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-            return;
-          }
-
-          if (response.statusCode !== 200) {
-            reject(new Error(`Update download failed with status ${response.statusCode ?? "unknown"}.`));
-            return;
-          }
-
-          const stream = fs.createWriteStream(filePath);
-          try {
-            await pipeline(response, stream);
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        }
-      )
-      .on("error", reject);
-  });
-}
+const listeners = new Set<(state: AppUpdateState) => void>();
 
 function normalizeVersion(value: string | null | undefined) {
   return (value ?? "").trim().replace(/^v/i, "");
@@ -138,79 +37,150 @@ function compareVersions(left: string, right: string) {
   return 0;
 }
 
-function parseGitHubRepo(urlValue: string | undefined) {
-  if (!urlValue) {
+function normalizeReleaseNotes(releaseNotes: UpdateInfo["releaseNotes"]) {
+  if (typeof releaseNotes === "string") {
+    return releaseNotes.trim() || null;
+  }
+
+  if (!Array.isArray(releaseNotes)) {
     return null;
   }
 
-  const normalized = urlValue
-    .trim()
-    .replace(/^git\+/, "")
-    .replace(/\.git$/i, "");
-  const match = normalized.match(/github\.com[/:]([^/]+)\/([^/]+)$/i);
-  if (!match) {
-    return null;
-  }
+  const combined = (releaseNotes as Array<{ note?: string }>)
+    .map((entry) => (typeof entry.note === "string" ? entry.note.trim() : ""))
+    .filter(Boolean)
+    .join("\n\n");
+
+  return combined || null;
+}
+
+function buildUpdateInfo(updateInfo: UpdateInfo | null, message: string): AppUpdateInfo {
+  const currentVersion = app.getVersion();
+  const latestVersion = updateInfo?.version?.trim() || null;
+  const hasUpdate =
+    latestVersion !== null && compareVersions(latestVersion, currentVersion) > 0;
 
   return {
-    owner: match[1] ?? "",
-    repo: match[2] ?? ""
+    configured: app.isPackaged,
+    currentVersion,
+    latestVersion,
+    hasUpdate,
+    releaseName: latestVersion,
+    releaseNotes: normalizeReleaseNotes(updateInfo?.releaseNotes),
+    downloadUrl: null,
+    assetName: null,
+    htmlUrl: null,
+    message
   };
 }
 
-function readRepoTarget(): RepoTarget | null {
-  try {
-    const packageJsonPath = path.join(app.getAppPath(), "package.json");
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
-      repository?: string | { url?: string };
-      build?: {
-        publish?: Array<{ provider?: string; owner?: string; repo?: string }> | { provider?: string; owner?: string; repo?: string };
-      };
-    };
+function emitState(nextState: AppUpdateState) {
+  currentState = nextState;
+  if (nextState.info) {
+    lastKnownInfo = nextState.info;
+  }
 
-    const publish = Array.isArray(packageJson.build?.publish)
-      ? packageJson.build?.publish[0]
-      : packageJson.build?.publish;
-    if (publish?.provider === "github" && publish.owner && publish.repo) {
-      return {
-        owner: publish.owner,
-        repo: publish.repo
-      };
-    }
-
-    if (typeof packageJson.repository === "string") {
-      return parseGitHubRepo(packageJson.repository);
-    }
-
-    return parseGitHubRepo(packageJson.repository?.url);
-  } catch {
-    return null;
+  for (const listener of listeners) {
+    listener(currentState);
   }
 }
 
-function selectReleaseAsset(assets: GitHubAsset[]) {
-  if (process.platform === "win32") {
-    return (
-      assets.find((asset) => /setup.*\.exe$/i.test(asset.name) && !/arm64|blockmap/i.test(asset.name)) ??
-      assets.find((asset) => /\.exe$/i.test(asset.name) && !/arm64|blockmap/i.test(asset.name)) ??
-      null
-    );
+function ensureUpdaterReady() {
+  if (updaterInitialized) {
+    return;
   }
 
-  if (process.platform === "darwin") {
-    return assets.find((asset) => /\.(dmg|zip)$/i.test(asset.name) && !/blockmap/i.test(asset.name)) ?? null;
-  }
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
 
-  return assets.find((asset) => /\.(AppImage|deb|rpm|tar\.gz)$/i.test(asset.name)) ?? null;
+  autoUpdater.on("checking-for-update", () => {
+    emitState({
+      stage: "checking",
+      message: "Checking for updates...",
+      progress: null,
+      info: lastKnownInfo
+    });
+  });
+
+  autoUpdater.on("update-available", (updateInfo) => {
+    const info = buildUpdateInfo(updateInfo, `Version ${updateInfo.version} is available.`);
+    emitState({
+      stage: "available",
+      message: info.message,
+      progress: null,
+      info
+    });
+  });
+
+  autoUpdater.on("update-not-available", (updateInfo) => {
+    const info = buildUpdateInfo(updateInfo, `You are up to date on version ${app.getVersion()}.`);
+    emitState({
+      stage: "none",
+      message: info.message,
+      progress: null,
+      info
+    });
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    emitState({
+      stage: "downloading",
+      message: `Downloading update... ${Math.round(progress.percent)}%`,
+      progress: Math.max(0, Math.min(100, Math.round(progress.percent))),
+      info: lastKnownInfo
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (updateInfo) => {
+    const info = buildUpdateInfo(updateInfo, "Update downloaded. Restarting to install...");
+    emitState({
+      stage: "downloaded",
+      message: info.message,
+      progress: 100,
+      info
+    });
+
+    if (!shouldInstallWhenDownloaded) {
+      return;
+    }
+
+    emitState({
+      stage: "installing",
+      message: "Installing update and restarting...",
+      progress: 100,
+      info
+    });
+
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true);
+    }, 800);
+  });
+
+  autoUpdater.on("error", (error) => {
+    emitState({
+      stage: "error",
+      message: error == null ? "Update service failed." : error.message,
+      progress: null,
+      info: lastKnownInfo
+    });
+  });
+
+  updaterInitialized = true;
+}
+
+export function subscribeToAppUpdateState(listener: (state: AppUpdateState) => void) {
+  listeners.add(listener);
+  listener(currentState);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export async function checkForAppUpdates(): Promise<AppUpdateInfo> {
-  const currentVersion = app.getVersion();
-  const repoTarget = readRepoTarget();
-  if (!repoTarget) {
-    return {
+  if (!app.isPackaged) {
+    const info: AppUpdateInfo = {
       configured: false,
-      currentVersion,
+      currentVersion: app.getVersion(),
       latestVersion: null,
       hasUpdate: false,
       releaseName: null,
@@ -218,55 +188,60 @@ export async function checkForAppUpdates(): Promise<AppUpdateInfo> {
       downloadUrl: null,
       assetName: null,
       htmlUrl: null,
-      message: "Updates are not configured yet. Add a GitHub repository URL or build.publish GitHub target to package.json."
+      message: "Updates only work in the installed packaged app."
     };
+
+    emitState({
+      stage: "error",
+      message: info.message,
+      progress: null,
+      info
+    });
+
+    return info;
   }
 
-  const url = `https://api.github.com/repos/${repoTarget.owner}/${repoTarget.repo}/releases/latest`;
-  const release = await requestJson<GitHubRelease>(url);
-  const latestVersion = normalizeVersion(release.tag_name || release.name || "");
-  const asset = selectReleaseAsset(release.assets ?? []);
-  const hasUpdate = latestVersion.length > 0 && compareVersions(latestVersion, currentVersion) > 0;
+  ensureUpdaterReady();
+  shouldInstallWhenDownloaded = false;
 
-  return {
-    configured: true,
-    currentVersion,
-    latestVersion: latestVersion || null,
-    hasUpdate,
-    releaseName: release.name?.trim() || release.tag_name?.trim() || null,
-    releaseNotes: release.body?.trim() || null,
-    downloadUrl: asset?.browser_download_url ?? null,
-    assetName: asset?.name ?? null,
-    htmlUrl: release.html_url ?? null,
-    message: hasUpdate
-      ? asset
-        ? `Version ${latestVersion} is available.`
-        : `Version ${latestVersion} is available, but no installer asset was found for this platform.`
-      : `You are up to date on version ${currentVersion}.`
-  };
+  const result = await autoUpdater.checkForUpdates();
+  const info = buildUpdateInfo(
+    result?.updateInfo ?? null,
+    lastKnownInfo?.message ?? `You are up to date on version ${app.getVersion()}.`
+  );
+
+  lastKnownInfo = info;
+  return info;
 }
 
 export async function downloadAppUpdate(): Promise<{ message: string; filePath: string | null }> {
-  const updateInfo = await checkForAppUpdates();
-  if (!updateInfo.configured) {
-    throw new Error(updateInfo.message);
+  if (!app.isPackaged) {
+    throw new Error("Updates only work in the installed packaged app.");
   }
-  if (!updateInfo.hasUpdate) {
+
+  ensureUpdaterReady();
+  shouldInstallWhenDownloaded = true;
+
+  if (currentState.stage === "downloaded" && lastKnownInfo?.hasUpdate) {
+    emitState({
+      stage: "installing",
+      message: "Installing update and restarting...",
+      progress: 100,
+      info: lastKnownInfo
+    });
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true);
+    }, 400);
+
     return {
-      message: updateInfo.message,
+      message: "Installing update and restarting...",
       filePath: null
     };
   }
-  if (!updateInfo.downloadUrl || !updateInfo.assetName) {
-    throw new Error("A newer release was found, but no downloadable installer asset is available for this platform.");
-  }
 
-  const updateDir = path.join(app.getPath("downloads"), "WhispARR Updates");
-  const filePath = path.join(updateDir, updateInfo.assetName);
-  await downloadToFile(updateInfo.downloadUrl, filePath);
-
+  await autoUpdater.downloadUpdate();
   return {
-    message: `Downloaded ${updateInfo.assetName}.`,
-    filePath
+    message: "Downloading update...",
+    filePath: null
   };
 }

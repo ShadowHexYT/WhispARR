@@ -9,11 +9,10 @@ import {
   Notification,
   Tray,
   nativeImage,
-  screen,
-  shell
+  screen
 } from "electron";
 import path from "node:path";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { uIOhook, UiohookKey, UiohookKeyboardEvent } from "uiohook-napi";
 import {
   deleteManualDictionaryEntry,
@@ -30,11 +29,12 @@ import {
 } from "./storage";
 import { discoverRuntime, installRuntime } from "./runtime";
 import { getWhisperConfigStatus, transcribeLocally } from "./whisper";
-import { checkForAppUpdates, downloadAppUpdate } from "./updates";
+import { checkForAppUpdates, downloadAppUpdate, subscribeToAppUpdateState } from "./updates";
 import {
   AchievementUnlockInput,
   ActivationShortcut,
   AppThemeName,
+  AppUpdateState,
   AppSettings,
   CustomThemeColors,
   HudState,
@@ -151,6 +151,14 @@ let pushToTalkEventId = 0;
 const HUD_BASE_WIDTH = 110;
 const HUD_BASE_HEIGHT = 44;
 const HUD_MARGIN = 6;
+
+function broadcastAppUpdateState(state: AppUpdateState) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send("app:update:state", state);
+}
 
 function getHudDimensions() {
   const scale = Math.max(60, Math.min(160, currentSettings.hudScale || 100)) / 100;
@@ -898,6 +906,9 @@ app.on("second-instance", () => {
 
 app.whenReady().then(() => {
   currentSettings = readData().settings;
+  subscribeToAppUpdateState((state) => {
+    broadcastAppUpdateState(state);
+  });
   const runtime = discoverRuntime();
   if ((!currentSettings.whisperBinaryPath || !currentSettings.whisperModelPath) && runtime.selected) {
     currentSettings = updateSettings({
@@ -994,23 +1005,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("app:update:download-and-install", async () => {
     const result = await downloadAppUpdate();
-    if (!result.filePath) {
-      return result.message;
-    }
-
-    if (process.platform === "win32") {
-      const installer = spawn(result.filePath, [], {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: false
-      });
-      installer.unref();
-      app.quit();
-      return "Update installer launched.";
-    }
-
-    await shell.openPath(result.filePath);
-    return `Downloaded update to ${result.filePath}. Open the installer to continue.`;
+    return result.message;
   });
   ipcMain.handle("dictation:transcribe", async (_event, sample: TrainingSample) => {
     const data = readData();

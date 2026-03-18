@@ -2552,6 +2552,15 @@ select option:disabled {
   white-space: pre-wrap;
 }
 
+.update-dialog-progress {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.update-dialog-progress .supporting {
+  margin: 0;
+}
+
 .auto-dictionary-toast {
   position: fixed;
   right: 24px;

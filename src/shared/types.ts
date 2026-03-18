@@ -179,6 +179,13 @@ export type AppUpdateInfo = {
   message: string;
 };
 
+export type AppUpdateState = {
+  stage: "idle" | "checking" | "available" | "none" | "downloading" | "downloaded" | "installing" | "error";
+  message: string;
+  progress: number | null;
+  info: AppUpdateInfo | null;
+};
+
 export type AppDiagnostics = {
   version: string;
   platform: string;

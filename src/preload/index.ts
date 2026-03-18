@@ -4,6 +4,7 @@ import {
   AchievementUnlockInput,
   AppDiagnostics,
   AppUpdateInfo,
+  AppUpdateState,
   AppSettings,
   LocalData,
   ManualDictionaryEntry,
@@ -82,6 +83,15 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.on("dictionary:auto-learned", wrapped);
     return () => {
       ipcRenderer.removeListener("dictionary:auto-learned", wrapped);
+    };
+  },
+  onAppUpdateState: (listener: (state: AppUpdateState) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, state: AppUpdateState) => {
+      listener(state);
+    };
+    ipcRenderer.on("app:update:state", wrapped);
+    return () => {
+      ipcRenderer.removeListener("app:update:state", wrapped);
     };
   }
 });

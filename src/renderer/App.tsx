@@ -42,6 +42,7 @@ type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 type AchievementDifficulty = "Easy" | "Medium" | "Hard" | "Almost Impossible";
 type UpdateDialogState = "closed" | "none" | "available" | "error";
 type AutoDictionaryToast = { terms: string[]; id: number } | null;
+type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
@@ -961,6 +962,7 @@ export default function App() {
   const [devices, setDevices] = useState<MicDevice[]>([]);
   const [profileName, setProfileName] = useState("");
   const [dictionaryTerm, setDictionaryTerm] = useState("");
+  const [pendingDictionaryDeleteEntry, setPendingDictionaryDeleteEntry] = useState<ManualDictionaryEntry | null>(null);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [achievementFilter, setAchievementFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
@@ -997,6 +999,7 @@ export default function App() {
   const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
   const [updateDialogMessage, setUpdateDialogMessage] = useState("");
   const [autoDictionaryToast, setAutoDictionaryToast] = useState<AutoDictionaryToast>(null);
+  const [achievementToast, setAchievementToast] = useState<AchievementToast>(null);
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
   const [isTranscriptHistoryMenuOpen, setIsTranscriptHistoryMenuOpen] = useState(false);
   const [shouldOpenTranscriptHistoryMenuUpward, setShouldOpenTranscriptHistoryMenuUpward] = useState(false);
@@ -1019,6 +1022,7 @@ export default function App() {
   const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
   const autoDictionaryToastTimeoutRef = useRef<number | null>(null);
+  const achievementToastTimeoutRef = useRef<number | null>(null);
   const pastedStatusTimeoutRef = useRef<number | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
@@ -1392,6 +1396,9 @@ export default function App() {
       if (autoDictionaryToastTimeoutRef.current) {
         window.clearTimeout(autoDictionaryToastTimeoutRef.current);
       }
+      if (achievementToastTimeoutRef.current) {
+        window.clearTimeout(achievementToastTimeoutRef.current);
+      }
       if (pastedStatusTimeoutRef.current) {
         window.clearTimeout(pastedStatusTimeoutRef.current);
       }
@@ -1464,6 +1471,19 @@ export default function App() {
         const achievement = achievements.find((item) => item.title === title);
         return total + (achievement ? achievementXpByDifficulty[achievement.difficulty] : 0);
       }, 0);
+
+      if (achievementToastTimeoutRef.current) {
+        window.clearTimeout(achievementToastTimeoutRef.current);
+      }
+      setAchievementToast({
+        titles: result.newlyUnlocked,
+        xp: rewardXp,
+        id: Date.now()
+      });
+      achievementToastTimeoutRef.current = window.setTimeout(() => {
+        setAchievementToast(null);
+        achievementToastTimeoutRef.current = null;
+      }, 3000);
 
       if (result.newlyUnlocked.length === 1) {
         setStatus(`Achievement unlocked: ${result.newlyUnlocked[0]} (+${rewardXp} XP).`);
@@ -1883,6 +1903,130 @@ export default function App() {
     }, 4000);
   }
 
+  function previewLevelUpCelebration() {
+    const previewLevel = Math.max(stats.currentLevel + 1, 2);
+    if (levelUpTimeoutRef.current) {
+      window.clearTimeout(levelUpTimeoutRef.current);
+    }
+    setCelebratingLevel(previewLevel);
+    levelUpTimeoutRef.current = window.setTimeout(() => {
+      setCelebratingLevel(null);
+      levelUpTimeoutRef.current = null;
+    }, 5000);
+    setStatus(`Preview only: level-up animation for level ${previewLevel}.`);
+  }
+
+  function previewDeveloperUnlockCelebration() {
+    if (devUnlockTimeoutRef.current) {
+      window.clearTimeout(devUnlockTimeoutRef.current);
+    }
+    setIsDevModeUnlockCelebrationVisible(true);
+    devUnlockTimeoutRef.current = window.setTimeout(() => {
+      setIsDevModeUnlockCelebrationVisible(false);
+      devUnlockTimeoutRef.current = null;
+    }, 4000);
+    setStatus("Preview only: developer unlock animation.");
+  }
+
+  function previewRetroCelebration() {
+    if (retroCelebrationTimeoutRef.current) {
+      window.clearTimeout(retroCelebrationTimeoutRef.current);
+    }
+    setIsRetroCelebrationVisible(true);
+    retroCelebrationTimeoutRef.current = window.setTimeout(() => {
+      setIsRetroCelebrationVisible(false);
+      retroCelebrationTimeoutRef.current = null;
+    }, 5200);
+    setStatus("Preview only: retro mode animation.");
+  }
+
+  function previewAchievementNotification() {
+    if (achievementToastTimeoutRef.current) {
+      window.clearTimeout(achievementToastTimeoutRef.current);
+    }
+    setAchievementToast({
+      titles: ["Testing Grounds"],
+      xp: achievementXpByDifficulty.Medium,
+      id: Date.now()
+    });
+    achievementToastTimeoutRef.current = window.setTimeout(() => {
+      setAchievementToast(null);
+      achievementToastTimeoutRef.current = null;
+    }, 3000);
+    setStatus("Preview only: achievement popup.");
+  }
+
+  function previewDictionaryNotification() {
+    if (autoDictionaryToastTimeoutRef.current) {
+      window.clearTimeout(autoDictionaryToastTimeoutRef.current);
+    }
+    setAutoDictionaryToast({
+      terms: ["WhispARR"],
+      id: Date.now()
+    });
+    autoDictionaryToastTimeoutRef.current = window.setTimeout(() => {
+      setAutoDictionaryToast(null);
+      autoDictionaryToastTimeoutRef.current = null;
+    }, 5000);
+    setStatus("Preview only: dictionary popup.");
+  }
+
+  function previewUpdateDialog(state: Exclude<UpdateDialogState, "closed">) {
+    if (state === "available") {
+      setAppUpdateInfo({
+        configured: true,
+        currentVersion: appDiagnostics?.version ?? "1.0.0",
+        latestVersion: "1.1.0",
+        hasUpdate: true,
+        releaseName: "WhispARR Preview Build",
+        releaseNotes: "Adds smoother dictation feedback, preview tools, and a cleaner runtime setup flow.",
+        downloadUrl: "https://example.com/download",
+        assetName: "WhispARR-1.1.0-windows-x64.exe",
+        htmlUrl: "https://example.com/release",
+        message: "A new update is ready to download."
+      });
+      setUpdateDialogMessage("A new update is ready to download.");
+      setStatus("Preview only: available update dialog.");
+      setUpdateDialogState("available");
+      return;
+    }
+
+    if (state === "none") {
+      setUpdateDialogMessage("You already have the latest version installed.");
+      setStatus("Preview only: no updates dialog.");
+      setUpdateDialogState("none");
+      return;
+    }
+
+    setAppUpdateInfo({
+      configured: true,
+      currentVersion: appDiagnostics?.version ?? "1.0.0",
+      latestVersion: null,
+      hasUpdate: false,
+      releaseName: null,
+      releaseNotes: null,
+      downloadUrl: null,
+      assetName: null,
+      htmlUrl: null,
+      message: "Update check failed during preview."
+    });
+    setUpdateDialogMessage("Preview error: update service is temporarily unavailable.");
+    setStatus("Preview only: update error dialog.");
+    setUpdateDialogState("error");
+  }
+
+  function previewHudBubble() {
+    startHudScalePreview();
+    window.setTimeout(() => {
+      finishHudScalePreview();
+    }, 1800);
+    setStatus("Preview only: HUD bubble.");
+  }
+
+  function previewPastedStatus() {
+    setStatus("Preview only: transcript pasted.");
+  }
+
   async function beginGlobalDictation(eventId: number) {
     if (eventId < latestPushToTalkEventIdRef.current) {
       return;
@@ -2255,6 +2399,18 @@ export default function App() {
     setStatus(`Saved "${entry.term}" to your local dictionary.`);
   }
 
+  async function confirmDictionaryEntryDelete() {
+    if (!pendingDictionaryDeleteEntry) {
+      return;
+    }
+
+    const entryToDelete = pendingDictionaryDeleteEntry;
+    const next = await window.wisprApi.deleteManualDictionaryEntry(entryToDelete.id);
+    setManualDictionary(next);
+    setPendingDictionaryDeleteEntry(null);
+    setStatus(`Removed "${entryToDelete.term}" from your local dictionary.`);
+  }
+
   return (
     <div className={isRetroModeEnabled ? "app-shell retro-mode" : "app-shell"}>
       <div className="titlebar-drag" aria-hidden="true" />
@@ -2555,7 +2711,10 @@ export default function App() {
                               : "history-limit-presets history-limit-presets-dropdown"
                           }
                         >
-                          {transcriptHistoryOptions.map((count) => (
+                          {(shouldOpenTranscriptHistoryMenuUpward
+                            ? [...transcriptHistoryOptions].reverse()
+                            : transcriptHistoryOptions
+                          ).map((count) => (
                             <button
                               key={count}
                               type="button"
@@ -2607,7 +2766,7 @@ export default function App() {
           </section>
         )}
         {tab === "profiles" && (
-          <section className="panel-grid profiles-grid">
+          <section className="panel-grid dictation-stack">
             <section className="panel">
               <div className="panel-header">
                 <div>
@@ -2645,9 +2804,7 @@ export default function App() {
                 active, successful dictations also reinforce that profile automatically so it can
                 adapt as you keep using the app.
               </p>
-            </section>
-            <section className="panel">
-              <div className="panel-header">
+              <div className="panel-header dictation-subsection-header dictionary-header">
                 <div>
                   <p className="eyebrow">Profiles</p>
                   <h3>Saved Local Voices</h3>
@@ -2689,7 +2846,7 @@ export default function App() {
           </section>
         )}
         {tab === "dictionary" && (
-          <section className="panel-grid settings-grid">
+          <section className="panel-grid dictation-stack">
             <section className="panel">
               <div className="panel-header">
                 <div>
@@ -2715,9 +2872,7 @@ export default function App() {
                   Save to dictionary
                 </button>
               </div>
-            </section>
-            <section className="panel">
-              <div className="panel-header">
+              <div className="panel-header dictation-subsection-header dictionary-header">
                 <div>
                   <p className="eyebrow">Saved Terms</p>
                   <h3>Your Local Dictionary</h3>
@@ -2731,22 +2886,27 @@ export default function App() {
                 )}
                 {manualDictionary.map((entry) => (
                   <div key={entry.id} className="dictionary-card">
-                    <div>
+                    <button
+                      className="dictionary-delete-button"
+                      type="button"
+                      aria-label={`Delete ${entry.term} from dictionary`}
+                      title={`Delete ${entry.term}`}
+                      onClick={() => setPendingDictionaryDeleteEntry(entry)}
+                    >
+                      ×
+                    </button>
+                    <div className="dictionary-card-copy">
+                      <span className="dictionary-card-label">
+                        {entry.addedBySystem ? "Auto learned" : "Custom term"}
+                      </span>
                       <strong>
                         {entry.term}
                         {entry.addedBySystem && <span className="dictionary-star" aria-label="System added"> ★</span>}
                       </strong>
+                      <span className="dictionary-card-meta">
+                        {entry.term.trim().split(/\s+/).length === 1 ? "Word" : "Phrase"}
+                      </span>
                     </div>
-                    <button
-                      className="ghost-button danger"
-                      onClick={async () => {
-                        const next = await window.wisprApi.deleteManualDictionaryEntry(entry.id);
-                        setManualDictionary(next);
-                        setStatus(`Removed "${entry.term}" from your local dictionary.`);
-                      }}
-                    >
-                      Delete
-                    </button>
                   </div>
                 ))}
               </div>
@@ -3503,6 +3663,63 @@ export default function App() {
               {settings.devModeEnabled && (
                 <div className="dev-mode-panel">
                   <div className="dev-mode-card dev-mode-card-primary">
+                    <p className="eyebrow">Preview Tools</p>
+                    <p className="supporting">
+                      Fire app animations, popups, dialogs, and quick status states without waiting for a real event.
+                    </p>
+                    <p className="supporting">
+                      These previews are temporary only. They do not save XP, unlock achievements,
+                      add dictionary words, change profiles, or update your real settings.
+                    </p>
+                    <div className="dev-preview-groups">
+                      <div className="dev-preview-group">
+                        <strong>Animations</strong>
+                        <div className="button-row">
+                          <button className="secondary-button" type="button" onClick={previewLevelUpCelebration}>
+                            Test level up
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewDeveloperUnlockCelebration}>
+                            Test dev unlock
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewRetroCelebration}>
+                            Test retro mode
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewHudBubble}>
+                            Test HUD bubble
+                          </button>
+                        </div>
+                      </div>
+                      <div className="dev-preview-group">
+                        <strong>Notifications</strong>
+                        <div className="button-row">
+                          <button className="secondary-button" type="button" onClick={previewAchievementNotification}>
+                            Test achievement
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewDictionaryNotification}>
+                            Test dictionary
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewPastedStatus}>
+                            Test pasted status
+                          </button>
+                        </div>
+                      </div>
+                      <div className="dev-preview-group">
+                        <strong>Dialogs</strong>
+                        <div className="button-row">
+                          <button className="secondary-button" type="button" onClick={() => previewUpdateDialog("available")}>
+                            Test update ready
+                          </button>
+                          <button className="secondary-button" type="button" onClick={() => previewUpdateDialog("none")}>
+                            Test no update
+                          </button>
+                          <button className="secondary-button" type="button" onClick={() => previewUpdateDialog("error")}>
+                            Test update error
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="dev-mode-card dev-mode-card-primary">
                     <p className="eyebrow">Recent Logs</p>
                     <div className="dev-log-list">
                       {statusLogs.length === 0 && (
@@ -3914,6 +4131,61 @@ export default function App() {
             {autoDictionaryToast.terms.length === 1
               ? "Starred in your local dictionary."
               : autoDictionaryToast.terms.join(", ")}
+          </p>
+        </div>
+      )}
+      {pendingDictionaryDeleteEntry && (
+        <div className="dictionary-delete-backdrop" role="presentation">
+          <section className="dictionary-delete-modal" aria-label="Delete dictionary entry">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Dictionary</p>
+                <h3>Delete this entry?</h3>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setPendingDictionaryDeleteEntry(null)}
+                aria-label="Close delete confirmation"
+                title="Close"
+              >
+                X
+              </button>
+            </div>
+            <p className="supporting">
+              Are you sure you want to remove <strong>{pendingDictionaryDeleteEntry.term}</strong> from your local dictionary?
+            </p>
+            <div className="button-row">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setPendingDictionaryDeleteEntry(null)}
+              >
+                Keep entry
+              </button>
+              <button
+                className="ghost-button danger"
+                type="button"
+                onClick={() => void confirmDictionaryEntryDelete()}
+              >
+                Delete entry
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {achievementToast && (
+        <div className="achievement-toast" role="status" aria-live="polite" key={achievementToast.id}>
+          <p className="eyebrow">Achievement Earned</p>
+          <strong>
+            {achievementToast.titles.length === 1
+              ? achievementToast.titles[0]
+              : `${achievementToast.titles.length} achievements unlocked`}
+          </strong>
+          <p>
+            {achievementToast.titles.length === 1
+              ? `+${achievementToast.xp} XP earned`
+              : achievementToast.titles.join(", ")}
           </p>
         </div>
       )}

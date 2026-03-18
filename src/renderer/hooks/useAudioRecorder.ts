@@ -11,6 +11,8 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
   const contextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const lastLevelRef = useRef(0);
+  const meterFrameCountRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -64,8 +66,21 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
           chunksRef.current.push(sample);
           energy += sample * sample;
         }
+        meterFrameCountRef.current += 1;
         const rms = Math.sqrt(energy / Math.max(1, input.length));
-        setLevel(Math.min(1, rms * 8));
+        const nextLevel = Math.min(1, rms * 8);
+        const roundedLevel = Math.round(nextLevel * 20) / 20;
+        const previousLevel = lastLevelRef.current;
+        const shouldPublish =
+          meterFrameCountRef.current % 2 === 0 ||
+          Math.abs(roundedLevel - previousLevel) >= 0.08 ||
+          (roundedLevel === 0 && previousLevel !== 0) ||
+          (roundedLevel > 0 && previousLevel === 0);
+
+        if (shouldPublish) {
+          lastLevelRef.current = roundedLevel;
+          setLevel(roundedLevel);
+        }
       };
 
       source.connect(processor);
@@ -75,6 +90,8 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
       processorRef.current = processor;
       streamRef.current = stream;
       sampleRateRef.current = context.sampleRate;
+      lastLevelRef.current = 0;
+      meterFrameCountRef.current = 0;
       setState("recording");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Microphone access failed.");
@@ -99,6 +116,8 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
     }
 
     setState("stopped");
+    lastLevelRef.current = 0;
+    meterFrameCountRef.current = 0;
     setLevel(0);
     return {
       pcm,
@@ -110,6 +129,8 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
     chunksRef.current = [];
     setState("idle");
     setError("");
+    lastLevelRef.current = 0;
+    meterFrameCountRef.current = 0;
     setLevel(0);
   }
 

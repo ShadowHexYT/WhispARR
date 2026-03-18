@@ -182,8 +182,15 @@ export type SpokenPunctuationPreference = {
 
 export type SpokenPunctuationPreferenceMap = Record<string, SpokenPunctuationPreference>;
 
+export type DataIntegrity = {
+  installScope: string | null;
+  profiles: Record<string, string>;
+  generatedAt: string | null;
+};
+
 export type LocalData = {
   installRegistrationKey: string;
+  integrity: DataIntegrity;
   onboardingCompletedKeys: string[];
   skippedAppUpdateVersion: string | null;
   spokenPunctuationPreferences: SpokenPunctuationPreferenceMap;

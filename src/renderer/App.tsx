@@ -2751,7 +2751,9 @@ export default function App() {
         );
       }
 
-      const refreshPromise = Promise.allSettled(persistenceTasks).then(() => refreshDataSnapshot());
+      const refreshPromise = Promise.allSettled(persistenceTasks)
+        .then(() => refreshDataSnapshot())
+        .catch(() => undefined);
 
       if (options.pasteResult && currentSettings.autoPaste) {
         await window.wisprApi.pasteText(transcript);

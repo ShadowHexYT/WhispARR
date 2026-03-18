@@ -1,10 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import {
   AchievementSyncResult,
   AchievementUnlockInput,
+  DataIntegrity,
   ActivationShortcut,
   AppThemeName,
   AppSettings,
@@ -87,6 +88,11 @@ const defaultDailyChallengeProgress: DailyChallengeProgress = {
 
 const defaultData: LocalData = {
   installRegistrationKey: randomUUID(),
+  integrity: {
+    installScope: null,
+    profiles: {},
+    generatedAt: null
+  },
   onboardingCompletedKeys: [],
   skippedAppUpdateVersion: null,
   spokenPunctuationPreferences: {},
@@ -123,6 +129,122 @@ const defaultUserStats: UserStats = {
   currentStreakDays: 0,
   lastUsedOn: null
 };
+
+const defaultIntegrity: DataIntegrity = {
+  installScope: null,
+  profiles: {},
+  generatedAt: null
+};
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`).join(",")}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function normalizeIntegrity(value: unknown): DataIntegrity {
+  if (!value || typeof value !== "object") {
+    return { ...defaultIntegrity };
+  }
+
+  const source = value as {
+    installScope?: unknown;
+    profiles?: unknown;
+    generatedAt?: unknown;
+  };
+
+  return {
+    installScope: typeof source.installScope === "string" && source.installScope.trim()
+      ? source.installScope.trim()
+      : null,
+    profiles: source.profiles && typeof source.profiles === "object"
+      ? Object.fromEntries(
+          Object.entries(source.profiles as Record<string, unknown>)
+            .filter((entry) => typeof entry[0] === "string" && typeof entry[1] === "string" && entry[1].trim().length > 0)
+            .map(([key, entry]) => [key, entry as string])
+        ) as Record<string, string>
+      : {},
+    generatedAt: typeof source.generatedAt === "string" ? source.generatedAt : null
+  };
+}
+
+function getIntegrityKeyPath() {
+  return path.join(app.getPath("userData"), "whisparr.integrity.key");
+}
+
+function getBackupFilePath() {
+  return path.join(app.getPath("userData"), "whisparr.locked.json");
+}
+
+function trySetFileMode(filePath: string, mode: number) {
+  try {
+    fs.chmodSync(filePath, mode);
+  } catch {}
+}
+
+function unlockFileForWrite(filePath: string) {
+  if (fs.existsSync(filePath)) {
+    trySetFileMode(filePath, 0o600);
+  }
+}
+
+function lockFileAfterWrite(filePath: string) {
+  if (fs.existsSync(filePath)) {
+    trySetFileMode(filePath, 0o444);
+  }
+}
+
+function ensureIntegrityKey() {
+  const filePath = getIntegrityKeyPath();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  if (!fs.existsSync(filePath)) {
+    const secret = randomBytes(32).toString("hex");
+    fs.writeFileSync(filePath, secret, "utf8");
+    trySetFileMode(filePath, 0o600);
+    return secret;
+  }
+
+  const current = fs.readFileSync(filePath, "utf8").trim();
+  if (current.length > 0) {
+    trySetFileMode(filePath, 0o600);
+    return current;
+  }
+
+  const regenerated = randomBytes(32).toString("hex");
+  unlockFileForWrite(filePath);
+  fs.writeFileSync(filePath, regenerated, "utf8");
+  trySetFileMode(filePath, 0o600);
+  return regenerated;
+}
+
+function signIntegrityPayload(payload: unknown) {
+  const secret = ensureIntegrityKey();
+  return createHmac("sha256", secret)
+    .update(stableStringify(payload))
+    .digest("hex");
+}
+
+function signaturesMatch(expected: string | null | undefined, actualPayload: unknown) {
+  if (!expected) {
+    return false;
+  }
+
+  const next = signIntegrityPayload(actualPayload);
+  try {
+    return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(next, "hex"));
+  } catch {
+    return false;
+  }
+}
 
 function normalizeSpokenPunctuationPreferences(
   value: SpokenPunctuationPreferenceMap | unknown
@@ -556,6 +678,59 @@ function syncActiveProfileProgress(current: LocalData) {
   return current;
 }
 
+function getInstallIntegrityPayload(current: LocalData) {
+  return {
+    installRegistrationKey: current.installRegistrationKey,
+    stats: current.stats,
+    dailyChallenges: current.dailyChallenges,
+    unlockedAchievements: current.unlockedAchievements
+  };
+}
+
+function getProfileIntegrityPayload(profile: VoiceProfile) {
+  return {
+    id: profile.id,
+    name: profile.name,
+    emoji: profile.emoji,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    sampleCount: profile.sampleCount,
+    averageEmbedding: profile.averageEmbedding,
+    stats: profile.stats,
+    dailyChallenges: profile.dailyChallenges,
+    unlockedAchievements: profile.unlockedAchievements
+  };
+}
+
+function applyIntegrityMetadata(current: LocalData): LocalData {
+  const next: LocalData = {
+    ...current,
+    integrity: {
+      installScope: signIntegrityPayload(getInstallIntegrityPayload(current)),
+      profiles: Object.fromEntries(
+        current.voiceProfiles.map((profile) => [profile.id, signIntegrityPayload(getProfileIntegrityPayload(profile))])
+      ),
+      generatedAt: new Date().toISOString()
+    }
+  };
+  return next;
+}
+
+function isIntegrityInitialized(integrity: DataIntegrity | undefined) {
+  return Boolean(integrity?.installScope) || Object.keys(integrity?.profiles ?? {}).length > 0;
+}
+
+function protectDataFiles() {
+  lockFileAfterWrite(getDataFilePath());
+  lockFileAfterWrite(getBackupFilePath());
+}
+
+function writeProtectedJson(filePath: string, data: LocalData) {
+  unlockFileForWrite(filePath);
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+  lockFileAfterWrite(filePath);
+}
+
 function getDataFilePath() {
   return path.join(app.getPath("userData"), "whisparr.json");
 }
@@ -564,15 +739,18 @@ function ensureDataFile() {
   const filePath = getDataFilePath();
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(defaultData, null, 2), "utf8");
+    const signedDefault = applyIntegrityMetadata({
+      ...defaultData,
+      dailyChallenges: createDailyChallengeSet(defaultData.installRegistrationKey)
+    });
+    writeProtectedJson(filePath, signedDefault);
+    writeProtectedJson(getBackupFilePath(), signedDefault);
   }
+  ensureIntegrityKey();
+  protectDataFiles();
 }
 
-export function readData(): LocalData {
-  ensureDataFile();
-  const filePath = getDataFilePath();
-  const content = fs.readFileSync(filePath, "utf8");
-
+function parseDataContent(content: string): LocalData | null {
   try {
     const parsed = JSON.parse(content) as Partial<LocalData>;
     const installRegistrationKey =
@@ -588,6 +766,7 @@ export function readData(): LocalData {
       ...defaultData,
       ...parsed,
       installRegistrationKey,
+      integrity: normalizeIntegrity((parsed as { integrity?: unknown }).integrity),
       skippedAppUpdateVersion:
         typeof (parsed as { skippedAppUpdateVersion?: unknown }).skippedAppUpdateVersion === "string" &&
         (parsed as { skippedAppUpdateVersion?: string }).skippedAppUpdateVersion?.trim()
@@ -732,24 +911,115 @@ export function readData(): LocalData {
 
     syncActiveProfileProgress(nextData);
 
-    const serializedNext = JSON.stringify(nextData);
-    const serializedParsed = JSON.stringify(parsed);
-    if (serializedNext !== serializedParsed) {
-      writeData(nextData);
-    }
-
     return nextData;
   } catch {
-    return {
+    return null;
+  }
+}
+
+function readBackupData() {
+  const backupFilePath = getBackupFilePath();
+  if (!fs.existsSync(backupFilePath)) {
+    return null;
+  }
+
+  const parsed = parseDataContent(fs.readFileSync(backupFilePath, "utf8"));
+  if (!parsed) {
+    return null;
+  }
+
+  const signed = isIntegrityInitialized(parsed.integrity) && signaturesMatch(parsed.integrity.installScope, getInstallIntegrityPayload(parsed));
+  if (!signed) {
+    return null;
+  }
+
+  const validProfileCount = parsed.voiceProfiles.filter((profile) =>
+    signaturesMatch(parsed.integrity.profiles[profile.id], getProfileIntegrityPayload(profile))
+  ).length;
+
+  return validProfileCount === parsed.voiceProfiles.length ? parsed : null;
+}
+
+function recoverTamperedProgress(nextData: LocalData) {
+  if (!isIntegrityInitialized(nextData.integrity)) {
+    return nextData;
+  }
+
+  const backup = readBackupData();
+  const nextProfiles: VoiceProfile[] = [];
+  let didRecover = false;
+
+  for (const profile of nextData.voiceProfiles) {
+    const isValid = signaturesMatch(nextData.integrity.profiles[profile.id], getProfileIntegrityPayload(profile));
+    if (isValid) {
+      nextProfiles.push(profile);
+      continue;
+    }
+
+    const restored = backup?.voiceProfiles.find((entry) => entry.id === profile.id) ?? null;
+    if (restored) {
+      nextProfiles.push(restored);
+      didRecover = true;
+      continue;
+    }
+
+    didRecover = true;
+  }
+
+  nextData.voiceProfiles = nextProfiles;
+
+  const installIntegrityValid = signaturesMatch(nextData.integrity.installScope, getInstallIntegrityPayload(nextData));
+  if (!installIntegrityValid) {
+    didRecover = true;
+    if (backup) {
+      nextData.stats = backup.stats;
+      nextData.dailyChallenges = backup.dailyChallenges;
+      nextData.unlockedAchievements = backup.unlockedAchievements;
+    } else {
+      nextData.stats = { ...defaultUserStats };
+      nextData.dailyChallenges = createDailyChallengeSet(nextData.installRegistrationKey);
+      nextData.unlockedAchievements = [];
+    }
+  }
+
+  if (didRecover) {
+    console.warn("WhispARR ignored tampered profile progress data and restored the last signed values.");
+  }
+
+  return nextData;
+}
+
+export function readData(): LocalData {
+  ensureDataFile();
+  const filePath = getDataFilePath();
+  const content = fs.readFileSync(filePath, "utf8");
+  const parsed = parseDataContent(content);
+  if (!parsed) {
+    const fallback = applyIntegrityMetadata({
       ...defaultData,
       dailyChallenges: createDailyChallengeSet(defaultData.installRegistrationKey)
-    };
+    });
+    writeProtectedJson(filePath, fallback);
+    writeProtectedJson(getBackupFilePath(), fallback);
+    return fallback;
   }
+
+  const recovered = recoverTamperedProgress(parsed);
+  syncActiveProfileProgress(recovered);
+  const signed = applyIntegrityMetadata(recovered);
+  const serializedSigned = JSON.stringify(signed);
+  const serializedParsed = JSON.stringify(parsed);
+  if (serializedSigned !== serializedParsed) {
+    writeData(signed);
+  }
+  return signed;
 }
 
 export function writeData(data: LocalData) {
   ensureDataFile();
-  fs.writeFileSync(getDataFilePath(), JSON.stringify(data, null, 2), "utf8");
+  const signed = applyIntegrityMetadata(data);
+  writeProtectedJson(getDataFilePath(), signed);
+  writeProtectedJson(getBackupFilePath(), signed);
 }
 
 export function updateSettings(patch: Partial<AppSettings>) {

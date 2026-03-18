@@ -144,8 +144,8 @@ let currentHudState: HudState = {
   moveMode: false
 };
 let lastHudSignature = JSON.stringify(currentHudState);
-let lastHudDimensions = getHudDimensions();
-let lastHudPosition = getHudPosition();
+let lastHudDimensions = { width: 0, height: 0 };
+let lastHudPosition = { x: Number.NaN, y: Number.NaN };
 const pressedKeys = new Set<number>();
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;

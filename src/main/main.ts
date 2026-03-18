@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
   Notification,
@@ -144,6 +145,7 @@ const pressedKeys = new Set<number>();
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
+let registeredActivationAccelerator: string | null = null;
 const HUD_BASE_WIDTH = 110;
 const HUD_BASE_HEIGHT = 44;
 const HUD_MARGIN = 6;
@@ -744,9 +746,87 @@ function isKeyPartOfShortcut(shortcut: ActivationShortcut, keycode: number) {
   return shortcut.key ? (NON_MODIFIER_KEY_CODES[shortcut.key] ?? []).includes(keycode) : false;
 }
 
+function shortcutKeyToAccelerator(key: string | null) {
+  if (!key) {
+    return null;
+  }
+
+  if (/^Key[A-Z]$/.test(key)) {
+    return key.slice(3);
+  }
+
+  if (/^Digit[0-9]$/.test(key)) {
+    return key.slice(5);
+  }
+
+  return key;
+}
+
+function shortcutToAccelerator(shortcut: ActivationShortcut) {
+  const key = shortcutKeyToAccelerator(shortcut.key);
+  if (!key) {
+    return null;
+  }
+
+  const modifiers = shortcut.modifiers.map((modifier) => {
+    switch (modifier) {
+      case "ctrl":
+        return "Control";
+      case "alt":
+        return "Alt";
+      case "shift":
+        return "Shift";
+      case "meta":
+        return process.platform === "darwin" ? "Command" : "Super";
+      default:
+        return null;
+    }
+  }).filter((value) => value !== null);
+
+  return [...modifiers, key].join("+");
+}
+
+function syncActivationGlobalShortcut() {
+  if (registeredActivationAccelerator) {
+    globalShortcut.unregister(registeredActivationAccelerator);
+    registeredActivationAccelerator = null;
+  }
+
+  const accelerator = shortcutToAccelerator(currentSettings.activationShortcut);
+  if (!accelerator) {
+    return;
+  }
+
+  const registered = globalShortcut.register(accelerator, () => {
+    if (pushToTalkActive) {
+      return;
+    }
+
+    pushToTalkActive = true;
+    pauseMediaForDictationIfNeeded();
+    updateHud({
+      visible: true,
+      level: 0,
+      label: "Listening",
+      soundEnabled: !currentSettings.muteDictationSounds,
+      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+      hudScale: currentSettings.hudScale
+    });
+    sendPushToTalkEvent("start");
+  });
+
+  if (registered) {
+    registeredActivationAccelerator = accelerator;
+  }
+}
+
 function registerGlobalPushToTalk() {
   uIOhook.on("keydown", (event) => {
     pressedKeys.add(event.keycode);
+
+    if (registeredActivationAccelerator) {
+      return;
+    }
 
     if (pushToTalkActive || !doesShortcutMatch(currentSettings.activationShortcut, event.keycode)) {
       return;
@@ -787,6 +867,7 @@ function registerGlobalPushToTalk() {
     sendPushToTalkEvent("stop");
   });
 
+  syncActivationGlobalShortcut();
   uIOhook.start();
 }
 
@@ -824,6 +905,7 @@ app.whenReady().then(() => {
   ipcMain.handle("settings:update", (_event, patch: Partial<AppSettings>) => {
     const next = updateSettings(patch);
     currentSettings = next;
+    syncActivationGlobalShortcut();
     if (!next.autoLearnDictionary) {
       clearClipboardLearningWatch();
     }
@@ -959,6 +1041,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   clearClipboardLearningWatch();
   pressedKeys.clear();
+  globalShortcut.unregisterAll();
   uIOhook.stop();
 });
 

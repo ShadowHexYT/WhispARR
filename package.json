@@ -1,6 +1,6 @@
 {
   "name": "whisparr",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "A fully local desktop dictation app with microphone selection and voice profile training.",
   "main": "dist-electron/main/main.js",

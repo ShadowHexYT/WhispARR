@@ -99,18 +99,30 @@ function previousDateKey(dateKey: string) {
   return toDateKey(date);
 }
 
+function getXpForNextLevel(level: number) {
+  return 1000 + Math.max(0, level - 1) * 500;
+}
+
 function getLevelFromXp(totalXp: number) {
-  if (totalXp < 1000) {
-    return 1;
+  let level = 1;
+  let remainingXp = Math.max(0, totalXp);
+
+  while (remainingXp >= getXpForNextLevel(level)) {
+    remainingXp -= getXpForNextLevel(level);
+    level += 1;
   }
 
-  return Math.floor((totalXp - 1000) / 500) + 2;
+  return level;
 }
 
 function normalizeUserStats(stats: Partial<UserStats> | undefined): UserStats {
+  const normalizedTotalXp = Math.max(0, Number(stats?.totalXp ?? defaultUserStats.totalXp) || 0);
+
   return {
     ...defaultUserStats,
-    ...stats
+    ...stats,
+    totalXp: normalizedTotalXp,
+    currentLevel: getLevelFromXp(normalizedTotalXp)
   };
 }
 

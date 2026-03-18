@@ -1794,11 +1794,7 @@ export default function App() {
   }
 
   function getXpForNextLevel(level: number) {
-    if (level === 1) {
-      return 1000;
-    }
-
-    return 500;
+    return 1000 + Math.max(0, level - 1) * 500;
   }
 
   function getLevelThreshold(level: number) {
@@ -1806,7 +1802,10 @@ export default function App() {
       return 0;
     }
 
-    return 1000 + (level - 2) * 500;
+    const completedLevels = level - 1;
+    const firstRequirement = 1000;
+    const lastRequirement = getXpForNextLevel(level - 1);
+    return (completedLevels * (firstRequirement + lastRequirement)) / 2;
   }
 
   function getXpIntoCurrentLevel(totalXp: number, level: number) {
@@ -3430,7 +3429,7 @@ export default function App() {
                     {stats.currentLevel + 1}
                   </p>
                   <p className="supporting progress-meta">
-                    Next level at <strong>{nextLevelThreshold.toLocaleString()} XP</strong>
+                    Next level requires <strong>{xpNeededForCurrentLevel.toLocaleString()} XP</strong>
                   </p>
                   <p className="supporting progress-meta">
                     <strong>{xpRemainingToNextLevel.toLocaleString()} XP remaining</strong>
@@ -3447,8 +3446,8 @@ export default function App() {
                 <ul className="plain-list">
                   <li>Every dictated word gives 1 XP</li>
                   <li>Everyone starts at Level 1</li>
-                  <li>Level 2 unlocks at 1,000 total XP</li>
-                  <li>Each level after that unlocks every additional 500 XP</li>
+                  <li>Level 1 to 2 requires 1,000 XP</li>
+                  <li>Each next level requires 500 more XP than the one before it</li>
                 </ul>
                 <p className="supporting">
                   The streak increases when you use the app on consecutive days. Missing a day resets
@@ -4776,7 +4775,7 @@ export default function App() {
           <span>
             {xpIntoCurrentLevel.toLocaleString()} / {xpNeededForCurrentLevel.toLocaleString()} XP
           </span>
-          <span>Next level at {nextLevelThreshold.toLocaleString()} XP</span>
+          <span>Next level requires {xpNeededForCurrentLevel.toLocaleString()} XP</span>
         </div>
       </div>
     </div>

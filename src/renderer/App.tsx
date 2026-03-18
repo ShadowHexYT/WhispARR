@@ -1756,11 +1756,25 @@ export default function App() {
         setUpdateDialogMessage(nextState.message);
       }
     });
+    const unsubscribeSettingsChanged = window.wisprApi.onSettingsChanged((nextSettings) => {
+      setSettings(nextSettings);
+    });
+    const unsubscribeNavigate = window.wisprApi.onNavigate((target) => {
+      if (target === "settings") {
+        setTab("settings");
+      }
+    });
+    const unsubscribeTrayRestart = window.wisprApi.onTrayRestartEngine(() => {
+      void refreshRuntimeEngine();
+    });
 
     return () => {
       unsubscribe();
       unsubscribeAutoLearn();
       unsubscribeUpdateState();
+      unsubscribeSettingsChanged();
+      unsubscribeNavigate();
+      unsubscribeTrayRestart();
     };
   }, []);
 
@@ -3092,7 +3106,9 @@ export default function App() {
                 <img src={appIconUrl} alt="WhispARR icon" className="brand-mark-image" />
               </div>
               <div className="brand-mark-copy">
-                <p className="brand-mark-title">WhispARR</p>
+                <p className="brand-mark-title">
+                  <span className="brand-mark-title-text">WhispARR</span>
+                </p>
               </div>
             </div>
           </button>

@@ -166,14 +166,69 @@ textarea {
 }
 
 .brand-mark-title {
+  position: relative;
   margin: 0;
   font-size: 1.35rem;
   line-height: 1;
   font-weight: 800;
   letter-spacing: 0.1em;
+  overflow: hidden;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--text) 74%, var(--accent-soft) 26%);
   white-space: nowrap;
+}
+
+.brand-mark-title-text {
+  position: relative;
+  display: inline-block;
+  color: color-mix(in srgb, var(--text) 74%, var(--accent-soft) 26%);
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text) 74%, var(--accent-soft) 26%) 0%,
+    color-mix(in srgb, var(--text) 70%, #5227ff 30%) 28%,
+    color-mix(in srgb, var(--text) 82%, #ff9ffc 18%) 54%,
+    color-mix(in srgb, var(--text) 76%, #b19eef 24%) 76%,
+    color-mix(in srgb, var(--text) 74%, var(--accent-soft) 26%) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition:
+    filter 0.24s ease,
+    text-shadow 0.24s ease;
+}
+
+.brand-mark-title-text::after {
+  content: "";
+  position: absolute;
+  inset: -0.18em -18%;
+  background: linear-gradient(
+    112deg,
+    transparent 0%,
+    transparent 36%,
+    rgba(255, 255, 255, 0.18) 46%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 159, 252, 0.5) 54%,
+    transparent 64%,
+    transparent 100%
+  );
+  transform: translateX(-140%) skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brand-mark-button:hover .brand-mark-title-text {
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgba(177, 158, 239, 0.28));
+  text-shadow:
+    0 0 16px rgba(255, 159, 252, 0.26),
+    0 0 28px color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: brand-mark-gradient-shift 1.4s ease forwards;
+}
+
+.brand-mark-button:hover .brand-mark-title-text::after {
+  opacity: 1;
+  animation: brand-mark-shimmer 1.4s ease forwards;
 }
 
 .sidebar-status {
@@ -526,6 +581,29 @@ textarea {
   0%,
   100% { opacity: 1; transform: scale(1); }
   45% { opacity: 0.6; transform: scale(1.18); }
+}
+
+@keyframes brand-mark-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes brand-mark-shimmer {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(140%) skewX(-18deg);
+    opacity: 0;
+  }
 }
 
 .privacy-card,

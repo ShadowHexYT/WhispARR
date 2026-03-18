@@ -173,6 +173,35 @@ function broadcastAppUpdateState(state: AppUpdateState) {
   mainWindow.webContents.send("app:update:state", state);
 }
 
+function broadcastSettingsChanged(settings: AppSettings) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send("settings:changed", settings);
+}
+
+function sendToMainWindow(channel: string, payload?: unknown) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  const deliver = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    mainWindow.webContents.send(channel, payload);
+  };
+
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once("did-finish-load", deliver);
+    return;
+  }
+
+  deliver();
+}
+
 function getHudDimensions() {
   const scale = Math.max(60, Math.min(160, currentSettings.hudScale || 100)) / 100;
   return {
@@ -264,6 +293,11 @@ function showMainWindow() {
   mainWindow?.setSkipTaskbar(false);
   mainWindow?.show();
   mainWindow?.focus();
+}
+
+function showMainWindowSettings() {
+  showMainWindow();
+  sendToMainWindow("app:navigate", "settings");
 }
 
 function hideMainWindowToTray() {
@@ -870,14 +904,37 @@ function syncWindowTheme(settings: AppSettings) {
   });
 }
 
-function createTray() {
-  tray = new Tray(createTrayIcon());
-  tray.setToolTip("WhispARR");
+function refreshTrayMenu() {
+  if (!tray) {
+    return;
+  }
+
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "Open WhispARR",
+        label: "Show WhispARR",
         click: () => showMainWindow()
+      },
+      {
+        label: "Settings",
+        click: () => showMainWindowSettings()
+      },
+      {
+        label: "Restart Engine",
+        click: () => {
+          sendToMainWindow("tray:restart-engine");
+        }
+      },
+      {
+        label: "Always Show Pill",
+        type: "checkbox",
+        checked: currentSettings.alwaysShowPill,
+        click: () => {
+          applySettingsPatch({ alwaysShowPill: !currentSettings.alwaysShowPill });
+        }
+      },
+      {
+        type: "separator"
       },
       {
         label: "Quit",
@@ -888,6 +945,35 @@ function createTray() {
       }
     ])
   );
+}
+
+function applySettingsPatch(patch: Partial<AppSettings>) {
+  const next = updateSettings(patch);
+  currentSettings = next;
+  syncActivationGlobalShortcut();
+  if (!next.autoLearnDictionary) {
+    clearClipboardLearningWatch();
+  }
+  updateLaunchOnLogin(next);
+  syncWindowTheme(next);
+  updateHud({
+    visible: currentHudState.visible || pushToTalkActive || next.alwaysShowPill,
+    level: 0,
+    label: pushToTalkActive ? "Listening" : "Ready",
+    soundEnabled: !next.muteDictationSounds,
+    soundVolume: Math.max(0, Math.min(1, next.appSoundVolume / 100)),
+    hudScale: next.hudScale,
+    moveMode: isHudMoveMode
+  });
+  refreshTrayMenu();
+  broadcastSettingsChanged(next);
+  return next;
+}
+
+function createTray() {
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip("WhispARR");
+  refreshTrayMenu();
   tray.on("click", () => showMainWindow());
   tray.on("double-click", () => showMainWindow());
 }
@@ -1144,24 +1230,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle("data:load", () => readData());
   ipcMain.handle("settings:update", (_event, patch: Partial<AppSettings>) => {
-    const next = updateSettings(patch);
-    currentSettings = next;
-    syncActivationGlobalShortcut();
-    if (!next.autoLearnDictionary) {
-      clearClipboardLearningWatch();
-    }
-    updateLaunchOnLogin(next);
-    syncWindowTheme(next);
-    updateHud({
-      visible: currentHudState.visible || pushToTalkActive || next.alwaysShowPill,
-      level: 0,
-      label: pushToTalkActive ? "Listening" : "Ready",
-      soundEnabled: !next.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, next.appSoundVolume / 100)),
-      hudScale: next.hudScale,
-      moveMode: isHudMoveMode
-    });
-    return next;
+    return applySettingsPatch(patch);
   });
   ipcMain.handle("voice-profile:save", (_event, input: SaveVoiceProfileInput) => saveVoiceProfile(input));
   ipcMain.handle("voice-profile:delete", (_event, id: string) => deleteVoiceProfile(id));

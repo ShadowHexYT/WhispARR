@@ -61,6 +61,9 @@ declare global {
       onHudState: (listener: (state: HudState) => void) => () => void;
       onAutoDictionaryLearned: (listener: (terms: string[]) => void) => () => void;
       onAppUpdateState: (listener: (state: AppUpdateState) => void) => () => void;
+      onSettingsChanged: (listener: (settings: AppSettings) => void) => () => void;
+      onNavigate: (listener: (target: "settings") => void) => () => void;
+      onTrayRestartEngine: (listener: () => void) => () => void;
     };
   }
 }

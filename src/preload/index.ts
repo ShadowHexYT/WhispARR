@@ -98,5 +98,32 @@ contextBridge.exposeInMainWorld("wisprApi", {
     return () => {
       ipcRenderer.removeListener("app:update:state", wrapped);
     };
+  },
+  onSettingsChanged: (listener: (settings: AppSettings) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, settings: AppSettings) => {
+      listener(settings);
+    };
+    ipcRenderer.on("settings:changed", wrapped);
+    return () => {
+      ipcRenderer.removeListener("settings:changed", wrapped);
+    };
+  },
+  onNavigate: (listener: (target: "settings") => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, target: "settings") => {
+      listener(target);
+    };
+    ipcRenderer.on("app:navigate", wrapped);
+    return () => {
+      ipcRenderer.removeListener("app:navigate", wrapped);
+    };
+  },
+  onTrayRestartEngine: (listener: () => void) => {
+    const wrapped = () => {
+      listener();
+    };
+    ipcRenderer.on("tray:restart-engine", wrapped);
+    return () => {
+      ipcRenderer.removeListener("tray:restart-engine", wrapped);
+    };
   }
 });

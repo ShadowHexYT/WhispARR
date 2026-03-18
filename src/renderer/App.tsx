@@ -999,6 +999,7 @@ export default function App() {
   const [autoDictionaryToast, setAutoDictionaryToast] = useState<AutoDictionaryToast>(null);
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
   const [isTranscriptHistoryMenuOpen, setIsTranscriptHistoryMenuOpen] = useState(false);
+  const [shouldOpenTranscriptHistoryMenuUpward, setShouldOpenTranscriptHistoryMenuUpward] = useState(false);
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [isMovingHud, setIsMovingHud] = useState(false);
   const [isPreviewingHudScale, setIsPreviewingHudScale] = useState(false);
@@ -1006,6 +1007,8 @@ export default function App() {
   const [draftShortcut, setDraftShortcut] = useState<ActivationShortcut | null>(null);
   const [isTrainingProfile, setIsTrainingProfile] = useState(false);
   const transcriptHistoryRef = useRef<string[]>([]);
+  const transcriptHistoryMenuAnchorRef = useRef<HTMLDivElement | null>(null);
+  const transcriptHistoryMenuRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1301,6 +1304,45 @@ export default function App() {
 
     previousLevelRef.current = stats.currentLevel;
   }, [stats.currentLevel]);
+
+  useEffect(() => {
+    if (!isTranscriptHistoryMenuOpen || isEditingTranscriptHistoryLimit) {
+      setShouldOpenTranscriptHistoryMenuUpward(false);
+      return;
+    }
+
+    const updateTranscriptHistoryMenuDirection = () => {
+      const anchor = transcriptHistoryMenuAnchorRef.current;
+      const menu = transcriptHistoryMenuRef.current;
+      if (!anchor || !menu) {
+        return;
+      }
+
+      const content = anchor.closest(".content") as HTMLElement | null;
+      const anchorRect = anchor.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const rootStyles = getComputedStyle(document.documentElement);
+      const bottomBarClearance = Number.parseFloat(rootStyles.getPropertyValue("--bottom-bar-clearance")) || 0;
+      const contentRect = content?.getBoundingClientRect();
+      const lowerBoundary = (contentRect?.bottom ?? window.innerHeight) - bottomBarClearance;
+      const upperBoundary = contentRect?.top ?? 0;
+      const spaceBelow = Math.max(0, lowerBoundary - anchorRect.bottom);
+      const spaceAbove = Math.max(0, anchorRect.top - upperBoundary);
+      const requiredSpace = menuRect.height + 24;
+      const nextOpenUpward = spaceBelow < requiredSpace && spaceAbove > spaceBelow;
+      setShouldOpenTranscriptHistoryMenuUpward(nextOpenUpward);
+    };
+
+    updateTranscriptHistoryMenuDirection();
+    window.addEventListener("resize", updateTranscriptHistoryMenuDirection);
+    const content = transcriptHistoryMenuAnchorRef.current?.closest(".content");
+    content?.addEventListener("scroll", updateTranscriptHistoryMenuDirection);
+
+    return () => {
+      window.removeEventListener("resize", updateTranscriptHistoryMenuDirection);
+      content?.removeEventListener("scroll", updateTranscriptHistoryMenuDirection);
+    };
+  }, [isEditingTranscriptHistoryLimit, isTranscriptHistoryMenuOpen]);
 
   useEffect(() => {
     const lowerStatus = status.toLowerCase();
@@ -2471,7 +2513,7 @@ export default function App() {
                 <div className="panel-actions">
                   <label className="inline-field">
                     <span>Keep</span>
-                    <div className="history-limit-control">
+                    <div className="history-limit-control" ref={transcriptHistoryMenuAnchorRef}>
                       {isEditingTranscriptHistoryLimit ? (
                         <input
                           type="text"
@@ -2505,7 +2547,14 @@ export default function App() {
                         </button>
                       )}
                       {isTranscriptHistoryMenuOpen && !isEditingTranscriptHistoryLimit && (
-                        <div className="history-limit-presets history-limit-presets-dropdown">
+                        <div
+                          ref={transcriptHistoryMenuRef}
+                          className={
+                            shouldOpenTranscriptHistoryMenuUpward
+                              ? "history-limit-presets history-limit-presets-dropdown opens-upward"
+                              : "history-limit-presets history-limit-presets-dropdown"
+                          }
+                        >
                           {transcriptHistoryOptions.map((count) => (
                             <button
                               key={count}

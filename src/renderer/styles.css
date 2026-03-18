@@ -721,6 +721,13 @@ textarea {
   animation: history-limit-drop 0.22s ease;
 }
 
+.history-limit-presets-dropdown.opens-upward {
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform-origin: bottom center;
+  animation: history-limit-rise 0.22s ease;
+}
+
 .history-limit-chip {
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
   border-radius: 999px;
@@ -785,6 +792,18 @@ textarea {
   0% {
     opacity: 0;
     transform: translateX(-50%) translateY(-8px) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes history-limit-rise {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.96);
   }
 
   100% {

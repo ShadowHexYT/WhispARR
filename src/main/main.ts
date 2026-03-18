@@ -648,7 +648,7 @@ function buildTokenReplacementCandidates(originalTokens: string[], correctedToke
   return candidates;
 }
 
-function inferDictionaryEntryType(term: string, replacement: string): "Abbreviation" | "Word" | "Phrase" | "Sentence" {
+function inferDictionaryEntryType(term: string, replacement: string): "Abbreviation" | "Word" | "Phrase" {
   const termWordCount = tokenizeTranscriptForLearning(term).length;
   const replacementWordCount = tokenizeTranscriptForLearning(replacement).length;
   const maxWordCount = Math.max(termWordCount, replacementWordCount);
@@ -666,11 +666,15 @@ function inferDictionaryEntryType(term: string, replacement: string): "Abbreviat
     return "Word";
   }
 
-  if (maxWordCount >= 6 || /[.!?]/.test(term) || /[.!?]/.test(replacement)) {
-    return "Sentence";
-  }
-
   return "Phrase";
+}
+
+function scoreLearningCandidate(term: string, replacement: string) {
+  const termWords = tokenizeTranscriptForLearning(term).length;
+  const replacementWords = tokenizeTranscriptForLearning(replacement).length;
+  const maxWords = Math.max(termWords, replacementWords);
+  const charDelta = Math.abs(term.trim().length - replacement.trim().length);
+  return maxWords * 100 + charDelta;
 }
 
 function shouldLearnReplacement(term: string, replacement: string) {
@@ -687,7 +691,14 @@ function shouldLearnReplacement(term: string, replacement: string) {
     return shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "");
   }
 
-  return termWords.length <= 16 && replacementWords.length <= 16;
+  return (
+    termWords.length <= 3 &&
+    replacementWords.length <= 3 &&
+    term.trim().length <= 28 &&
+    replacement.trim().length <= 28 &&
+    !/[.!?]/.test(term) &&
+    !/[.!?]/.test(replacement)
+  );
 }
 
 function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedClipboardText: string) {
@@ -695,15 +706,22 @@ function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedCl
   const correctedTokens = tokenizeTranscriptForLearning(correctedClipboardText);
   const candidateReplacements = buildTokenReplacementCandidates(originalTokens, correctedTokens)
     .filter((candidate) => shouldLearnReplacement(candidate.term, candidate.replacement));
+  const rankedCandidates = [...candidateReplacements]
+    .sort(
+      (left, right) =>
+        scoreLearningCandidate(left.term, left.replacement) -
+        scoreLearningCandidate(right.term, right.replacement)
+    )
+    .slice(0, 2);
 
-  if (candidateReplacements.length === 0) {
+  if (rankedCandidates.length === 0) {
     return [];
   }
 
   const data = readData();
   const savedLabels: string[] = [];
 
-  for (const candidate of candidateReplacements) {
+  for (const candidate of rankedCandidates) {
     const existing = data.manualDictionary.find(
       (entry) => normalizePhraseForLearning(entry.term) === normalizePhraseForLearning(candidate.term)
     );

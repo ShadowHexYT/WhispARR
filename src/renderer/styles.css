@@ -1775,9 +1775,16 @@ select option:disabled {
   line-height: 1.5;
 }
 
+.dictionary-card-expansion::before {
+  content: "\2192";
+  margin-right: 8px;
+  color: color-mix(in srgb, var(--accent-soft) 78%, var(--text) 22%);
+}
+
 .dictionary-card-expansion strong {
   font-size: inherit;
   line-height: inherit;
+  color: var(--text);
 }
 
 .dictionary-card-tags {
@@ -1945,16 +1952,6 @@ select option:disabled {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text);
-}
-
-.dictionary-star {
-  color: var(--accent);
-  font-size: 0;
-}
-
-.dictionary-star::before {
-  content: "\2605";
-  font-size: 1rem;
 }
 
 .dictionary-delete-backdrop {

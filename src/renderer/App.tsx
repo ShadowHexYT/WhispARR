@@ -1026,11 +1026,11 @@ function parseDictionaryInput(value: string) {
   };
 }
 
-const dictionaryEntryKinds = ["Abbreviation", "Word", "Phrase", "Sentence"] as const;
+const dictionaryEntryKinds = ["Abbreviation", "Word", "Phrase"] as const;
 
 function getDictionaryEntryKind(entry: ManualDictionaryEntry) {
   if (entry.entryTypeOverride) {
-    return entry.entryTypeOverride;
+    return entry.entryTypeOverride === "Sentence" ? "Phrase" : entry.entryTypeOverride;
   }
 
   if (entry.replacement?.trim()) {
@@ -1040,9 +1040,6 @@ function getDictionaryEntryKind(entry: ManualDictionaryEntry) {
   const tokenCount = entry.term.trim().split(/\s+/).filter(Boolean).length;
   if (tokenCount <= 1) {
     return "Word";
-  }
-  if (tokenCount >= 7) {
-    return "Sentence";
   }
   return "Phrase";
 }
@@ -2773,14 +2770,14 @@ export default function App() {
         await window.wisprApi.pasteText(transcript);
         setStatus(
           currentSettings.autoLearnDictionary
-            ? "Transcribed locally and pasted. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, abbreviations, and sentences."
+            ? "Transcribed locally and pasted. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, and abbreviations."
             : "Transcribed locally and pasted into the active app."
         );
       } else {
         await window.wisprApi.prepareClipboardForSinglePaste(transcript);
         setStatus(
           currentSettings.autoLearnDictionary
-            ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, abbreviations, and sentences."
+            ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, and abbreviations."
             : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
         );
       }
@@ -3735,17 +3732,13 @@ export default function App() {
                     <div className="dictionary-card-copy">
                       <strong>
                         {entry.term}
-                        {entry.addedBySystem && <span className="dictionary-star" aria-label="System added"> ★</span>}
                       </strong>
                       {entry.replacement && (
                         <p className="dictionary-card-expansion">
-                          Expands to <strong>{entry.replacement}</strong>
+                          <strong>{entry.replacement}</strong>
                         </p>
                       )}
                       <div className="dictionary-card-tags">
-                        <span className="dictionary-card-label">
-                          {entry.addedBySystem ? "Automatic term" : "Custom term"}
-                        </span>
                         <div
                           className="dictionary-card-type-picker"
                           ref={editingDictionaryTypeEntryId === entry.id ? dictionaryTypeMenuAnchorRef : undefined}
@@ -4198,7 +4191,7 @@ export default function App() {
                       <strong>Auto dictionary learning</strong>
                       <p>
                         Watches copied edits from the last dictated transcript for about a minute and
-                        learns corrected words, phrases, abbreviations, and short sentence replacements.
+                        learns corrected words, phrases, and abbreviations when something was heard wrong.
                       </p>
                     </div>
                     <button

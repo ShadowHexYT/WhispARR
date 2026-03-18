@@ -46,7 +46,7 @@ type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3?v=20260317", import.meta.url).href;
 const notificationSoundUrl = new URL("../../assets/Notif.mp3?v=20260317", import.meta.url).href;
-const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317", import.meta.url).href;
+const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317b", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
 
@@ -3043,7 +3043,7 @@ export default function App() {
                 it as a preferred vocabulary during transcript cleanup.
               </p>
               <p className="supporting">
-                For abbreviations, use `=` or `-&gt;`, like `wru = where are you` or `wtf -&gt; what the fuck`.
+                For abbreviations, use `=` or `-&gt;`, like `wru = where are you` or `hbu -&gt; how about you`.
               </p>
               <label className="field">
                 <span className="dictionary-input-label">Word or phrase to learn</span>

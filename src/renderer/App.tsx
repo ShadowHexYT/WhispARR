@@ -48,6 +48,8 @@ type UpdateDialogState = "closed" | "none" | "available" | "error";
 type AutoDictionaryToast = { terms: string[]; id: number } | null;
 type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
+const DEFAULT_PROFILE_EMOJI = "🎙️";
+const profileEmojiOptions = ["🎙️", "🔥", "⚡", "👑", "😎", "🚀", "🦊", "🐉"];
 const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3?v=20260317", import.meta.url).href;
 const notificationSoundUrl = new URL("../../assets/Notif.mp3?v=20260317", import.meta.url).href;
 const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317c", import.meta.url).href;
@@ -58,6 +60,11 @@ const defaultShortcut: ActivationShortcut = {
   modifiers: ["meta", "ctrl"],
   key: null
 };
+
+function normalizeProfileEmojiInput(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 16) : DEFAULT_PROFILE_EMOJI;
+}
 
 const defaultSettings: AppSettings = {
   selectedMicId: null,
@@ -1088,6 +1095,9 @@ export default function App() {
   const [manualDictionary, setManualDictionary] = useState<ManualDictionaryEntry[]>([]);
   const [devices, setDevices] = useState<MicDevice[]>([]);
   const [profileName, setProfileName] = useState("");
+  const [profileEmoji, setProfileEmoji] = useState(DEFAULT_PROFILE_EMOJI);
+  const [openProfileEmojiPickerId, setOpenProfileEmojiPickerId] = useState<string | null>(null);
+  const [savingProfileEmojiId, setSavingProfileEmojiId] = useState<string | null>(null);
   const [dictionaryTerm, setDictionaryTerm] = useState("");
   const [pendingDictionaryDeleteEntry, setPendingDictionaryDeleteEntry] = useState<ManualDictionaryEntry | null>(null);
   const [editingDictionaryTypeEntryId, setEditingDictionaryTypeEntryId] = useState<string | null>(null);
@@ -1919,6 +1929,25 @@ export default function App() {
     }
   }
 
+  async function saveProfileEmoji(profile: VoiceProfile, emoji: string) {
+    const nextEmoji = normalizeProfileEmojiInput(emoji);
+    setSavingProfileEmojiId(profile.id);
+    try {
+      await window.wisprApi.saveVoiceProfile({
+        id: profile.id,
+        name: profile.name,
+        emoji: nextEmoji,
+        embedding: profile.averageEmbedding,
+        incrementSamplesBy: 0
+      });
+      await refreshLocalData();
+      setOpenProfileEmojiPickerId(null);
+      setStatus(`${nextEmoji} saved for ${profile.name}.`);
+    } finally {
+      setSavingProfileEmojiId((current) => (current === profile.id ? null : current));
+    }
+  }
+
   async function chooseFile(key: "whisperBinaryPath" | "whisperModelPath") {
     const filePath = await window.wisprApi.pickFile();
     if (filePath) {
@@ -2628,6 +2657,7 @@ export default function App() {
       await window.wisprApi.saveVoiceProfile({
         id: existing?.id,
         name: profileName.trim(),
+        emoji: normalizeProfileEmojiInput(profileEmoji),
         embedding,
         incrementSamplesBy: 1
       });
@@ -3252,11 +3282,52 @@ export default function App() {
               </div>
               <label className="field">
                 <span>Profile name</span>
-                <input
-                  value={profileName}
-                  onChange={(event) => setProfileName(event.target.value)}
-                  placeholder="Example: Hunter"
-                />
+                <div className="profile-name-input-row">
+                  <span className="profile-emoji-anchor">
+                    <button
+                      className={
+                        openProfileEmojiPickerId === "__new-profile__"
+                          ? "profile-emoji-trigger active"
+                          : "profile-emoji-trigger"
+                      }
+                      type="button"
+                      aria-label="Change new profile emoji"
+                      onClick={() =>
+                        setOpenProfileEmojiPickerId((current) =>
+                          current === "__new-profile__" ? null : "__new-profile__"
+                        )
+                      }
+                    >
+                      <span className="profile-emoji-badge" aria-hidden="true">
+                        {profileEmoji}
+                      </span>
+                    </button>
+                    {openProfileEmojiPickerId === "__new-profile__" && (
+                      <div className="profile-emoji-popover" role="dialog" aria-label="Choose a profile emoji">
+                        <div className="profile-emoji-picker compact">
+                          {profileEmojiOptions.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              className={profileEmoji === emoji ? "profile-emoji-button active" : "profile-emoji-button"}
+                              onClick={() => {
+                                setProfileEmoji(emoji);
+                                setOpenProfileEmojiPickerId(null);
+                              }}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </span>
+                  <input
+                    value={profileName}
+                    onChange={(event) => setProfileName(event.target.value)}
+                    placeholder="Example: Hunter"
+                  />
+                </div>
               </label>
               <div className="button-row">
                 <button
@@ -3294,8 +3365,52 @@ export default function App() {
                 )}
                 {profiles.map((profile) => (
                   <div key={profile.id} className="profile-card">
-                    <div>
-                      <strong>{profile.name}</strong>
+                    <div className="profile-card-content">
+                      <strong className="profile-card-title">
+                        <span className="profile-emoji-anchor">
+                          <button
+                            className={
+                              openProfileEmojiPickerId === profile.id
+                                ? "profile-emoji-trigger active"
+                                : "profile-emoji-trigger"
+                            }
+                            type="button"
+                            aria-label={`Change emoji for ${profile.name}`}
+                            onClick={() =>
+                              setOpenProfileEmojiPickerId((current) =>
+                                current === profile.id ? null : profile.id
+                              )
+                            }
+                            disabled={savingProfileEmojiId === profile.id}
+                          >
+                            <span className="profile-emoji-badge" aria-hidden="true">
+                              {profile.emoji || DEFAULT_PROFILE_EMOJI}
+                            </span>
+                          </button>
+                          {openProfileEmojiPickerId === profile.id && (
+                            <div className="profile-emoji-popover" role="dialog" aria-label={`Choose emoji for ${profile.name}`}>
+                              <div className="profile-emoji-picker compact">
+                                {profileEmojiOptions.map((emoji) => (
+                                  <button
+                                    key={`${profile.id}-${emoji}`}
+                                    type="button"
+                                    className={
+                                      normalizeProfileEmojiInput(profile.emoji) === emoji
+                                        ? "profile-emoji-button active"
+                                        : "profile-emoji-button"
+                                    }
+                                    onClick={() => void saveProfileEmoji(profile, emoji)}
+                                    disabled={savingProfileEmojiId === profile.id}
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </span>
+                        <span>{profile.name}</span>
+                      </strong>
                       <p>
                         Level {profile.stats.currentLevel} · {profile.unlockedAchievements.length} achievements · {profile.sampleCount} samples
                       </p>
@@ -4642,11 +4757,52 @@ export default function App() {
               <div className="onboarding-step-card">
                 <label className="field">
                   <span>Profile name</span>
-                  <input
-                    value={profileName}
-                    onChange={(event) => setProfileName(event.target.value)}
-                    placeholder="Example: Hunter"
-                  />
+                  <div className="profile-name-input-row">
+                    <span className="profile-emoji-anchor">
+                      <button
+                        className={
+                          openProfileEmojiPickerId === "__onboarding-profile__"
+                            ? "profile-emoji-trigger active"
+                            : "profile-emoji-trigger"
+                        }
+                        type="button"
+                        aria-label="Change onboarding profile emoji"
+                        onClick={() =>
+                          setOpenProfileEmojiPickerId((current) =>
+                            current === "__onboarding-profile__" ? null : "__onboarding-profile__"
+                          )
+                        }
+                      >
+                        <span className="profile-emoji-badge" aria-hidden="true">
+                          {profileEmoji}
+                        </span>
+                      </button>
+                      {openProfileEmojiPickerId === "__onboarding-profile__" && (
+                        <div className="profile-emoji-popover" role="dialog" aria-label="Choose a profile emoji">
+                          <div className="profile-emoji-picker compact">
+                            {profileEmojiOptions.map((emoji) => (
+                              <button
+                                key={`onboarding-${emoji}`}
+                                type="button"
+                                className={profileEmoji === emoji ? "profile-emoji-button active" : "profile-emoji-button"}
+                                onClick={() => {
+                                  setProfileEmoji(emoji);
+                                  setOpenProfileEmojiPickerId(null);
+                                }}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </span>
+                    <input
+                      value={profileName}
+                      onChange={(event) => setProfileName(event.target.value)}
+                      placeholder="Example: Hunter"
+                    />
+                  </div>
                 </label>
                 <div className="button-row">
                   <button
@@ -4937,10 +5093,15 @@ export default function App() {
         )}
         <div className="bottom-level-bar-meta">
           <span>Level {stats.currentLevel}</span>
+          <span className="bottom-level-bar-profile">
+            <span className="profile-emoji-badge" aria-hidden="true">
+              {activeProfile?.emoji || DEFAULT_PROFILE_EMOJI}
+            </span>
+            <span>{activeProfile?.name || "WhispARR"}</span>
+          </span>
           <span>
             {xpIntoCurrentLevel.toLocaleString()} / {xpNeededForCurrentLevel.toLocaleString()} XP
           </span>
-          <span>Next level requires {xpNeededForCurrentLevel.toLocaleString()} XP</span>
         </div>
       </div>
     </div>

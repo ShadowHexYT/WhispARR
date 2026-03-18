@@ -120,6 +120,8 @@ const defaultUserStats: UserStats = {
   lastUsedOn: null
 };
 
+const DEFAULT_PROFILE_EMOJI = "🎙️";
+
 function toDateKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -462,6 +464,15 @@ function normalizeUserStats(stats: Partial<UserStats> | undefined): UserStats {
   };
 }
 
+function normalizeProfileEmoji(emoji: unknown) {
+  if (typeof emoji !== "string") {
+    return DEFAULT_PROFILE_EMOJI;
+  }
+
+  const trimmed = emoji.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 16) : DEFAULT_PROFILE_EMOJI;
+}
+
 function getActiveProfile(current: LocalData) {
   if (!current.settings.activeProfileId) {
     return null;
@@ -568,6 +579,7 @@ export function readData(): LocalData {
               Boolean(entry.averageEmbedding)
           ).map((entry) => ({
             ...entry,
+            emoji: normalizeProfileEmoji((entry as Partial<VoiceProfile>).emoji),
             stats: normalizeUserStats((entry as Partial<VoiceProfile>).stats),
             dailyChallenges: normalizeDailyChallenges(
               (entry as Partial<VoiceProfile>).dailyChallenges,
@@ -754,9 +766,13 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
     profile = {
       ...existing,
       name: input.name,
+      emoji: normalizeProfileEmoji(input.emoji ?? existing.emoji),
       updatedAt: now,
       sampleCount: existing.sampleCount + input.incrementSamplesBy,
-      averageEmbedding: blendEmbeddings(existing.averageEmbedding, input.embedding, existing.sampleCount),
+      averageEmbedding:
+        input.incrementSamplesBy > 0
+          ? blendEmbeddings(existing.averageEmbedding, input.embedding, existing.sampleCount)
+          : existing.averageEmbedding,
       stats: normalizeUserStats(existing.stats),
       dailyChallenges: normalizeDailyChallenges(existing.dailyChallenges, existing.id),
       unlockedAchievements: Array.isArray(existing.unlockedAchievements) ? existing.unlockedAchievements : []
@@ -769,6 +785,7 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
     profile = {
       id: profileId,
       name: input.name,
+      emoji: normalizeProfileEmoji(input.emoji),
       createdAt: now,
       updatedAt: now,
       sampleCount: input.incrementSamplesBy,

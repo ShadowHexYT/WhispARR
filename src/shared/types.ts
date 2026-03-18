@@ -76,6 +76,7 @@ export type VoiceEmbedding = {
 export type VoiceProfile = {
   id: string;
   name: string;
+  emoji: string;
   createdAt: string;
   updatedAt: string;
   sampleCount: number;
@@ -103,6 +104,7 @@ export type TrainingSample = {
 export type SaveVoiceProfileInput = {
   id?: string;
   name: string;
+  emoji?: string;
   embedding: VoiceEmbedding;
   incrementSamplesBy: number;
 };

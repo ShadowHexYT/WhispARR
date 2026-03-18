@@ -1639,17 +1639,26 @@ export default function App() {
   }
 
   async function completeOnboarding() {
+    if (isTestingMicrophone) {
+      await stopMicrophoneTest();
+    }
     await patchSettings({ onboardingCompleted: true });
     setIsOnboardingOpen(false);
     setOnboardingStep(0);
     setStatus("Setup complete. WhispARR is ready.");
   }
 
-  function goToNextOnboardingStep() {
+  async function goToNextOnboardingStep() {
+    if (onboardingStep === 2 && isTestingMicrophone) {
+      await stopMicrophoneTest();
+    }
     setOnboardingStep((current) => Math.min(onboardingSteps.length - 1, current + 1));
   }
 
-  function goToPreviousOnboardingStep() {
+  async function goToPreviousOnboardingStep() {
+    if (onboardingStep === 2 && isTestingMicrophone) {
+      await stopMicrophoneTest();
+    }
     setOnboardingStep((current) => Math.max(0, current - 1));
   }
 
@@ -2861,6 +2870,36 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              <div className="settings-column-footer">
+                <div className="settings-slider-card active">
+                  <div className="settings-slider-copy">
+                    <strong>Bubble size</strong>
+                    <p>Adjusts the pill size incrementally so you can make it smaller or larger on screen.</p>
+                  </div>
+                  <div className="bounce-slider-shell">
+                    <div className="bounce-slider-readout">
+                      <span>Smaller</span>
+                      <strong>{hudScale}%</strong>
+                      <span>Larger</span>
+                    </div>
+                    <ElasticSettingSlider
+                      ariaLabel="Bubble size"
+                      value={hudScale}
+                      min={60}
+                      max={160}
+                      leftIcon={<Minimize2 size={18} />}
+                      rightIcon={<Maximize2 size={18} />}
+                      onInteractionStart={startHudScalePreview}
+                      onInteractionEnd={finishHudScalePreview}
+                      onChange={(nextValue) =>
+                        void patchSettings({
+                          hudScale: clampHudScale(nextValue)
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
             </section>
             <section className="panel">
               <div className="panel-header">
@@ -3126,92 +3165,32 @@ export default function App() {
                   Everything is configured correctly. You are good to go and the local engine is working.
                 </p>
               )}
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Updates</p>
-                  <h3>Application Updates</h3>
-                </div>
-              </div>
-              <p className="supporting">
-                Check GitHub releases for a newer installer so you can update from inside the app.
-              </p>
-              <div className="update-status-card">
-                <p className="supporting">
-                  Current version: <strong>{appUpdateInfo?.currentVersion ?? "Not checked yet"}</strong>
-                </p>
-                {appUpdateInfo?.latestVersion && (
-                  <p className="supporting">
-                    Latest release: <strong>{appUpdateInfo.latestVersion}</strong>
-                  </p>
-                )}
-                {appUpdateInfo?.releaseName && (
-                  <p className="supporting">
-                    Release: <strong>{appUpdateInfo.releaseName}</strong>
-                  </p>
-                )}
-                <p className="supporting">
-                  {appUpdateInfo?.message ??
-                    "No update check has been run yet. This works after a GitHub releases repo is configured for the app."}
-                </p>
-              </div>
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Fine Tune</p>
-                  <h3>Bubble And Sound Sliders</h3>
-                </div>
-              </div>
-              <div className="settings-slider-card active">
-                <div className="settings-slider-copy">
-                  <strong>Bubble size</strong>
-                  <p>Adjusts the pill size incrementally so you can make it smaller or larger on screen.</p>
-                </div>
-                <div className="bounce-slider-shell">
-                  <div className="bounce-slider-readout">
-                    <span>Smaller</span>
-                    <strong>{hudScale}%</strong>
-                    <span>Larger</span>
+              <div className="settings-column-footer">
+                <div
+                  className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
+                  aria-disabled={settings.muteDictationSounds}
+                >
+                  <div className="settings-slider-copy">
+                    <strong>Application sound volume</strong>
+                    <p>Adjusts the volume for HUD cues, level-up audio, and other built-in app sounds.</p>
                   </div>
-                  <ElasticSettingSlider
-                    ariaLabel="Bubble size"
-                    value={hudScale}
-                    min={60}
-                    max={160}
-                    leftIcon={<Minimize2 size={18} />}
-                    rightIcon={<Maximize2 size={18} />}
-                    onInteractionStart={startHudScalePreview}
-                    onInteractionEnd={finishHudScalePreview}
-                    onChange={(nextValue) =>
-                      void patchSettings({
-                        hudScale: clampHudScale(nextValue)
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div
-                className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
-                aria-disabled={settings.muteDictationSounds}
-              >
-                <div className="settings-slider-copy">
-                  <strong>Application sound volume</strong>
-                  <p>Adjusts the volume for HUD cues, level-up audio, and other built-in app sounds.</p>
-                </div>
-                <div className="bounce-slider-shell">
-                  <div className="bounce-slider-readout">
-                    <span>Quiet</span>
-                    <strong>{appSoundVolume}%</strong>
-                    <span>Loud</span>
+                  <div className="bounce-slider-shell">
+                    <div className="bounce-slider-readout">
+                      <span>Quiet</span>
+                      <strong>{appSoundVolume}%</strong>
+                      <span>Loud</span>
+                    </div>
+                    <ElasticSettingSlider
+                      ariaLabel="Application sound volume"
+                      value={appSoundVolume}
+                      disabled={settings.muteDictationSounds}
+                      onChange={(nextValue) =>
+                        void patchSettings({
+                          appSoundVolume: clampSoundVolume(nextValue)
+                        })
+                      }
+                    />
                   </div>
-                  <ElasticSettingSlider
-                    ariaLabel="Application sound volume"
-                    value={appSoundVolume}
-                    disabled={settings.muteDictationSounds}
-                    onChange={(nextValue) =>
-                      void patchSettings({
-                        appSoundVolume: clampSoundVolume(nextValue)
-                      })
-                    }
-                  />
                 </div>
               </div>
             </section>
@@ -3375,6 +3354,11 @@ export default function App() {
                 <p className="supporting">
                   Status: <strong>{runtimeReady ? "Local engine ready" : "Local engine still needs setup"}</strong>
                 </p>
+                {runtimeReady && (
+                  <p className="supporting">
+                    Successfully installed. You can continue.
+                  </p>
+                )}
                 <div className="button-row">
                   <button
                     className="primary-button"
@@ -3382,7 +3366,11 @@ export default function App() {
                     onClick={() => void installEverything()}
                     disabled={isInstallingRuntime}
                   >
-                    {isInstallingRuntime ? "Installing..." : "Install everything"}
+                    {isInstallingRuntime
+                      ? "Installing..."
+                      : runtimeReady
+                        ? "Successfully installed"
+                        : "Install everything"}
                   </button>
                   <button className="secondary-button" type="button" onClick={() => void autoConfigureRuntime()}>
                     Auto-find runtime
@@ -3511,12 +3499,12 @@ export default function App() {
                 Skip setup
               </button>
               {onboardingStep > 0 && (
-                <button className="ghost-button" type="button" onClick={goToPreviousOnboardingStep}>
+                <button className="ghost-button" type="button" onClick={() => void goToPreviousOnboardingStep()}>
                   Back
                 </button>
               )}
               {onboardingStep < onboardingSteps.length - 1 ? (
-                <button className="primary-button" type="button" onClick={goToNextOnboardingStep}>
+                <button className="primary-button" type="button" onClick={() => void goToNextOnboardingStep()}>
                   Continue
                 </button>
               ) : (

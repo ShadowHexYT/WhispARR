@@ -141,6 +141,12 @@ textarea {
   margin-bottom: 0;
 }
 
+.eyebrow-with-status-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .eyebrow {
   margin: 0 0 10px;
   color: var(--accent);
@@ -494,6 +500,16 @@ textarea {
 
 .panel {
   padding: 24px;
+}
+
+.settings-grid > .panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-column-footer {
+  margin-top: auto;
+  padding-top: 20px;
 }
 
 .panel-header {
@@ -1556,6 +1572,12 @@ select option:disabled {
 .runtime-feedback-header span {
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.runtime-status-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .runtime-progress-track {

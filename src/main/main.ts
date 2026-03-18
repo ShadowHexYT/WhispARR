@@ -1156,7 +1156,7 @@ function registerGlobalPushToTalk() {
     updateHud({
       visible: false,
       level: 0,
-      label: "Listening",
+      label: "Ready",
       soundEnabled: !currentSettings.muteDictationSounds,
       soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
       hudScale: currentSettings.hudScale

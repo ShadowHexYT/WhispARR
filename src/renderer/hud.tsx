@@ -18,9 +18,10 @@ function Hud() {
     moveMode: false
   });
   const isHeard = hudState.level > 0.03;
-  const previousVisibleRef = useRef(false);
+  const previousListeningRef = useRef(hudState.label === "Listening");
   const exitAudioRef = useRef<HTMLAudioElement | null>(null);
   const entranceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isListening = hudState.label === "Listening";
 
   useEffect(() => {
     exitAudioRef.current = new Audio(exitSoundUrl);
@@ -51,7 +52,7 @@ function Hud() {
   }, []);
 
   useEffect(() => {
-    if (!previousVisibleRef.current && hudState.visible && hudState.soundEnabled !== false) {
+    if (!previousListeningRef.current && isListening && hudState.soundEnabled !== false) {
       const audio = entranceAudioRef.current;
       if (audio) {
         audio.currentTime = 0;
@@ -59,7 +60,7 @@ function Hud() {
       }
     }
 
-    if (previousVisibleRef.current && !hudState.visible && hudState.soundEnabled !== false) {
+    if (previousListeningRef.current && !isListening && hudState.soundEnabled !== false) {
       const audio = exitAudioRef.current;
       if (audio) {
         audio.currentTime = 0;
@@ -67,8 +68,8 @@ function Hud() {
       }
     }
 
-    previousVisibleRef.current = hudState.visible;
-  }, [hudState.visible]);
+    previousListeningRef.current = isListening;
+  }, [hudState.soundEnabled, isListening]);
 
   const bars = useMemo(() => {
     return new Array(18).fill(0).map((_, index) => {

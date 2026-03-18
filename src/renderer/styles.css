@@ -3025,6 +3025,55 @@ select option:disabled {
   margin: 0;
 }
 
+.patch-notes-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 10, 14, 0.56);
+  backdrop-filter: blur(12px);
+  z-index: 46;
+}
+
+.patch-notes-modal {
+  width: min(100%, 720px);
+  max-height: min(84vh, 820px);
+  display: grid;
+  gap: var(--space-3);
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line) 80%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 10%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 95%, black 5%), color-mix(in srgb, var(--panel) 91%, black 9%));
+  box-shadow: var(--shadow);
+}
+
+.patch-notes-scroll {
+  display: grid;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+}
+
+.patch-notes-scroll strong {
+  color: var(--text);
+}
+
+.patch-notes-content {
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+  padding-right: 6px;
+  color: var(--muted);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
 .auto-dictionary-toast {
   position: fixed;
   right: 24px;

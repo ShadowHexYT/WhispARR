@@ -766,6 +766,8 @@ function parseDataContent(content: string): LocalData | null {
       ((parsed as { onboardingProfileKey?: string }).onboardingProfileKey?.trim()?.length ?? 0) > 0
         ? (parsed as { onboardingProfileKey: string }).onboardingProfileKey
         : null;
+    const parsedPendingPatchNotes =
+      (parsed as { pendingPatchNotes?: PatchNotesRecord | null }).pendingPatchNotes ?? null;
     const nextData: LocalData = {
       ...defaultData,
       ...parsed,
@@ -783,21 +785,21 @@ function parseDataContent(content: string): LocalData | null {
           : null,
       neverShowPatchNotes: Boolean((parsed as { neverShowPatchNotes?: unknown }).neverShowPatchNotes),
       pendingPatchNotes:
-        (parsed as { pendingPatchNotes?: unknown }).pendingPatchNotes &&
-        typeof (parsed as { pendingPatchNotes?: unknown }).pendingPatchNotes === "object" &&
-        typeof ((parsed as { pendingPatchNotes?: PatchNotesRecord | null }).pendingPatchNotes?.version) === "string" &&
-        ((parsed as { pendingPatchNotes?: PatchNotesRecord | null }).pendingPatchNotes?.version?.trim()?.length ?? 0) > 0
+        parsedPendingPatchNotes &&
+        typeof parsedPendingPatchNotes === "object" &&
+        typeof parsedPendingPatchNotes.version === "string" &&
+        parsedPendingPatchNotes.version.trim().length > 0
           ? {
-              version: (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.version.trim(),
+              version: parsedPendingPatchNotes.version.trim(),
               releaseName:
-                typeof (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseName === "string" &&
-                (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseName.trim()
-                  ? (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseName.trim()
+                typeof parsedPendingPatchNotes.releaseName === "string" &&
+                parsedPendingPatchNotes.releaseName.trim()
+                  ? parsedPendingPatchNotes.releaseName.trim()
                   : null,
               releaseNotes:
-                typeof (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseNotes === "string" &&
-                (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseNotes.trim()
-                  ? (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseNotes.trim()
+                typeof parsedPendingPatchNotes.releaseNotes === "string" &&
+                parsedPendingPatchNotes.releaseNotes.trim()
+                  ? parsedPendingPatchNotes.releaseNotes.trim()
                   : null
             }
           : null,

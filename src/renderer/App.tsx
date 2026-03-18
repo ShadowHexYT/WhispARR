@@ -30,6 +30,7 @@ import {
   DictationResult,
   LocalData,
   ManualDictionaryEntry,
+  PatchNotesRecord,
   PushToTalkEvent,
   RuntimeDiscoveryResult,
   RuntimeInstallResult,
@@ -1140,6 +1141,7 @@ export default function App() {
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
   const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
   const [updateDialogMessage, setUpdateDialogMessage] = useState("");
+  const [postInstallPatchNotes, setPostInstallPatchNotes] = useState<PatchNotesRecord | null>(null);
   const [autoDictionaryToast, setAutoDictionaryToast] = useState<AutoDictionaryToast>(null);
   const [achievementToast, setAchievementToast] = useState<AchievementToast>(null);
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
@@ -1888,9 +1890,22 @@ export default function App() {
   async function loadInitialData() {
     const runtimeResult = await window.wisprApi.discoverRuntime();
     const data = await window.wisprApi.loadData();
+    const diagnostics = await window.wisprApi.getAppDiagnostics();
     applyLoadedData(data);
+    setAppDiagnostics(diagnostics);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
+    if (data.pendingPatchNotes) {
+      if (
+        !data.neverShowPatchNotes &&
+        data.skippedPatchNotesVersion !== data.pendingPatchNotes.version &&
+        data.pendingPatchNotes.version === diagnostics.version
+      ) {
+        setPostInstallPatchNotes(data.pendingPatchNotes);
+      } else if (data.pendingPatchNotes.version !== diagnostics.version) {
+        await window.wisprApi.clearPendingPatchNotes();
+      }
+    }
     if (!hasCheckedForLaunchUpdateRef.current) {
       hasCheckedForLaunchUpdateRef.current = true;
       void checkForLaunchUpdates(data.skippedAppUpdateVersion);
@@ -2220,6 +2235,13 @@ export default function App() {
         setSkippedAppUpdateVersion(null);
         await window.wisprApi.skipAppUpdateVersion(null);
       }
+      if (appUpdateInfo?.latestVersion) {
+        await window.wisprApi.setPendingPatchNotes({
+          version: appUpdateInfo.latestVersion,
+          releaseName: appUpdateInfo.releaseName,
+          releaseNotes: appUpdateInfo.releaseNotes
+        });
+      }
       const message = await window.wisprApi.downloadAndInstallAppUpdate();
       setStatus(message);
       setUpdateDialogMessage(message);
@@ -2242,6 +2264,26 @@ export default function App() {
     setSkippedAppUpdateVersion(skippedVersion);
     setUpdateDialogState("closed");
     setStatus(`Skipping update ${appUpdateInfo.latestVersion} until a newer version is available.`);
+  }
+
+  async function dismissPostInstallPatchNotes() {
+    await window.wisprApi.clearPendingPatchNotes();
+    setPostInstallPatchNotes(null);
+  }
+
+  async function skipPostInstallPatchNotesVersion() {
+    if (!postInstallPatchNotes?.version) {
+      setPostInstallPatchNotes(null);
+      return;
+    }
+
+    await window.wisprApi.skipPatchNotesVersion(postInstallPatchNotes.version);
+    setPostInstallPatchNotes(null);
+  }
+
+  async function neverShowPatchNotesAgain() {
+    await window.wisprApi.setNeverShowPatchNotes(true);
+    setPostInstallPatchNotes(null);
   }
 
   async function completeOnboarding() {
@@ -5278,6 +5320,60 @@ export default function App() {
                   Okay
                 </button>
               )}
+            </div>
+          </section>
+        </div>
+      )}
+      {postInstallPatchNotes && (
+        <div className="patch-notes-backdrop" role="presentation">
+          <section className="patch-notes-modal" aria-label="Patch notes">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Patch Notes</p>
+                <h3>{postInstallPatchNotes.releaseName || `Updated to ${postInstallPatchNotes.version}`}</h3>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => void dismissPostInstallPatchNotes()}
+                aria-label="Dismiss patch notes"
+                title="Dismiss"
+              >
+                X
+              </button>
+            </div>
+            <p className="supporting">
+              WhispARR was updated successfully. Here's what changed in version{" "}
+              <strong>{postInstallPatchNotes.version}</strong>.
+            </p>
+            <div className="patch-notes-scroll">
+              <strong>What's new</strong>
+              <div className="patch-notes-content">
+                {postInstallPatchNotes.releaseNotes || "No patch notes were included with this update."}
+              </div>
+            </div>
+            <div className="button-row">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void dismissPostInstallPatchNotes()}
+              >
+                Dismiss
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void skipPostInstallPatchNotesVersion()}
+              >
+                Skip this version
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => void neverShowPatchNotesAgain()}
+              >
+                Never show again
+              </button>
             </div>
           </section>
         </div>

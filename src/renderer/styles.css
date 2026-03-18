@@ -1386,6 +1386,14 @@ select option:disabled {
   margin-top: var(--space-5);
 }
 
+.dictionary-header-toggle {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .dictionary-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1430,6 +1438,7 @@ select option:disabled {
     transform 0.18s ease,
     border-color 0.18s ease,
     box-shadow 0.18s ease;
+  z-index: 0;
 }
 
 .dictionary-card:nth-child(3n) {
@@ -1441,6 +1450,15 @@ select option:disabled {
 }
 
 .dictionary-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 16px 30px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dictionary-card-menu-open {
+  z-index: 12;
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent) 22%, transparent);
   box-shadow:
@@ -1468,18 +1486,144 @@ select option:disabled {
 
 .dictionary-card-copy strong {
   display: inline-block;
-  margin-top: var(--space-2);
   font-size: 1.08rem;
   line-height: 1.35;
   letter-spacing: 0.01em;
   overflow-wrap: anywhere;
 }
 
-.dictionary-card-meta {
-  display: block;
-  margin-top: var(--space-2);
+.dictionary-card-expansion {
+  margin: var(--space-2) 0 0;
   color: var(--muted);
-  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.dictionary-card-expansion strong {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.dictionary-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.dictionary-card-type-picker {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  justify-content: center;
+}
+
+.dictionary-card-meta {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--button-top) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.dictionary-card-meta:hover,
+.dictionary-card-meta.active {
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+
+.dictionary-card-meta:hover {
+  transform: translateY(-1px);
+}
+
+.dictionary-type-options {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  min-width: 120px;
+  width: max-content;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: color-mix(in srgb, var(--panel) 94%, black 6%);
+  box-shadow: 0 16px 30px color-mix(in srgb, black 24%, transparent);
+  transform: translateX(-50%);
+  animation: dictionary-type-dropdown-in 0.18s ease;
+}
+
+.dictionary-type-options.opens-upward {
+  top: auto;
+  bottom: calc(100% + 3px);
+  animation: dictionary-type-dropdown-rise 0.18s ease;
+}
+
+.dictionary-type-option {
+  min-width: 108px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.84rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.dictionary-type-option:hover,
+.dictionary-type-option.active {
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+
+.dictionary-type-option:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes dictionary-type-dropdown-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes dictionary-type-dropdown-rise {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
 }
 
 .dictionary-delete-button {

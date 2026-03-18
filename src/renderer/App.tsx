@@ -44,9 +44,9 @@ type UpdateDialogState = "closed" | "none" | "available" | "error";
 type AutoDictionaryToast = { terms: string[]; id: number } | null;
 type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
-const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3", import.meta.url).href;
-const notificationSoundUrl = new URL("../../assets/Notif.mp3", import.meta.url).href;
-const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3", import.meta.url).href;
+const levelUpSoundUrl = new URL("../../assets/lvl_up.mp3?v=20260317", import.meta.url).href;
+const notificationSoundUrl = new URL("../../assets/Notif.mp3?v=20260317", import.meta.url).href;
+const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR Image.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
 
@@ -956,6 +956,43 @@ function shortcutFromPressedCodes(codes: Iterable<string>): ActivationShortcut {
   };
 }
 
+function parseDictionaryInput(value: string) {
+  const trimmed = value.trim();
+  const arrowMatch = trimmed.match(/^(.+?)(?:\s*->\s*|\s*=\s*)(.+)$/);
+  if (!arrowMatch) {
+    return {
+      term: trimmed,
+      replacement: undefined as string | undefined
+    };
+  }
+
+  return {
+    term: (arrowMatch[1] ?? "").trim(),
+    replacement: (arrowMatch[2] ?? "").trim() || undefined
+  };
+}
+
+const dictionaryEntryKinds = ["Abbreviation", "Word", "Phrase", "Sentence"] as const;
+
+function getDictionaryEntryKind(entry: ManualDictionaryEntry) {
+  if (entry.entryTypeOverride) {
+    return entry.entryTypeOverride;
+  }
+
+  if (entry.replacement?.trim()) {
+    return "Abbreviation";
+  }
+
+  const tokenCount = entry.term.trim().split(/\s+/).filter(Boolean).length;
+  if (tokenCount <= 1) {
+    return "Word";
+  }
+  if (tokenCount >= 7) {
+    return "Sentence";
+  }
+  return "Phrase";
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabKey>("dictation");
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -965,6 +1002,8 @@ export default function App() {
   const [profileName, setProfileName] = useState("");
   const [dictionaryTerm, setDictionaryTerm] = useState("");
   const [pendingDictionaryDeleteEntry, setPendingDictionaryDeleteEntry] = useState<ManualDictionaryEntry | null>(null);
+  const [editingDictionaryTypeEntryId, setEditingDictionaryTypeEntryId] = useState<string | null>(null);
+  const [shouldOpenDictionaryTypeMenuUpward, setShouldOpenDictionaryTypeMenuUpward] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [achievementFilter, setAchievementFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
@@ -1014,6 +1053,8 @@ export default function App() {
   const transcriptHistoryRef = useRef<string[]>([]);
   const transcriptHistoryMenuAnchorRef = useRef<HTMLDivElement | null>(null);
   const transcriptHistoryMenuRef = useRef<HTMLDivElement | null>(null);
+  const dictionaryTypeMenuAnchorRef = useRef<HTMLDivElement | null>(null);
+  const dictionaryTypeMenuRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1166,9 +1207,9 @@ export default function App() {
     levelUpAudioRef.current = new Audio(levelUpSoundUrl);
     levelUpAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
     notificationAudioRef.current = new Audio(notificationSoundUrl);
-    notificationAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
+    notificationAudioRef.current.volume = (clampSoundVolume(settingsRef.current.appSoundVolume) / 100) * 0.5;
     dictionaryNotificationAudioRef.current = new Audio(dictionaryNotificationSoundUrl);
-    dictionaryNotificationAudioRef.current.volume = clampSoundVolume(settingsRef.current.appSoundVolume) / 100;
+    dictionaryNotificationAudioRef.current.volume = Math.min(1, (clampSoundVolume(settingsRef.current.appSoundVolume) / 100) * 1.5);
 
     return () => {
       levelUpAudioRef.current = null;
@@ -1184,11 +1225,11 @@ export default function App() {
     }
     const notificationAudio = notificationAudioRef.current;
     if (notificationAudio) {
-      notificationAudio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
+      notificationAudio.volume = (clampSoundVolume(settings.appSoundVolume) / 100) * 0.5;
     }
     const dictionaryNotificationAudio = dictionaryNotificationAudioRef.current;
     if (dictionaryNotificationAudio) {
-      dictionaryNotificationAudio.volume = clampSoundVolume(settings.appSoundVolume) / 100;
+      dictionaryNotificationAudio.volume = Math.min(1, (clampSoundVolume(settings.appSoundVolume) / 100) * 1.5);
     }
   }, [settings.appSoundVolume]);
 
@@ -1323,6 +1364,45 @@ export default function App() {
       content?.removeEventListener("scroll", updateTranscriptHistoryMenuDirection);
     };
   }, [isEditingTranscriptHistoryLimit, isTranscriptHistoryMenuOpen]);
+
+  useEffect(() => {
+    if (!editingDictionaryTypeEntryId) {
+      setShouldOpenDictionaryTypeMenuUpward(false);
+      return;
+    }
+
+    const updateDictionaryTypeMenuDirection = () => {
+      const anchor = dictionaryTypeMenuAnchorRef.current;
+      const menu = dictionaryTypeMenuRef.current;
+      if (!anchor || !menu) {
+        return;
+      }
+
+      const content = anchor.closest(".content") as HTMLElement | null;
+      const anchorRect = anchor.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const rootStyles = getComputedStyle(document.documentElement);
+      const bottomBarClearance = Number.parseFloat(rootStyles.getPropertyValue("--bottom-bar-clearance")) || 0;
+      const contentRect = content?.getBoundingClientRect();
+      const lowerBoundary = (contentRect?.bottom ?? window.innerHeight) - bottomBarClearance;
+      const upperBoundary = contentRect?.top ?? 0;
+      const spaceBelow = Math.max(0, lowerBoundary - anchorRect.bottom);
+      const spaceAbove = Math.max(0, anchorRect.top - upperBoundary);
+      const requiredSpace = menuRect.height + 24;
+      const nextOpenUpward = spaceBelow < requiredSpace && spaceAbove > spaceBelow;
+      setShouldOpenDictionaryTypeMenuUpward(nextOpenUpward);
+    };
+
+    updateDictionaryTypeMenuDirection();
+    window.addEventListener("resize", updateDictionaryTypeMenuDirection);
+    const content = dictionaryTypeMenuAnchorRef.current?.closest(".content");
+    content?.addEventListener("scroll", updateDictionaryTypeMenuDirection);
+
+    return () => {
+      window.removeEventListener("resize", updateDictionaryTypeMenuDirection);
+      content?.removeEventListener("scroll", updateDictionaryTypeMenuDirection);
+    };
+  }, [editingDictionaryTypeEntryId]);
 
   useEffect(() => {
     const lowerStatus = status.toLowerCase();
@@ -2462,17 +2542,24 @@ export default function App() {
   }
 
   async function saveDictionaryEntry() {
-    if (!dictionaryTerm.trim()) {
+    const parsedEntry = parseDictionaryInput(dictionaryTerm);
+
+    if (!parsedEntry.term) {
       setStatus("Add the word or phrase you want WhispARR to learn before saving.");
       return;
     }
 
     const entry = await window.wisprApi.saveManualDictionaryEntry({
-      term: dictionaryTerm
+      term: parsedEntry.term,
+      replacement: parsedEntry.replacement
     });
     setManualDictionary((current) => [entry, ...current.filter((item) => item.id !== entry.id)]);
     setDictionaryTerm("");
-    setStatus(`Saved "${entry.term}" to your local dictionary.`);
+    setStatus(
+      entry.replacement
+        ? `Saved "${entry.term}" to expand to "${entry.replacement}".`
+        : `Saved "${entry.term}" to your local dictionary.`
+    );
   }
 
   async function confirmDictionaryEntryDelete() {
@@ -2485,6 +2572,24 @@ export default function App() {
     setManualDictionary(next);
     setPendingDictionaryDeleteEntry(null);
     setStatus(`Removed "${entryToDelete.term}" from your local dictionary.`);
+  }
+
+  async function updateDictionaryEntryType(
+    entry: ManualDictionaryEntry,
+    nextKind: (typeof dictionaryEntryKinds)[number]
+  ) {
+    const updatedEntry = await window.wisprApi.saveManualDictionaryEntry({
+      id: entry.id,
+      term: entry.term,
+      replacement: entry.replacement,
+      entryTypeOverride: nextKind,
+      addedBySystem: entry.addedBySystem
+    });
+    setManualDictionary((current) =>
+      current.map((item) => (item.id === updatedEntry.id ? updatedEntry : item))
+    );
+    setEditingDictionaryTypeEntryId(null);
+    setStatus(`Saved "${entry.term}" as ${nextKind.toLowerCase()}.`);
   }
 
   return (
@@ -2937,12 +3042,15 @@ export default function App() {
                 enter the preferred word or phrase itself. The app keeps this list locally and uses
                 it as a preferred vocabulary during transcript cleanup.
               </p>
+              <p className="supporting">
+                For abbreviations, use `=` or `-&gt;`, like `wru = where are you` or `wtf -&gt; what the fuck`.
+              </p>
               <label className="field">
                 <span className="dictionary-input-label">Word or phrase to learn</span>
                 <input
                   value={dictionaryTerm}
                   onChange={(event) => setDictionaryTerm(event.target.value)}
-                  placeholder="Example: WhispARR"
+                  placeholder="Example: WhispARR or wru = where are you"
                 />
               </label>
               <div className="button-row">
@@ -2955,21 +3063,24 @@ export default function App() {
                   <p className="eyebrow">Saved Terms</p>
                   <h3>Your Local Dictionary</h3>
                 </div>
-                <button
-                  className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
-                  type="button"
-                  onClick={() =>
-                    void patchSettings({
-                      autoLearnDictionary: !settings.autoLearnDictionary
-                    })
-                  }
-                  role="switch"
-                  aria-checked={settings.autoLearnDictionary}
-                  aria-label="Toggle auto dictionary learning"
-                  title={settings.autoLearnDictionary ? "Auto dictionary on" : "Auto dictionary off"}
-                >
-                  <span className="settings-switch-thumb" aria-hidden="true" />
-                </button>
+                <div className="dictionary-header-toggle">
+                  <span>Auto Dictionary</span>
+                  <button
+                    className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
+                    type="button"
+                    onClick={() =>
+                      void patchSettings({
+                        autoLearnDictionary: !settings.autoLearnDictionary
+                      })
+                    }
+                    role="switch"
+                    aria-checked={settings.autoLearnDictionary}
+                    aria-label="Toggle auto dictionary learning"
+                    title={settings.autoLearnDictionary ? "Auto dictionary on" : "Auto dictionary off"}
+                  >
+                    <span className="settings-switch-thumb" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               {manualDictionary.length === 0 ? (
                 <p className="supporting dictionary-empty-state">
@@ -2978,7 +3089,14 @@ export default function App() {
               ) : (
                 <div className="dictionary-list">
                   {manualDictionary.map((entry) => (
-                  <div key={entry.id} className="dictionary-card">
+                  <div
+                    key={entry.id}
+                    className={
+                      editingDictionaryTypeEntryId === entry.id
+                        ? "dictionary-card dictionary-card-menu-open"
+                        : "dictionary-card"
+                    }
+                  >
                     <button
                       className="dictionary-delete-button"
                       type="button"
@@ -2989,16 +3107,70 @@ export default function App() {
                       ×
                     </button>
                     <div className="dictionary-card-copy">
-                      <span className="dictionary-card-label">
-                        {entry.addedBySystem ? "Auto learned" : "Custom term"}
-                      </span>
                       <strong>
                         {entry.term}
                         {entry.addedBySystem && <span className="dictionary-star" aria-label="System added"> ★</span>}
                       </strong>
-                      <span className="dictionary-card-meta">
-                        {entry.term.trim().split(/\s+/).length === 1 ? "Word" : "Phrase"}
-                      </span>
+                      {entry.replacement && (
+                        <p className="dictionary-card-expansion">
+                          Expands to <strong>{entry.replacement}</strong>
+                        </p>
+                      )}
+                      <div className="dictionary-card-tags">
+                        <span className="dictionary-card-label">
+                          {entry.addedBySystem ? "Automatic term" : "Custom term"}
+                        </span>
+                        <div
+                          className="dictionary-card-type-picker"
+                          ref={editingDictionaryTypeEntryId === entry.id ? dictionaryTypeMenuAnchorRef : undefined}
+                        >
+                          <button
+                            className={
+                              editingDictionaryTypeEntryId === entry.id
+                                ? "dictionary-card-meta active"
+                                : "dictionary-card-meta"
+                            }
+                            type="button"
+                            onClick={() =>
+                              setEditingDictionaryTypeEntryId((current) =>
+                                current === entry.id ? null : entry.id
+                              )
+                            }
+                            aria-expanded={editingDictionaryTypeEntryId === entry.id}
+                            aria-label={`Change dictionary type for ${entry.term}`}
+                            title="Change type"
+                          >
+                            {getDictionaryEntryKind(entry)}
+                          </button>
+                          {editingDictionaryTypeEntryId === entry.id && (
+                            <div
+                              ref={dictionaryTypeMenuRef}
+                              className={
+                                shouldOpenDictionaryTypeMenuUpward
+                                  ? "dictionary-type-options opens-upward"
+                                  : "dictionary-type-options"
+                              }
+                              role="listbox"
+                              aria-label="Dictionary type options"
+                            >
+                              {dictionaryEntryKinds.map((kind) => (
+                                <button
+                                  key={kind}
+                                  className={
+                                    getDictionaryEntryKind(entry) === kind
+                                      ? "dictionary-type-option active"
+                                      : "dictionary-type-option"
+                                  }
+                                  type="button"
+                                  onClick={() => void updateDictionaryEntryType(entry, kind)}
+                                >
+                                  {kind}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   ))}

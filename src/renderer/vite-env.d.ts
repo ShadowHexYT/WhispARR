@@ -30,6 +30,8 @@ declare global {
       saveManualDictionaryEntry: (input: {
         id?: string;
         term: string;
+        replacement?: string;
+        entryTypeOverride?: "Abbreviation" | "Word" | "Phrase" | "Sentence";
         addedBySystem?: boolean;
       }) => Promise<ManualDictionaryEntry>;
       deleteManualDictionaryEntry: (id: string) => Promise<ManualDictionaryEntry[]>;

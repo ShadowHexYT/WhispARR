@@ -233,6 +233,19 @@ export function readData(): LocalData {
                     : typeof legacyEntry.replacement === "string"
                       ? (legacyEntry.replacement.trim() || "")
                       : (legacyEntry.spoken?.trim() || ""),
+                replacement:
+                  typeof legacyEntry.term === "string" && typeof legacyEntry.replacement === "string"
+                    ? (legacyEntry.replacement.trim() || undefined)
+                    : undefined,
+                entryTypeOverride:
+                  (entry as { entryTypeOverride?: unknown }).entryTypeOverride === "Abbreviation" ||
+                  (entry as { entryTypeOverride?: unknown }).entryTypeOverride === "Word" ||
+                  (entry as { entryTypeOverride?: unknown }).entryTypeOverride === "Phrase" ||
+                  (entry as { entryTypeOverride?: unknown }).entryTypeOverride === "Sentence"
+                    ? ((entry as {
+                        entryTypeOverride?: "Abbreviation" | "Word" | "Phrase" | "Sentence";
+                      }).entryTypeOverride ?? undefined)
+                    : undefined,
                 addedBySystem: typeof (entry as { addedBySystem?: unknown }).addedBySystem === "boolean"
                   ? Boolean((entry as { addedBySystem?: boolean }).addedBySystem)
                   : false,
@@ -391,11 +404,14 @@ export function deleteVoiceProfile(id: string) {
 export function saveManualDictionaryEntry(input: {
   id?: string;
   term: string;
+  replacement?: string;
+  entryTypeOverride?: "Abbreviation" | "Word" | "Phrase" | "Sentence";
   addedBySystem?: boolean;
 }): ManualDictionaryEntry {
   const current = readData();
   const now = new Date().toISOString();
   const normalizedTerm = input.term.trim();
+  const normalizedReplacement = input.replacement?.trim() || undefined;
   const existing = current.manualDictionary.find((entry) => entry.id === input.id);
 
   let entry: ManualDictionaryEntry;
@@ -404,6 +420,8 @@ export function saveManualDictionaryEntry(input: {
     entry = {
       ...existing,
       term: normalizedTerm,
+      replacement: normalizedReplacement,
+      entryTypeOverride: input.entryTypeOverride,
       addedBySystem: input.addedBySystem ?? existing.addedBySystem,
       updatedAt: now
     };
@@ -414,6 +432,8 @@ export function saveManualDictionaryEntry(input: {
     entry = {
       id: randomUUID(),
       term: normalizedTerm,
+      replacement: normalizedReplacement,
+      entryTypeOverride: input.entryTypeOverride,
       addedBySystem: Boolean(input.addedBySystem),
       createdAt: now,
       updatedAt: now

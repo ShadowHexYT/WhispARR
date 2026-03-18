@@ -66,7 +66,14 @@ function applyManualDictionary(transcript: string, manualDictionary: ManualDicti
 
   for (const entry of manualDictionary) {
     const term = entry.term.trim();
+    const replacement = entry.replacement?.trim();
     if (!term) {
+      continue;
+    }
+
+    if (replacement) {
+      const replacementPattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
+      updatedTranscript = updatedTranscript.replace(replacementPattern, replacement);
       continue;
     }
 

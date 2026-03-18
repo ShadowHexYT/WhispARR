@@ -81,6 +81,8 @@ export type VoiceProfile = {
 export type ManualDictionaryEntry = {
   id: string;
   term: string;
+  replacement?: string;
+  entryTypeOverride?: "Abbreviation" | "Word" | "Phrase" | "Sentence";
   addedBySystem: boolean;
   createdAt: string;
   updatedAt: string;

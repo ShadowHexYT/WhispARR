@@ -4,8 +4,8 @@ import ReactDOM from "react-dom/client";
 import { HudState } from "../shared/types";
 import "./hud.css";
 
-const exitSoundUrl = new URL("../../assets/Exit.mp3", import.meta.url).href;
-const entranceSoundUrl = new URL("../../assets/Entrance.mp3", import.meta.url).href;
+const exitSoundUrl = new URL("../../assets/Exit.mp3?v=20260317", import.meta.url).href;
+const entranceSoundUrl = new URL("../../assets/Entrance.mp3?v=20260317", import.meta.url).href;
 
 function Hud() {
   const [hudState, setHudState] = useState<HudState>({

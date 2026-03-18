@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "motion/react";
 import {
   BookText,
@@ -1112,6 +1112,7 @@ export default function App() {
   const [isDevModeUnlockCelebrationVisible, setIsDevModeUnlockCelebrationVisible] = useState(false);
   const [isRetroModeEnabled, setIsRetroModeEnabled] = useState(false);
   const [isRetroCelebrationVisible, setIsRetroCelebrationVisible] = useState(false);
+  const [isJumpscareVisible, setIsJumpscareVisible] = useState(false);
   const [appDiagnostics, setAppDiagnostics] = useState<AppDiagnostics | null>(null);
   const [statusLogs, setStatusLogs] = useState<StatusLogEntry[]>([]);
   const [status, setStatus] = useState("Loading local workspace...");
@@ -1167,6 +1168,7 @@ export default function App() {
   const levelUpTimeoutRef = useRef<number | null>(null);
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
+  const jumpscareTimeoutRef = useRef<number | null>(null);
   const hudPreviewTimeoutRef = useRef<number | null>(null);
   const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
@@ -1174,6 +1176,8 @@ export default function App() {
   const achievementToastTimeoutRef = useRef<number | null>(null);
   const pastedStatusTimeoutRef = useRef<number | null>(null);
   const dailyChallengeRefreshRef = useRef<string | null>(null);
+  const hudAnimationFrameRef = useRef<number | null>(null);
+  const lastHudSignatureRef = useRef("");
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
@@ -1336,6 +1340,10 @@ export default function App() {
         window.clearTimeout(retroCelebrationTimeoutRef.current);
         retroCelebrationTimeoutRef.current = null;
       }
+      if (jumpscareTimeoutRef.current) {
+        window.clearTimeout(jumpscareTimeoutRef.current);
+        jumpscareTimeoutRef.current = null;
+      }
       window.removeEventListener("keydown", handleKonamiCode);
     };
   }, []);
@@ -1467,13 +1475,27 @@ export default function App() {
 
   useEffect(() => {
     const visible = recorder.state === "recording" || settings.alwaysShowPill || isPreviewingHudScale;
-    void window.wisprApi.updateHud({
+    const payload = {
       visible,
-      level: recorder.state === "recording" ? recorder.level : 0,
+      level: recorder.state === "recording" ? Math.round(recorder.level * 20) / 20 : 0,
       label: recorder.state === "recording" ? "Listening" : "Ready",
       soundEnabled: !settings.muteDictationSounds,
       soundVolume: clampSoundVolume(settings.appSoundVolume) / 100,
       hudScale: clampHudScale(settings.hudScale)
+    };
+    const signature = JSON.stringify(payload);
+    if (signature === lastHudSignatureRef.current) {
+      return;
+    }
+
+    lastHudSignatureRef.current = signature;
+    if (hudAnimationFrameRef.current) {
+      window.cancelAnimationFrame(hudAnimationFrameRef.current);
+    }
+
+    hudAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      hudAnimationFrameRef.current = null;
+      void window.wisprApi.updateHud(payload);
     });
   }, [
     isPreviewingHudScale,
@@ -1666,6 +1688,9 @@ export default function App() {
       }
       if (pastedStatusTimeoutRef.current) {
         window.clearTimeout(pastedStatusTimeoutRef.current);
+      }
+      if (hudAnimationFrameRef.current) {
+        window.cancelAnimationFrame(hudAnimationFrameRef.current);
       }
     };
   }, []);
@@ -1929,11 +1954,11 @@ export default function App() {
     const next = await window.wisprApi.updateSettings(patch);
     setSettings(next);
     if ("activeProfileId" in patch) {
-      await refreshLocalData();
+      void refreshDataSnapshot();
       return;
     }
     if ("whisperBinaryPath" in patch || "whisperModelPath" in patch) {
-      setWhisperStatus(await window.wisprApi.getWhisperStatus());
+      void window.wisprApi.getWhisperStatus().then(setWhisperStatus);
     }
   }
 
@@ -2380,6 +2405,108 @@ export default function App() {
     }, Math.ceil(duration * 1000) + 200);
   }
 
+  function playJumpscareSound() {
+    if (settingsRef.current.muteDictationSounds) {
+      return;
+    }
+
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    const audioContext = new AudioContextConstructor();
+    const duration = 0.72;
+    const now = audioContext.currentTime;
+
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    const targetVolume = Math.max(0.0001, (settingsRef.current.appSoundVolume / 100) * 0.45);
+    master.gain.exponentialRampToValueAtTime(targetVolume, now + 0.02);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    master.connect(audioContext.destination);
+
+    const screamOscillator = audioContext.createOscillator();
+    screamOscillator.type = "sawtooth";
+    screamOscillator.frequency.setValueAtTime(240, now);
+    screamOscillator.frequency.exponentialRampToValueAtTime(1040, now + 0.18);
+    screamOscillator.frequency.exponentialRampToValueAtTime(180, now + duration);
+
+    const screamGain = audioContext.createGain();
+    screamGain.gain.setValueAtTime(0.34, now);
+    screamGain.gain.exponentialRampToValueAtTime(0.18, now + duration);
+
+    const subOscillator = audioContext.createOscillator();
+    subOscillator.type = "square";
+    subOscillator.frequency.setValueAtTime(90, now);
+    subOscillator.frequency.exponentialRampToValueAtTime(48, now + duration);
+
+    const subGain = audioContext.createGain();
+    subGain.gain.setValueAtTime(0.14, now);
+
+    const noiseBuffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * duration), audioContext.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noiseData.length; index += 1) {
+      noiseData[index] = (Math.random() * 2 - 1) * 0.7;
+    }
+
+    const noiseSource = audioContext.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = "highpass";
+    noiseFilter.frequency.setValueAtTime(900, now);
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.setValueAtTime(0.22, now);
+
+    const tremolo = audioContext.createOscillator();
+    tremolo.type = "square";
+    tremolo.frequency.setValueAtTime(19, now);
+    const tremoloDepth = audioContext.createGain();
+    tremoloDepth.gain.setValueAtTime(130, now);
+    tremolo.connect(tremoloDepth);
+    tremoloDepth.connect(screamOscillator.frequency);
+
+    screamOscillator.connect(screamGain);
+    screamGain.connect(master);
+    subOscillator.connect(subGain);
+    subGain.connect(master);
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(master);
+
+    screamOscillator.start(now);
+    subOscillator.start(now);
+    noiseSource.start(now);
+    tremolo.start(now);
+
+    screamOscillator.stop(now + duration);
+    subOscillator.stop(now + duration);
+    noiseSource.stop(now + duration);
+    tremolo.stop(now + duration);
+
+    window.setTimeout(() => {
+      void audioContext.close().catch(() => undefined);
+    }, Math.ceil(duration * 1000) + 220);
+  }
+
+  function triggerDictionaryJumpscare() {
+    playJumpscareSound();
+    setDictionaryTerm("");
+    setIsJumpscareVisible(true);
+    setStatus("That dictionary entry is cursed.");
+
+    if (jumpscareTimeoutRef.current) {
+      window.clearTimeout(jumpscareTimeoutRef.current);
+    }
+
+    jumpscareTimeoutRef.current = window.setTimeout(() => {
+      setIsJumpscareVisible(false);
+      jumpscareTimeoutRef.current = null;
+    }, 780);
+  }
+
   function previewLevelUpCelebration() {
     const previewLevel = Math.max(stats.currentLevel + 1, 2);
     const audio = levelUpAudioRef.current;
@@ -2572,7 +2699,8 @@ export default function App() {
         pcm: Array.from(sample.pcm),
         sampleRate: sample.sampleRate
       });
-      if (!result.transcript.trim()) {
+      const transcript = result.transcript.trim();
+      if (!transcript) {
         recorderRef.current.reset();
         return;
       }
@@ -2584,50 +2712,64 @@ export default function App() {
         speakerScore
       };
 
-      if (result.transcript.trim()) {
-        const nextHistory = [result.transcript.trim(), ...transcriptHistoryRef.current].slice(
-          0,
-          settingsRef.current.transcriptHistoryLimit
-        );
-        transcriptHistoryRef.current = nextHistory;
+      setLastResult(enrichedResult);
+      const nextHistory = [transcript, ...transcriptHistoryRef.current].slice(
+        0,
+        settingsRef.current.transcriptHistoryLimit
+      );
+      transcriptHistoryRef.current = nextHistory;
+      startTransition(() => {
         setTranscriptHistory(nextHistory);
-        await window.wisprApi.saveTranscriptHistory(
+      });
+
+      const persistenceTasks: Promise<unknown>[] = [
+        window.wisprApi.saveTranscriptHistory(
           nextHistory,
           settingsRef.current.transcriptHistoryLimit
+        ),
+        window.wisprApi.trackTranscriptStats(transcript).then((nextStats) => {
+          startTransition(() => {
+            setStats(nextStats);
+          });
+          return nextStats;
+        })
+      ];
+
+      if (profile) {
+        persistenceTasks.push(
+          window.wisprApi.saveVoiceProfile({
+            id: profile.id,
+            name: profile.name,
+            embedding,
+            incrementSamplesBy: 1
+          }).then((savedProfile) => {
+            startTransition(() => {
+              setProfiles((current) => current.map((item) => (item.id === savedProfile.id ? savedProfile : item)));
+            });
+            return savedProfile;
+          })
         );
-        await window.wisprApi.trackTranscriptStats(result.transcript);
       }
 
-      setLastResult(enrichedResult);
+      const refreshPromise = Promise.allSettled(persistenceTasks).then(() => refreshDataSnapshot());
 
-      if (profile && result.transcript.trim()) {
-        await window.wisprApi.saveVoiceProfile({
-          id: profile.id,
-          name: profile.name,
-          embedding,
-          incrementSamplesBy: 1
-        });
-      }
-
-      if (result.transcript.trim()) {
-        await refreshDataSnapshot();
-      }
-
-      if (options.pasteResult && currentSettings.autoPaste && result.transcript.trim()) {
-        await window.wisprApi.pasteText(result.transcript);
+      if (options.pasteResult && currentSettings.autoPaste) {
+        await window.wisprApi.pasteText(transcript);
         setStatus(
           currentSettings.autoLearnDictionary
             ? "Transcribed locally and pasted. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, abbreviations, and sentences."
             : "Transcribed locally and pasted into the active app."
         );
       } else {
-        await window.wisprApi.prepareClipboardForSinglePaste(result.transcript);
+        await window.wisprApi.prepareClipboardForSinglePaste(transcript);
         setStatus(
           currentSettings.autoLearnDictionary
             ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, abbreviations, and sentences."
             : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
         );
       }
+
+      void refreshPromise;
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Local transcription failed.");
     } finally {
@@ -2888,6 +3030,11 @@ export default function App() {
 
     if (!parsedEntry.term) {
       setStatus("Add the word or phrase you want WhispARR to learn before saving.");
+      return;
+    }
+
+    if (parsedEntry.term.trim().toLowerCase() === "jumpscare") {
+      triggerDictionaryJumpscare();
       return;
     }
 
@@ -4988,6 +5135,26 @@ export default function App() {
             <p className="eyebrow">Secret Mode</p>
             <h3>Retro Mode Unlocked</h3>
             <p>A pixel survivor just bolted across the app. You are now in arcade mode.</p>
+          </section>
+        </div>
+      )}
+      {isJumpscareVisible && (
+        <div className="jumpscare-backdrop" role="presentation" aria-hidden="true">
+          <div className="jumpscare-flash" />
+          <section className="jumpscare-creature">
+            <div className="jumpscare-horns" />
+            <div className="jumpscare-face">
+              <div className="jumpscare-eye jumpscare-eye-left" />
+              <div className="jumpscare-eye jumpscare-eye-right" />
+              <div className="jumpscare-mouth">
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
           </section>
         </div>
       )}

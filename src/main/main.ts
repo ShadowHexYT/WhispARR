@@ -143,6 +143,9 @@ let currentHudState: HudState = {
   hudScale: currentSettings.hudScale,
   moveMode: false
 };
+let lastHudSignature = JSON.stringify(currentHudState);
+let lastHudDimensions = getHudDimensions();
+let lastHudPosition = getHudPosition();
 const pressedKeys = new Set<number>();
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
@@ -298,6 +301,17 @@ function positionHudWindow() {
 
   const { width, height } = getHudDimensions();
   const position = getHudPosition();
+  if (
+    lastHudDimensions.width === width &&
+    lastHudDimensions.height === height &&
+    lastHudPosition.x === position.x &&
+    lastHudPosition.y === position.y
+  ) {
+    return;
+  }
+
+  lastHudDimensions = { width, height };
+  lastHudPosition = position;
   hudWindow.setBounds({
     width,
     height,
@@ -372,9 +386,14 @@ function updateHud(state: HudState) {
   }
 
   currentHudState = getHudPayload(state);
+  const nextSignature = JSON.stringify(currentHudState);
+  const shouldSyncPayload = nextSignature !== lastHudSignature;
+  lastHudSignature = nextSignature;
   syncHudWindowInteractivity();
   positionHudWindow();
-  hudWindow.webContents.send("hud:state", currentHudState);
+  if (shouldSyncPayload) {
+    hudWindow.webContents.send("hud:state", currentHudState);
+  }
 
   const shouldShow = currentHudState.visible || currentSettings.alwaysShowPill || isHudMoveMode;
 
@@ -408,6 +427,7 @@ function stopHudMoveMode() {
   }
 
   isHudMoveMode = false;
+  lastHudDimensions = { width: 0, height: 0 };
   updateHud(currentHudState);
   return currentSettings;
 }

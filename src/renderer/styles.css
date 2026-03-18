@@ -2737,6 +2737,166 @@ select option:disabled {
   color: rgba(255, 255, 255, 0.82);
 }
 
+.jumpscare-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 0, 0, 0.72);
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+  animation: jumpscare-backdrop-fade 0.78s ease both;
+}
+
+.jumpscare-flash {
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.96), rgba(255, 70, 70, 0.55) 28%, rgba(0, 0, 0, 0.04) 54%, transparent 72%);
+  mix-blend-mode: screen;
+  animation: jumpscare-flash-burst 0.78s ease both;
+}
+
+.jumpscare-creature {
+  position: relative;
+  width: min(82vw, 540px);
+  aspect-ratio: 1 / 1.05;
+  filter:
+    drop-shadow(0 0 18px rgba(255, 40, 40, 0.92))
+    drop-shadow(0 0 42px rgba(0, 0, 0, 0.86));
+  animation: jumpscare-creature-lunge 0.78s cubic-bezier(0.16, 0.88, 0.24, 1) both;
+}
+
+.jumpscare-horns {
+  position: absolute;
+  inset: 2% 14% auto;
+  height: 32%;
+}
+
+.jumpscare-horns::before,
+.jumpscare-horns::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 34%;
+  height: 100%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 115, 115, 0.74) 34%, rgba(54, 0, 0, 0.96));
+  clip-path: polygon(50% 0%, 84% 19%, 100% 56%, 72% 100%, 40% 74%, 15% 44%);
+}
+
+.jumpscare-horns::before {
+  left: 8%;
+  transform: rotate(-20deg);
+}
+
+.jumpscare-horns::after {
+  right: 8%;
+  transform: scaleX(-1) rotate(-20deg);
+}
+
+.jumpscare-face {
+  position: absolute;
+  inset: 16% 10% 6%;
+  border-radius: 42% 42% 48% 48% / 28% 28% 54% 54%;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 68, 68, 0.28), transparent 22%),
+    radial-gradient(circle at 50% 112%, rgba(0, 0, 0, 0.88), rgba(12, 0, 0, 0.98) 54%, rgba(0, 0, 0, 1) 100%);
+  border: 1px solid rgba(255, 110, 110, 0.34);
+  box-shadow:
+    inset 0 -26px 60px rgba(0, 0, 0, 0.86),
+    inset 0 18px 28px rgba(255, 80, 80, 0.14),
+    0 0 28px rgba(255, 40, 40, 0.4);
+}
+
+.jumpscare-face::before,
+.jumpscare-face::after {
+  content: "";
+  position: absolute;
+  top: 22%;
+  width: 30%;
+  height: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0.9), transparent 68%);
+  filter: blur(6px);
+  opacity: 0.9;
+}
+
+.jumpscare-face::before {
+  left: 12%;
+  transform: rotate(-10deg);
+}
+
+.jumpscare-face::after {
+  right: 12%;
+  transform: rotate(10deg);
+}
+
+.jumpscare-eye {
+  position: absolute;
+  top: 28%;
+  width: 23%;
+  height: 14%;
+  border-radius: 52% 48% 48% 52%;
+  background:
+    radial-gradient(circle at 50% 50%, #fff 0 10%, #ffd0d0 11% 24%, #ff3232 25% 45%, #250000 46% 100%);
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.84),
+    0 0 34px rgba(255, 42, 42, 0.88);
+}
+
+.jumpscare-eye::after {
+  content: "";
+  position: absolute;
+  inset: 22% 28%;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 50%, #000 0 30%, rgba(0, 0, 0, 0.08) 31% 100%);
+}
+
+.jumpscare-eye-left {
+  left: 15%;
+  transform: rotate(-8deg);
+}
+
+.jumpscare-eye-right {
+  right: 15%;
+  transform: rotate(8deg);
+}
+
+.jumpscare-mouth {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 14%;
+  height: 30%;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  align-items: start;
+  gap: 6px;
+  padding: 7% 8% 0;
+  border-radius: 36% 36% 52% 52% / 18% 18% 82% 82%;
+  background:
+    radial-gradient(circle at 50% 110%, rgba(150, 0, 0, 0.76), rgba(12, 0, 0, 0.98) 74%);
+  border: 1px solid rgba(255, 112, 112, 0.28);
+  box-shadow:
+    inset 0 10px 14px rgba(255, 64, 64, 0.18),
+    inset 0 -18px 22px rgba(0, 0, 0, 0.88);
+}
+
+.jumpscare-mouth span {
+  height: 56%;
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(180deg, #fff, #ffefef 44%, #c9b6b6);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.34);
+}
+
+.jumpscare-mouth span:nth-child(even) {
+  transform: translateY(10%);
+}
+
 .update-dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -3052,6 +3212,51 @@ select option:disabled {
   10% { opacity: 1; }
   88% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+@keyframes jumpscare-backdrop-fade {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes jumpscare-flash-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  42% {
+    opacity: 0.78;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes jumpscare-creature-lunge {
+  0% {
+    opacity: 0;
+    transform: scale(0.44) rotate(-6deg);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.16) rotate(2deg);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.02) rotate(-1deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 
 @keyframes retro-ground-scroll {

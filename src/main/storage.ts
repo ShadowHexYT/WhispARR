@@ -156,12 +156,16 @@ function normalizeSpokenPunctuationPreferences(
 const DEFAULT_PROFILE_EMOJI = "🎙️";
 
 function toDateKey(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function previousDateKey(dateKey: string) {
-  const date = new Date(`${dateKey}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() - 1);
+  const [year, month, day] = dateKey.split("-").map((value) => Number.parseInt(value, 10));
+  const date = new Date(year, (month || 1) - 1, day || 1);
+  date.setDate(date.getDate() - 1);
   return toDateKey(date);
 }
 
@@ -215,7 +219,7 @@ const dailyChallengeBlueprints: DailyChallengeBlueprint[] = [
     metric: "activityXpEarned",
     thresholds: [100, 160, 240, 340, 480, 650, 850, 1100, 1450, 1850, 2300],
     title: (target) => `Earn ${target.toLocaleString()} XP`,
-    description: (target) => `Earn ${target.toLocaleString()} XP from your activity before noon rolls around.`
+    description: (target) => `Earn ${target.toLocaleString()} XP from your activity before the day resets at midnight.`
   },
   {
     metric: "voiceSamplesRecorded",
@@ -233,7 +237,7 @@ const dailyChallengeBlueprints: DailyChallengeBlueprint[] = [
 
 function getDailyChallengeWindow(date = new Date()) {
   const resetAt = new Date(date);
-  resetAt.setHours(12, 0, 0, 0);
+  resetAt.setHours(0, 0, 0, 0);
 
   let startedAt = new Date(resetAt);
   if (date >= resetAt) {

@@ -1073,7 +1073,7 @@ function getPathLeaf(path: string) {
 
 function getFallbackDailyResetTime(date = new Date()) {
   const resetAt = new Date(date);
-  resetAt.setHours(12, 0, 0, 0);
+  resetAt.setHours(0, 0, 0, 0);
   if (date >= resetAt) {
     resetAt.setDate(resetAt.getDate() + 1);
   }
@@ -3016,7 +3016,7 @@ export default function App() {
                 {key === "stats" && (
                   <span
                     className={isDailyTimerInLastHour ? "nav-timer-chip daily-timer-alert" : "nav-timer-chip"}
-                    title="Daily challenges reset every day at 12:00 PM local time."
+                    title="Daily challenges reset every day at 12:00 AM local time."
                   >
                     Daily {dailyCountdownLabel}
                   </span>

@@ -565,6 +565,35 @@ function shouldLearnCorrectedWord(originalWord: string, correctedWord: string) {
   return distance <= allowedDistance && (sameFirstLetter || distance <= 1) && similarLength;
 }
 
+function isLikelyUnacceptableWord(word: string) {
+  const normalized = normalizeWordForLearning(word);
+  if (!normalized) {
+    return false;
+  }
+
+  return [
+    "fuck",
+    "fucking",
+    "fucked",
+    "fucker",
+    "shit",
+    "shitty",
+    "bitch",
+    "bitches",
+    "asshole",
+    "assholes",
+    "damn",
+    "crap",
+    "bastard",
+    "bastards",
+    "dick",
+    "dickhead",
+    "dickheads",
+    "piss",
+    "pissed"
+  ].includes(normalized);
+}
+
 function buildTokenReplacementCandidates(originalTokens: string[], correctedTokens: string[]) {
   if (originalTokens.length === 0 || correctedTokens.length === 0) {
     return [];
@@ -654,24 +683,7 @@ function buildTokenReplacementCandidates(originalTokens: string[], correctedToke
 }
 
 function inferDictionaryEntryType(term: string, replacement: string): "Abbreviation" | "Word" | "Phrase" {
-  const termWordCount = tokenizeTranscriptForLearning(term).length;
-  const replacementWordCount = tokenizeTranscriptForLearning(replacement).length;
-  const maxWordCount = Math.max(termWordCount, replacementWordCount);
-  const abbreviationPattern = /^[A-Z0-9]{2,8}$/;
-
-  if (
-    replacementWordCount === 1 &&
-    termWordCount >= 2 &&
-    abbreviationPattern.test(replacement.trim().replace(/[.]/g, ""))
-  ) {
-    return "Abbreviation";
-  }
-
-  if (maxWordCount <= 1) {
-    return "Word";
-  }
-
-  return "Phrase";
+  return "Word";
 }
 
 function scoreLearningCandidate(term: string, replacement: string) {
@@ -692,17 +704,14 @@ function shouldLearnReplacement(term: string, replacement: string) {
 
   const termWords = tokenizeTranscriptForLearning(term);
   const replacementWords = tokenizeTranscriptForLearning(replacement);
-  if (termWords.length === 1 && replacementWords.length === 1) {
-    return shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "");
+  if (termWords.length !== 1 || replacementWords.length !== 1) {
+    return false;
   }
 
   return (
-    termWords.length <= 3 &&
-    replacementWords.length <= 3 &&
-    term.trim().length <= 28 &&
-    replacement.trim().length <= 28 &&
-    !/[.!?]/.test(term) &&
-    !/[.!?]/.test(replacement)
+    shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "") ||
+    (isLikelyUnacceptableWord(termWords[0] ?? "") &&
+      normalizeWordForLearning(replacementWords[0] ?? "").length >= 3)
   );
 }
 
@@ -717,7 +726,7 @@ function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedCl
         scoreLearningCandidate(left.term, left.replacement) -
         scoreLearningCandidate(right.term, right.replacement)
     )
-    .slice(0, 2);
+    .slice(0, 1);
 
   if (rankedCandidates.length === 0) {
     return [];

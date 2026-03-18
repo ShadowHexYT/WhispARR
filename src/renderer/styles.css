@@ -1498,27 +1498,6 @@ select option:disabled {
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
 }
 
-.pronunciation-result {
-  display: grid;
-  gap: 14px;
-  margin-top: 18px;
-  padding: 16px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
-  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
-}
-
-.pronunciation-result strong {
-  display: block;
-  margin-bottom: 6px;
-}
-
-.pronunciation-result p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

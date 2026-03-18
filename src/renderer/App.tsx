@@ -641,8 +641,6 @@ function compactStatus(message: string) {
     [/choose a profile name/, "Enter profile name"],
     [/voice profile recording is live/, "Recording profile"],
     [/saved a local voice sample/, "Voice profile saved"],
-    [/pronunciation capture failed/, "Pronunciation failed"],
-    [/say \".*\" clearly, then press stop/, "Recording pronunciation"],
     [/transcript copied/, "Transcript copied"],
     [/saved \".*\" to your local dictionary and checked how it was heard/, "Dictionary updated"],
     [/saved \".*\" to your local dictionary, but no speech was detected/, "Dictionary updated"],
@@ -898,13 +896,6 @@ export default function App() {
   const [devices, setDevices] = useState<MicDevice[]>([]);
   const [profileName, setProfileName] = useState("");
   const [dictionaryTerm, setDictionaryTerm] = useState("");
-  const [pronunciationTerm, setPronunciationTerm] = useState("");
-  const [selectedPronunciationEntryId, setSelectedPronunciationEntryId] = useState("");
-  const [isRecordingPronunciation, setIsRecordingPronunciation] = useState(false);
-  const [lastPronunciationResult, setLastPronunciationResult] = useState<{
-    intended: string;
-    heard: string;
-  } | null>(null);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [achievementFilter, setAchievementFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
@@ -1858,7 +1849,7 @@ export default function App() {
       return;
     }
 
-    if (isTrainingProfile || isRecordingPronunciation) {
+    if (isTrainingProfile) {
       return;
     }
 
@@ -1900,65 +1891,6 @@ export default function App() {
     }
 
     await trainProfile();
-  }
-
-  async function togglePronunciationCapture() {
-    if (isTrainingProfile) {
-      return;
-    }
-
-    if (isRecordingPronunciation) {
-      try {
-        const sample = await recorder.stop();
-        const intended = pronunciationTerm.trim();
-        const existingMatch = manualDictionary.find(
-          (entry) => entry.term.toLowerCase() === intended.toLowerCase()
-        );
-        const savedEntry = await window.wisprApi.saveManualDictionaryEntry({
-          id: existingMatch?.id,
-          term: intended
-        });
-
-        setManualDictionary((current) => [savedEntry, ...current.filter((item) => item.id !== savedEntry.id)]);
-        setSelectedPronunciationEntryId(savedEntry.id);
-
-        if (!hasAudibleSpeech(sample.pcm)) {
-          setLastPronunciationResult({
-            intended: savedEntry.term,
-            heard: "No speech detected"
-          });
-          setStatus(`Saved "${savedEntry.term}" to your local dictionary, but no speech was detected to check pronunciation.`);
-          return;
-        }
-
-        const transcription = await window.wisprApi.transcribe({
-          pcm: Array.from(sample.pcm),
-          sampleRate: sample.sampleRate
-        });
-        setLastPronunciationResult({
-          intended: savedEntry.term,
-          heard: transcription.transcript.trim() || "No clear transcript detected"
-        });
-        setStatus(`Saved "${savedEntry.term}" to your local dictionary and checked how it was heard.`);
-      } catch (caught) {
-        setStatus(caught instanceof Error ? caught.message : "Pronunciation capture failed.");
-      } finally {
-        setIsRecordingPronunciation(false);
-        recorder.reset();
-      }
-      return;
-    }
-
-    const intended = pronunciationTerm.trim();
-    if (!intended) {
-      setStatus("Choose or type the word you want WhispARR to learn first.");
-      return;
-    }
-
-    setLastPronunciationResult(null);
-    await recorder.start();
-    setIsRecordingPronunciation(true);
-    setStatus(`Pronunciation capture is live. Say "${intended}" clearly, then press stop.`);
   }
 
   const activeShortcutLabel = shortcutToLabel(settings.activationShortcut);
@@ -2119,7 +2051,13 @@ export default function App() {
             </div>
           </button>
           <div className="sidebar-status">
-            <p className="eyebrow">Status</p>
+            <p className="eyebrow eyebrow-with-status-light">
+              <span
+                className={whisperStatus.binaryExists && whisperStatus.modelExists ? "status-light green" : "status-light red"}
+                aria-hidden="true"
+              />
+              Status
+            </p>
             <h1>{visibleStatus}</h1>
             <div className="status-pill">
               <span
@@ -2491,84 +2429,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <div className="dictionary-header">
-                <p className="eyebrow">Pronunciation</p>
-                <h3>Teach A Word You Say Differently</h3>
-              </div>
-              <p className="supporting">
-                Pick a term from your local dictionary or type a new one, then record yourself saying
-                it. WhispARR will save that intended term into the local dictionary and show what the
-                local engine heard so you can quickly tune repeated misses.
-              </p>
-              <div className="dictionary-form">
-                <label className="field">
-                  <span>Use a saved dictionary term</span>
-                  <select
-                    value={selectedPronunciationEntryId}
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      setSelectedPronunciationEntryId(nextId);
-                      const selectedEntry = manualDictionary.find((entry) => entry.id === nextId);
-                      if (selectedEntry) {
-                        setPronunciationTerm(selectedEntry.term);
-                      }
-                    }}
-                  >
-                    <option value="">Choose from local dictionary</option>
-                    {manualDictionary.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
-                        {entry.addedBySystem ? `★ ${entry.term}` : entry.term}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Word or phrase</span>
-                  <input
-                    value={pronunciationTerm}
-                    onChange={(event) => {
-                      setPronunciationTerm(event.target.value);
-                      setSelectedPronunciationEntryId("");
-                    }}
-                    placeholder="Example: WhispARR"
-                  />
-                </label>
-              </div>
-              <div className="button-row">
-                <button
-                  className={isRecordingPronunciation ? "secondary-button" : "primary-button"}
-                  onClick={() => void togglePronunciationCapture()}
-                  disabled={!isRecordingPronunciation && recorder.state === "recording"}
-                >
-                  {isRecordingPronunciation ? "Stop and check word" : "Say this word"}
-                </button>
-              </div>
-              {isRecordingPronunciation && (
-                <div className="microphone-test-card">
-                  <div className="microphone-test-header">
-                    <strong>Pronunciation input</strong>
-                    <span>{recorder.level > 0.03 ? "Input detected" : "Listening..."}</span>
-                  </div>
-                  <div className="microphone-test-meter" aria-hidden="true">
-                    <div
-                      className="microphone-test-fill"
-                      style={{ width: `${Math.max(8, recorder.level * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              {lastPronunciationResult && (
-                <div className="pronunciation-result">
-                  <div>
-                    <strong>Intended word</strong>
-                    <p>{lastPronunciationResult.intended}</p>
-                  </div>
-                  <div>
-                    <strong>Heard locally</strong>
-                    <p>{lastPronunciationResult.heard}</p>
-                  </div>
-                </div>
-              )}
             </section>
           </section>
         )}
@@ -3131,7 +2991,10 @@ export default function App() {
               </div>
               <div className={runtimeReady ? "runtime-feedback-card success" : "runtime-feedback-card error"}>
                 <div className="runtime-feedback-header">
-                  <strong>Engine status</strong>
+                  <strong className="runtime-status-title">
+                    <span className={runtimeReady ? "status-light green" : "status-light red"} aria-hidden="true" />
+                    Engine status
+                  </strong>
                   <span>{runtimeReady ? "Ready" : "Needs attention"}</span>
                 </div>
                 <p className="supporting">
@@ -3146,7 +3009,6 @@ export default function App() {
                   onClick={() => void installEverything()}
                   disabled={isInstallingRuntime}
                 >
-                  <span className={runtimeInstallHealthy ? "status-light green" : "status-light red"} aria-hidden="true" />
                   {isInstallingRuntime ? "Installing..." : "Install everything"}
                 </button>
                 <button
@@ -3154,7 +3016,6 @@ export default function App() {
                   onClick={() => void autoConfigureRuntime()}
                   disabled={isAutoFindingRuntime || isInstallingRuntime}
                 >
-                  <span className={runtimeAutoFindHealthy ? "status-light green" : "status-light red"} aria-hidden="true" />
                   {isAutoFindingRuntime ? "Scanning..." : "Auto-find runtime"}
                 </button>
               </div>

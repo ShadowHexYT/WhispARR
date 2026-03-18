@@ -11,6 +11,7 @@ import {
   HudState,
   LocalData,
   ManualDictionaryEntry,
+  PatchNotesRecord,
   PushToTalkEvent,
   RuntimeDiscoveryResult,
   RuntimeInstallResult,
@@ -43,6 +44,10 @@ declare global {
       checkForAppUpdates: (options?: { silent?: boolean }) => Promise<AppUpdateInfo>;
       downloadAndInstallAppUpdate: () => Promise<string>;
       skipAppUpdateVersion: (version: string | null) => Promise<string | null>;
+      setPendingPatchNotes: (patchNotes: PatchNotesRecord | null) => Promise<PatchNotesRecord | null>;
+      clearPendingPatchNotes: () => Promise<null>;
+      skipPatchNotesVersion: (version: string | null) => Promise<string | null>;
+      setNeverShowPatchNotes: (value: boolean) => Promise<boolean>;
       transcribe: (sample: TrainingSample) => Promise<DictationResult>;
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
       syncAchievements: (unlocked: AchievementUnlockInput[]) => Promise<AchievementSyncResult>;

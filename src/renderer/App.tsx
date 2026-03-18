@@ -3178,7 +3178,7 @@ export default function App() {
                 {key === "stats" && (
                   <span
                     className={isDailyTimerInLastHour ? "nav-timer-chip daily-timer-alert" : "nav-timer-chip"}
-                    title="Daily challenges reset every day at 12:00 AM local time."
+                    title="Daily challenges reset every day at midnight in your computer's current local timezone."
                   >
                     Daily {dailyCountdownLabel}
                   </span>
@@ -3826,7 +3826,7 @@ export default function App() {
                   <div>
                     <p className="eyebrow">Daily Challenges</p>
                     <h3>
-                      Noon Reset in{" "}
+                      Midnight Reset in{" "}
                       <span className={isDailyTimerInLastHour ? "daily-timer-alert" : "daily-timer-normal"}>
                         {dailyCountdownLabel}
                       </span>

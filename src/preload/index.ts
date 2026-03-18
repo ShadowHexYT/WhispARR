@@ -8,6 +8,7 @@ import {
   AppSettings,
   LocalData,
   ManualDictionaryEntry,
+  PatchNotesRecord,
   RuntimeDiscoveryResult,
   RuntimeInstallResult,
   SaveVoiceProfileInput,
@@ -44,6 +45,14 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.invoke("app:update:download-and-install") as Promise<string>,
   skipAppUpdateVersion: (version: string | null) =>
     ipcRenderer.invoke("app:update:skip-version", version) as Promise<string | null>,
+  setPendingPatchNotes: (patchNotes: PatchNotesRecord | null) =>
+    ipcRenderer.invoke("patch-notes:set-pending", patchNotes) as Promise<PatchNotesRecord | null>,
+  clearPendingPatchNotes: () =>
+    ipcRenderer.invoke("patch-notes:clear-pending") as Promise<null>,
+  skipPatchNotesVersion: (version: string | null) =>
+    ipcRenderer.invoke("patch-notes:skip-version", version) as Promise<string | null>,
+  setNeverShowPatchNotes: (value: boolean) =>
+    ipcRenderer.invoke("patch-notes:set-never-show", value) as Promise<boolean>,
   transcribe: (sample: TrainingSample) => ipcRenderer.invoke("dictation:transcribe", sample),
   trackTranscriptStats: (transcript: string) =>
     ipcRenderer.invoke("stats:track-transcript", transcript) as Promise<UserStats>,

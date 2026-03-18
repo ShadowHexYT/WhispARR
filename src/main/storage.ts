@@ -16,6 +16,7 @@ import {
   DailyChallengeTask,
   LocalData,
   ManualDictionaryEntry,
+  PatchNotesRecord,
   SaveVoiceProfileInput,
   SpokenPunctuationPreferenceMap,
   UserStats,
@@ -95,6 +96,9 @@ const defaultData: LocalData = {
   },
   onboardingCompletedKeys: [],
   skippedAppUpdateVersion: null,
+  skippedPatchNotesVersion: null,
+  neverShowPatchNotes: false,
+  pendingPatchNotes: null,
   spokenPunctuationPreferences: {},
   settings: defaultSettings,
   voiceProfiles: [],
@@ -772,6 +776,31 @@ function parseDataContent(content: string): LocalData | null {
         (parsed as { skippedAppUpdateVersion?: string }).skippedAppUpdateVersion?.trim()
           ? (parsed as { skippedAppUpdateVersion: string }).skippedAppUpdateVersion.trim()
           : null,
+      skippedPatchNotesVersion:
+        typeof (parsed as { skippedPatchNotesVersion?: unknown }).skippedPatchNotesVersion === "string" &&
+        (parsed as { skippedPatchNotesVersion?: string }).skippedPatchNotesVersion?.trim()
+          ? (parsed as { skippedPatchNotesVersion: string }).skippedPatchNotesVersion.trim()
+          : null,
+      neverShowPatchNotes: Boolean((parsed as { neverShowPatchNotes?: unknown }).neverShowPatchNotes),
+      pendingPatchNotes:
+        (parsed as { pendingPatchNotes?: unknown }).pendingPatchNotes &&
+        typeof (parsed as { pendingPatchNotes?: unknown }).pendingPatchNotes === "object" &&
+        typeof ((parsed as { pendingPatchNotes?: PatchNotesRecord | null }).pendingPatchNotes?.version) === "string" &&
+        ((parsed as { pendingPatchNotes?: PatchNotesRecord | null }).pendingPatchNotes?.version?.trim()?.length ?? 0) > 0
+          ? {
+              version: (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.version.trim(),
+              releaseName:
+                typeof (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseName === "string" &&
+                (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseName.trim()
+                  ? (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseName.trim()
+                  : null,
+              releaseNotes:
+                typeof (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseNotes === "string" &&
+                (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseNotes.trim()
+                  ? (parsed as { pendingPatchNotes: PatchNotesRecord }).pendingPatchNotes.releaseNotes.trim()
+                  : null
+            }
+          : null,
       spokenPunctuationPreferences: normalizeSpokenPunctuationPreferences(
         (parsed as { spokenPunctuationPreferences?: unknown }).spokenPunctuationPreferences
       ),
@@ -1143,6 +1172,46 @@ export function setSkippedAppUpdateVersion(version: string | null) {
   current.skippedAppUpdateVersion = typeof version === "string" && version.trim() ? version.trim() : null;
   writeData(current);
   return current.skippedAppUpdateVersion;
+}
+
+export function setPendingPatchNotes(patchNotes: PatchNotesRecord | null) {
+  const current = readData();
+  current.pendingPatchNotes = patchNotes
+    ? {
+        version: patchNotes.version.trim(),
+        releaseName: patchNotes.releaseName?.trim() || null,
+        releaseNotes: patchNotes.releaseNotes?.trim() || null
+      }
+    : null;
+  writeData(current);
+  return current.pendingPatchNotes;
+}
+
+export function clearPendingPatchNotes() {
+  const current = readData();
+  current.pendingPatchNotes = null;
+  writeData(current);
+  return current.pendingPatchNotes;
+}
+
+export function setSkippedPatchNotesVersion(version: string | null) {
+  const current = readData();
+  current.skippedPatchNotesVersion = typeof version === "string" && version.trim() ? version.trim() : null;
+  if (current.pendingPatchNotes?.version === current.skippedPatchNotesVersion) {
+    current.pendingPatchNotes = null;
+  }
+  writeData(current);
+  return current.skippedPatchNotesVersion;
+}
+
+export function setNeverShowPatchNotes(value: boolean) {
+  const current = readData();
+  current.neverShowPatchNotes = Boolean(value);
+  if (current.neverShowPatchNotes) {
+    current.pendingPatchNotes = null;
+  }
+  writeData(current);
+  return current.neverShowPatchNotes;
 }
 
 export function recordSpokenPunctuationDecision(

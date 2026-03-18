@@ -193,6 +193,9 @@ export type LocalData = {
   integrity: DataIntegrity;
   onboardingCompletedKeys: string[];
   skippedAppUpdateVersion: string | null;
+  skippedPatchNotesVersion: string | null;
+  neverShowPatchNotes: boolean;
+  pendingPatchNotes: PatchNotesRecord | null;
   spokenPunctuationPreferences: SpokenPunctuationPreferenceMap;
   settings: AppSettings;
   voiceProfiles: VoiceProfile[];
@@ -251,6 +254,12 @@ export type AppUpdateState = {
   message: string;
   progress: number | null;
   info: AppUpdateInfo | null;
+};
+
+export type PatchNotesRecord = {
+  version: string;
+  releaseName: string | null;
+  releaseNotes: string | null;
 };
 
 export type AppDiagnostics = {

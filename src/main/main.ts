@@ -21,8 +21,12 @@ import {
   saveManualDictionaryEntry,
   saveNotes,
   saveSavedNotes,
+  clearPendingPatchNotes,
   saveVoiceProfile,
   saveTranscriptHistory,
+  setNeverShowPatchNotes,
+  setPendingPatchNotes,
+  setSkippedPatchNotesVersion,
   setSkippedAppUpdateVersion,
   syncAchievementUnlocks,
   updateSettings,
@@ -40,6 +44,7 @@ import {
   CustomThemeColors,
   HudState,
   AppDiagnostics,
+  PatchNotesRecord,
   PushToTalkEvent,
   SaveVoiceProfileInput,
   ShortcutModifier,
@@ -1320,6 +1325,18 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("app:update:skip-version", (_event, version: string | null) => {
     return setSkippedAppUpdateVersion(version);
+  });
+  ipcMain.handle("patch-notes:set-pending", (_event, patchNotes: PatchNotesRecord | null) => {
+    return setPendingPatchNotes(patchNotes);
+  });
+  ipcMain.handle("patch-notes:clear-pending", () => {
+    return clearPendingPatchNotes();
+  });
+  ipcMain.handle("patch-notes:skip-version", (_event, version: string | null) => {
+    return setSkippedPatchNotesVersion(version);
+  });
+  ipcMain.handle("patch-notes:set-never-show", (_event, value: boolean) => {
+    return setNeverShowPatchNotes(value);
   });
   ipcMain.handle("dictation:transcribe", async (_event, sample: TrainingSample) => {
     const data = readData();

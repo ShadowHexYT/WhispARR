@@ -128,7 +128,16 @@ textarea {
   cursor: pointer;
 }
 
-.brand-mark-button:hover .brand-mark-image {
+.brand-mark-icon-button {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.brand-mark-title-button {
+  width: auto;
+}
+
+.brand-mark-icon-button:hover .brand-mark-image {
   transform: rotate(-5deg) scale(1.05);
 }
 
@@ -217,7 +226,7 @@ textarea {
   pointer-events: none;
 }
 
-.brand-mark-button:hover .brand-mark-title-text {
+.brand-mark-title-button:hover .brand-mark-title-text {
   color: transparent;
   filter: drop-shadow(0 0 10px rgba(177, 158, 239, 0.28));
   text-shadow:
@@ -226,7 +235,7 @@ textarea {
   animation: brand-mark-gradient-shift 1.4s ease forwards;
 }
 
-.brand-mark-button:hover .brand-mark-title-text::after {
+.brand-mark-title-button:hover .brand-mark-title-text::after {
   opacity: 1;
   animation: brand-mark-shimmer 1.4s ease forwards;
 }

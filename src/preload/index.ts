@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.invoke("patch-notes:skip-version", version) as Promise<string | null>,
   setNeverShowPatchNotes: (value: boolean) =>
     ipcRenderer.invoke("patch-notes:set-never-show", value) as Promise<boolean>,
+  openExternal: (url: string) =>
+    ipcRenderer.invoke("app:open-external", url) as Promise<boolean>,
   transcribe: (sample: TrainingSample) => ipcRenderer.invoke("dictation:transcribe", sample),
   trackTranscriptStats: (transcript: string) =>
     ipcRenderer.invoke("stats:track-transcript", transcript) as Promise<UserStats>,

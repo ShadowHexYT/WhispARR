@@ -48,6 +48,7 @@ declare global {
       clearPendingPatchNotes: () => Promise<null>;
       skipPatchNotesVersion: (version: string | null) => Promise<string | null>;
       setNeverShowPatchNotes: (value: boolean) => Promise<boolean>;
+      openExternal: (url: string) => Promise<boolean>;
       transcribe: (sample: TrainingSample) => Promise<DictationResult>;
       trackTranscriptStats: (transcript: string) => Promise<UserStats>;
       syncAchievements: (unlocked: AchievementUnlockInput[]) => Promise<AchievementSyncResult>;

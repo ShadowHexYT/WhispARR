@@ -2384,6 +2384,16 @@ export default function App() {
     }, 4000);
   }
 
+  async function handleBrandTitleClick() {
+    const shouldOpen = window.confirm("Open the WhispARR GitHub page?");
+    if (!shouldOpen) {
+      return;
+    }
+
+    await window.wisprApi.openExternal("https://github.com/ShadowHexYT");
+    setStatus("Opened the WhispARR GitHub page.");
+  }
+
   function playRetroZombieSound() {
     if (settingsRef.current.muteDictationSounds) {
       return;
@@ -3139,18 +3149,28 @@ export default function App() {
       <div className="titlebar-drag" aria-hidden="true" />
       <aside className="sidebar">
         <div>
-          <button className="brand-mark-button" type="button" onClick={() => void handleBrandMarkClick()}>
-            <div className="brand-mark">
+          <div className="brand-mark">
+            <button
+              className="brand-mark-button brand-mark-icon-button"
+              type="button"
+              onClick={() => void handleBrandMarkClick()}
+            >
               <div className="brand-mark-badge" aria-hidden="true">
                 <img src={appIconUrl} alt="WhispARR icon" className="brand-mark-image" />
               </div>
-              <div className="brand-mark-copy">
+            </button>
+            <div className="brand-mark-copy">
+              <button
+                className="brand-mark-button brand-mark-title-button"
+                type="button"
+                onClick={() => void handleBrandTitleClick()}
+              >
                 <p className="brand-mark-title">
                   <span className="brand-mark-title-text">WhispARR</span>
                 </p>
-              </div>
+              </button>
             </div>
-          </button>
+          </div>
           <div className="sidebar-status">
             <div className="sidebar-status-header">
               <p className="eyebrow eyebrow-with-status-light">

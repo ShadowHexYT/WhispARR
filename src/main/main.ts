@@ -9,7 +9,8 @@ import {
   Notification,
   Tray,
   nativeImage,
-  screen
+  screen,
+  shell
 } from "electron";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -1401,6 +1402,10 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("app:diagnostics", () => {
     return getAppDiagnostics();
+  });
+  ipcMain.handle("app:open-external", async (_event, url: string) => {
+    await shell.openExternal(url);
+    return true;
   });
 
   createWindow();

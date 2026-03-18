@@ -5,6 +5,7 @@ import {
   ChartColumnBig,
   Clock3,
   Mic,
+  RefreshCw,
   Settings2,
   SquareTerminal,
   UserRound,
@@ -673,6 +674,63 @@ function compactStatus(message: string) {
   return words.slice(0, 10).join(" ");
 }
 
+function getRuntimeErrorCode(options: {
+  runtimeInstallTone: RuntimeFeedbackTone;
+  runtimeAutoFindTone: RuntimeFeedbackTone;
+  runtimeInstallMessage: string;
+  runtimeAutoFindMessage: string;
+  binaryExists: boolean;
+  modelExists: boolean;
+}) {
+  if (options.runtimeInstallTone === "error") {
+    return "ENG-INSTALL";
+  }
+
+  if (options.runtimeAutoFindTone === "error") {
+    return "ENG-FIND";
+  }
+
+  if (!options.binaryExists && !options.modelExists) {
+    return "ENG-MISSING";
+  }
+
+  if (!options.binaryExists) {
+    return "ENG-BINARY";
+  }
+
+  if (!options.modelExists) {
+    return "ENG-MODEL";
+  }
+
+  return "ENG-RUNTIME";
+}
+
+function getRuntimeErrorSummary(options: {
+  runtimeInstallMessage: string;
+  runtimeAutoFindMessage: string;
+  binaryExists: boolean;
+  modelExists: boolean;
+}) {
+  const sourceMessage = options.runtimeInstallMessage || options.runtimeAutoFindMessage;
+  if (sourceMessage) {
+    return sourceMessage.replace(/\s+/g, " ").trim();
+  }
+
+  if (!options.binaryExists && !options.modelExists) {
+    return "Local binary and model are missing.";
+  }
+
+  if (!options.binaryExists) {
+    return "Local binary is missing or invalid.";
+  }
+
+  if (!options.modelExists) {
+    return "Local model is missing or invalid.";
+  }
+
+  return "The local engine needs attention.";
+}
+
 function decayOverflow(value: number, max: number) {
   if (max === 0) {
     return 0;
@@ -928,6 +986,7 @@ export default function App() {
   const [runtimeAutoFindMessage, setRuntimeAutoFindMessage] = useState("");
   const [runtimeAutoFindTone, setRuntimeAutoFindTone] = useState<RuntimeFeedbackTone>("idle");
   const [isAutoFindingRuntime, setIsAutoFindingRuntime] = useState(false);
+  const [isRefreshingRuntime, setIsRefreshingRuntime] = useState(false);
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
@@ -1690,6 +1749,28 @@ export default function App() {
     setStatus("Setup complete. WhispARR is ready.");
   }
 
+  async function refreshRuntimeEngine() {
+    setIsRefreshingRuntime(true);
+    setStatus("Refreshing local engine...");
+
+    try {
+      const result = await window.wisprApi.refreshRuntime();
+      setRuntimeDiscovery(result);
+      await refreshLocalData();
+
+      if (result.selected) {
+        setStatus("Local engine refreshed and ready.");
+      } else {
+        setStatus("Engine refresh finished, but setup still needs attention.");
+      }
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Local engine refresh failed.";
+      setStatus(message);
+    } finally {
+      setIsRefreshingRuntime(false);
+    }
+  }
+
   async function goToNextOnboardingStep() {
     if (onboardingStep === 2 && isTestingMicrophone) {
       await stopMicrophoneTest();
@@ -1987,6 +2068,20 @@ export default function App() {
     isAutoFindingRuntime ||
     runtimeInstallTone === "error" ||
     runtimeAutoFindTone === "error";
+  const runtimeErrorCode = getRuntimeErrorCode({
+    runtimeInstallTone,
+    runtimeAutoFindTone,
+    runtimeInstallMessage,
+    runtimeAutoFindMessage,
+    binaryExists: whisperStatus.binaryExists,
+    modelExists: whisperStatus.modelExists
+  });
+  const runtimeErrorSummary = getRuntimeErrorSummary({
+    runtimeInstallMessage,
+    runtimeAutoFindMessage,
+    binaryExists: whisperStatus.binaryExists,
+    modelExists: whisperStatus.modelExists
+  });
   const microphoneReady = devices.length > 0;
   const shortcutReady =
     settings.activationShortcut.modifiers.length > 0 || Boolean(settings.activationShortcut.key);
@@ -2346,18 +2441,22 @@ export default function App() {
                     <div className="history-limit-control">
                       {isEditingTranscriptHistoryLimit ? (
                         <input
-                          type="number"
-                          min="1"
-                          max="500"
-                          step="1"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={settings.transcriptHistoryLimit}
                           autoFocus
                           onChange={(event) =>
-                            void patchSettings({
-                              transcriptHistoryLimit: clampTranscriptHistoryLimit(
-                                Number(event.target.value || settings.transcriptHistoryLimit)
-                              )
-                            })
+                            void (() => {
+                              const digitsOnly = event.target.value.replace(/\D+/g, "");
+                              if (!digitsOnly) {
+                                return;
+                              }
+
+                              return patchSettings({
+                                transcriptHistoryLimit: clampTranscriptHistoryLimit(Number(digitsOnly))
+                              });
+                            })()
                           }
                           onBlur={() => setIsEditingTranscriptHistoryLimit(false)}
                         />
@@ -3122,12 +3221,27 @@ export default function App() {
                     <span className={runtimeReady ? "status-light green" : "status-light red"} aria-hidden="true" />
                     Engine status
                   </strong>
-                  <span>{runtimeReady ? "Ready" : "Needs attention"}</span>
+                  <div className="runtime-header-actions">
+                    <span>{runtimeReady ? "Ready" : "Needs attention"}</span>
+                    <button
+                      className="icon-button runtime-refresh-button"
+                      type="button"
+                      onClick={() => void refreshRuntimeEngine()}
+                      disabled={isRefreshingRuntime || isInstallingRuntime || isAutoFindingRuntime}
+                      aria-label="Refresh engine"
+                      title={isRefreshingRuntime ? "Refreshing engine..." : "Refresh engine"}
+                    >
+                      <RefreshCw
+                        className={isRefreshingRuntime ? "runtime-refresh-icon spinning" : "runtime-refresh-icon"}
+                        strokeWidth={1.9}
+                      />
+                    </button>
+                  </div>
                 </div>
                 <p className="supporting">
                   {runtimeReady
                     ? "Local engine is good to go and is working."
-                    : "Local engine still needs setup or a fix before dictation can run reliably."}
+                    : `${runtimeErrorCode}: ${runtimeErrorSummary}`}
                 </p>
               </div>
               <div className="button-row">
@@ -3141,7 +3255,7 @@ export default function App() {
                 <button
                   className="primary-button"
                   onClick={() => void autoConfigureRuntime()}
-                  disabled={isAutoFindingRuntime || isInstallingRuntime}
+                  disabled={isAutoFindingRuntime || isInstallingRuntime || isRefreshingRuntime}
                 >
                   {isAutoFindingRuntime ? "Scanning..." : "Auto-find runtime"}
                 </button>
@@ -3248,11 +3362,7 @@ export default function App() {
                     </div>
                   </label>
                 </>
-              ) : (
-                <p className="supporting">
-                  Everything is configured correctly. You are good to go and the local engine is working.
-                </p>
-              )}
+              ) : null}
               <div className="settings-column-footer">
                 <div
                   className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}

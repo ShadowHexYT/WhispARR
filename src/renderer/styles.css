@@ -727,7 +727,8 @@ textarea {
 }
 
 .history-limit-control input {
-  width: 56px;
+  width: 72px;
+  text-align: center;
 }
 
 @keyframes history-limit-drop {
@@ -1578,6 +1579,23 @@ select option:disabled {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.runtime-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-refresh-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  padding: 0;
+}
+
+.runtime-refresh-icon.spinning {
+  animation: runtime-refresh-spin 0.9s linear infinite;
 }
 
 .runtime-progress-track {

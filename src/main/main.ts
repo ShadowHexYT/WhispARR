@@ -945,6 +945,30 @@ app.whenReady().then(() => {
     }
     return runtimeResult;
   });
+  ipcMain.handle("runtime:refresh", () => {
+    const runtimeResult = discoverRuntime();
+    const nextPatch: Partial<AppSettings> = runtimeResult.selected
+      ? {
+          whisperBinaryPath: runtimeResult.selected.binaryPath,
+          whisperModelPath: runtimeResult.selected.modelPath
+        }
+      : {
+          whisperBinaryPath: currentSettings.whisperBinaryPath,
+          whisperModelPath: currentSettings.whisperModelPath
+        };
+
+    currentSettings = updateSettings(nextPatch);
+    updateHud({
+      visible: currentHudState.visible || pushToTalkActive || currentSettings.alwaysShowPill,
+      level: 0,
+      label: pushToTalkActive ? "Listening" : "Ready",
+      soundEnabled: !currentSettings.muteDictationSounds,
+      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+      hudScale: currentSettings.hudScale,
+      moveMode: isHudMoveMode
+    });
+    return runtimeResult;
+  });
   ipcMain.handle("runtime:install", async () => {
     const installResult = await installRuntime();
     if (installResult.discovery.selected) {

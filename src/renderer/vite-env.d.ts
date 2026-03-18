@@ -35,6 +35,7 @@ declare global {
       deleteManualDictionaryEntry: (id: string) => Promise<ManualDictionaryEntry[]>;
       getWhisperStatus: () => Promise<WhisperConfigStatus>;
       discoverRuntime: () => Promise<RuntimeDiscoveryResult>;
+      refreshRuntime: () => Promise<RuntimeDiscoveryResult>;
       installRuntime: () => Promise<RuntimeInstallResult>;
       checkForAppUpdates: () => Promise<AppUpdateInfo>;
       downloadAndInstallAppUpdate: () => Promise<string>;

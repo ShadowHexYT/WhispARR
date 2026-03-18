@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.invoke("dictionary:delete", id) as Promise<ManualDictionaryEntry[]>,
   getWhisperStatus: () => ipcRenderer.invoke("whisper:status"),
   discoverRuntime: () => ipcRenderer.invoke("runtime:discover") as Promise<RuntimeDiscoveryResult>,
+  refreshRuntime: () => ipcRenderer.invoke("runtime:refresh") as Promise<RuntimeDiscoveryResult>,
   installRuntime: () => ipcRenderer.invoke("runtime:install") as Promise<RuntimeInstallResult>,
   checkForAppUpdates: () => ipcRenderer.invoke("app:update:check") as Promise<AppUpdateInfo>,
   downloadAndInstallAppUpdate: () =>

@@ -621,6 +621,10 @@ function compactStatus(message: string) {
     [/ready to dictate/, "Ready to Dictate!"],
     [/activation shortcut updated/, "Shortcut updated"],
     [/configured local runtime/, "Engine configured"],
+    [/refreshed and ready/, "Engine refreshed"],
+    [/refreshing local engine/, "Refreshing engine"],
+    [/refreshruntime is not a function/, "Engine refresh unavailable"],
+    [/engine refresh failed/, "Engine refresh failed"],
     [/no bundled or local runtime/, "Engine not found"],
     [/installed and verified/, "Engine ready"],
     [/installation finished, but readiness could not be confirmed/, "Engine needs attention"],
@@ -2216,8 +2220,12 @@ export default function App() {
         <div>
           <button className="brand-mark-button" type="button" onClick={() => void handleBrandMarkClick()}>
             <div className="brand-mark">
-            <img src={appIconUrl} alt="WhispARR icon" className="brand-mark-image" />
-            <p className="eyebrow">WhispARR</p>
+              <div className="brand-mark-badge" aria-hidden="true">
+                <img src={appIconUrl} alt="WhispARR icon" className="brand-mark-image" />
+              </div>
+              <div className="brand-mark-copy">
+                <p className="brand-mark-title">WhispARR</p>
+              </div>
             </div>
           </button>
           <div className="sidebar-status">
@@ -2341,65 +2349,84 @@ export default function App() {
           </article>
         </section>
         {tab === "dictation" && (
-          <section className="panel-grid">
+          <section className="panel-grid dictation-stack">
             <section className="panel">
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Activation</p>
                   <h3>{activeShortcutLabel} To Dictate</h3>
                 </div>
-                <button
-                  className="icon-button"
-                  onClick={() => void refreshDevices()}
-                  type="button"
-                  aria-label="Refresh devices"
-                  title="Refresh devices"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path
-                      d="M20 12a8 8 0 1 1-2.34-5.66"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M20 4v5h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
               </div>
               <p className="supporting">
                 The app listens globally. Press and hold {activeShortcutLabel}, speak, then release.
                 With auto-paste enabled, the result is inserted back into the app you were using.
               </p>
+              <p className="supporting">
+                Current shortcut: <strong>{activeShortcutLabel}</strong>
+              </p>
               <label className="field">
                 <span>Microphone</span>
-                <select
-                  value={settings.selectedMicId ?? ""}
-                  onChange={(event) =>
-                    void patchSettings({ selectedMicId: event.target.value || null })
-                  }
-                >
-                  <option value="">System default microphone</option>
-                  {devices.map((device) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="path-field">
+                  <select
+                    value={settings.selectedMicId ?? ""}
+                    onChange={(event) =>
+                      void patchSettings({ selectedMicId: event.target.value || null })
+                    }
+                  >
+                    <option value="">System default microphone</option>
+                    {devices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="icon-button device-refresh-button"
+                    onClick={() => void refreshDevices()}
+                    type="button"
+                    aria-label="Refresh devices"
+                    title="Refresh devices"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M20 12a8 8 0 1 1-2.34-5.66"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M20 4v5h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </label>
               <div className="button-row">
-                <button className="ghost-button" onClick={() => setTab("settings")}>
-                  Edit shortcut
+                <button
+                  className={isCapturingShortcut ? "primary-button" : "secondary-button"}
+                  onClick={() => {
+                    setIsCapturingShortcut(true);
+                  }}
+                  type="button"
+                >
+                  {isCapturingShortcut ? "Hold combo and release" : "Record new shortcut"}
+                </button>
+                <button
+                  className="ghost-button"
+                  onClick={() => void saveShortcut(defaultShortcut)}
+                  type="button"
+                >
+                  Reset to Windows + Control
                 </button>
                 <button
                   className={isTestingMicrophone ? "secondary-button" : "primary-button"}
+                  type="button"
                   onClick={() =>
                     void (isTestingMicrophone ? stopMicrophoneTest() : startMicrophoneTest())
                   }
@@ -2408,6 +2435,13 @@ export default function App() {
                   {isTestingMicrophone ? "Stop microphone test" : "Test microphone"}
                 </button>
               </div>
+              {draftShortcutLabel && (
+                <p className="supporting">Latest captured shortcut: <strong>{draftShortcutLabel}</strong></p>
+              )}
+              <p className="supporting">
+                While recording a shortcut, hold the full combination and release any key to save it immediately.
+                `Escape` cancels the capture.
+              </p>
               {isTestingMicrophone && (
                 <div className="microphone-test-card">
                   <div className="microphone-test-header">
@@ -2428,9 +2462,8 @@ export default function App() {
                 </p>
               )}
               {recorder.error && <p className="error-text">{recorder.error}</p>}
-            </section>
-            <section className="panel transcript-panel">
-              <div className="panel-header">
+
+              <div className="panel-header dictation-subsection-header">
                 <div>
                   <p className="eyebrow">Output</p>
                   <h3>Transcript History</h3>

@@ -82,6 +82,7 @@ export type VoiceProfile = {
   averageEmbedding: VoiceEmbedding;
   stats: UserStats;
   unlockedAchievements: string[];
+  dailyChallenges: DailyChallengeSet;
 };
 
 export type ManualDictionaryEntry = {
@@ -114,6 +115,51 @@ export type UserStats = {
   lastUsedOn: string | null;
 };
 
+export type DailyChallengeMetric =
+  | "dictatedWords"
+  | "dictatedCharacters"
+  | "completedDictations"
+  | "longestDictationWords"
+  | "longDictations"
+  | "marathonDictations"
+  | "activityXpEarned"
+  | "voiceSamplesRecorded"
+  | "dictionaryEntriesSaved";
+
+export type DailyChallengeProgress = {
+  dictatedWords: number;
+  dictatedCharacters: number;
+  completedDictations: number;
+  longestDictationWords: number;
+  longDictations: number;
+  marathonDictations: number;
+  activityXpEarned: number;
+  voiceSamplesRecorded: number;
+  dictionaryEntriesSaved: number;
+};
+
+export type DailyChallengeTask = {
+  id: string;
+  title: string;
+  description: string;
+  metric: DailyChallengeMetric;
+  target: number;
+  rewardXp: number;
+  completedAt: string | null;
+  rewardGranted: boolean;
+};
+
+export type DailyChallengeSet = {
+  version: number;
+  cycleKey: string;
+  startedAt: string;
+  resetsAt: string;
+  tasks: DailyChallengeTask[];
+  progress: DailyChallengeProgress;
+  completedSetRewardGranted: boolean;
+  setCompletedAt: string | null;
+};
+
 export type AchievementUnlockInput = {
   title: string;
   xp: number;
@@ -132,6 +178,7 @@ export type LocalData = {
   voiceProfiles: VoiceProfile[];
   manualDictionary: ManualDictionaryEntry[];
   stats: UserStats;
+  dailyChallenges: DailyChallengeSet;
   unlockedAchievements: string[];
   transcriptHistory: string[];
   notes: string;

@@ -10,6 +10,10 @@ import {
   AppThemeName,
   AppSettings,
   CustomThemeColors,
+  DailyChallengeMetric,
+  DailyChallengeProgress,
+  DailyChallengeSet,
+  DailyChallengeTask,
   LocalData,
   ManualDictionaryEntry,
   SaveVoiceProfileInput,
@@ -62,6 +66,24 @@ const defaultSettings: AppSettings = {
   devModeEnabled: false
 };
 
+const DAILY_CHALLENGE_REWARD_XP = 200;
+const DAILY_CHALLENGE_SET_BONUS_XP = 400;
+const DAILY_CHALLENGE_SET_VERSION = 1;
+const LONG_DICTATION_WORD_COUNT = 50;
+const MARATHON_DICTATION_WORD_COUNT = 100;
+
+const defaultDailyChallengeProgress: DailyChallengeProgress = {
+  dictatedWords: 0,
+  dictatedCharacters: 0,
+  completedDictations: 0,
+  longestDictationWords: 0,
+  longDictations: 0,
+  marathonDictations: 0,
+  activityXpEarned: 0,
+  voiceSamplesRecorded: 0,
+  dictionaryEntriesSaved: 0
+};
+
 const defaultData: LocalData = {
   installRegistrationKey: randomUUID(),
   onboardingProfileKey: null,
@@ -74,6 +96,16 @@ const defaultData: LocalData = {
     currentLevel: 1,
     currentStreakDays: 0,
     lastUsedOn: null
+  },
+  dailyChallenges: {
+    version: DAILY_CHALLENGE_SET_VERSION,
+    cycleKey: "",
+    startedAt: "",
+    resetsAt: "",
+    tasks: [],
+    progress: { ...defaultDailyChallengeProgress },
+    completedSetRewardGranted: false,
+    setCompletedAt: null
   },
   unlockedAchievements: [],
   transcriptHistory: [],
@@ -97,6 +129,311 @@ function previousDateKey(dateKey: string) {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() - 1);
   return toDateKey(date);
+}
+
+type DailyChallengeBlueprint = {
+  metric: DailyChallengeMetric;
+  thresholds: number[];
+  title: (target: number) => string;
+  description: (target: number) => string;
+};
+
+const dailyChallengeBlueprints: DailyChallengeBlueprint[] = [
+  {
+    metric: "dictatedWords",
+    thresholds: [75, 120, 180, 260, 380, 550, 800, 1150, 1600, 2200, 3000],
+    title: (target) => `Dictate ${target.toLocaleString()} words`,
+    description: (target) => `Use WhispARR to speak ${target.toLocaleString()} words before the daily reset.`
+  },
+  {
+    metric: "dictatedCharacters",
+    thresholds: [300, 500, 800, 1200, 1700, 2400, 3300, 4500, 6000, 7800, 10000],
+    title: (target) => `Reach ${target.toLocaleString()} characters`,
+    description: (target) => `Rack up ${target.toLocaleString()} dictated characters across your sessions today.`
+  },
+  {
+    metric: "completedDictations",
+    thresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12],
+    title: (target) => `Finish ${target} dictation${target === 1 ? "" : "s"}`,
+    description: (target) => `Complete ${target} successful dictation${target === 1 ? "" : "s"} today.`
+  },
+  {
+    metric: "longestDictationWords",
+    thresholds: [30, 45, 60, 80, 110, 150, 200, 260, 330, 420, 520],
+    title: (target) => `Hit a ${target}-word run`,
+    description: (target) => `Land a single dictation session with at least ${target} words.`
+  },
+  {
+    metric: "longDictations",
+    thresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12],
+    title: (target) => `Complete ${target} long run${target === 1 ? "" : "s"}`,
+    description: (target) =>
+      `Finish ${target} dictation${target === 1 ? "" : "s"} with at least ${LONG_DICTATION_WORD_COUNT} words each.`
+  },
+  {
+    metric: "marathonDictations",
+    thresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12],
+    title: (target) => `Crush ${target} marathon${target === 1 ? "" : "s"}`,
+    description: (target) =>
+      `Finish ${target} dictation${target === 1 ? "" : "s"} with at least ${MARATHON_DICTATION_WORD_COUNT} words each.`
+  },
+  {
+    metric: "activityXpEarned",
+    thresholds: [100, 160, 240, 340, 480, 650, 850, 1100, 1450, 1850, 2300],
+    title: (target) => `Earn ${target.toLocaleString()} XP`,
+    description: (target) => `Earn ${target.toLocaleString()} XP from your activity before noon rolls around.`
+  },
+  {
+    metric: "voiceSamplesRecorded",
+    thresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12],
+    title: (target) => `Record ${target} voice sample${target === 1 ? "" : "s"}`,
+    description: (target) => `Train your voice profile with ${target} new sample${target === 1 ? "" : "s"} today.`
+  },
+  {
+    metric: "dictionaryEntriesSaved",
+    thresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12],
+    title: (target) => `Save ${target} dictionary ${target === 1 ? "entry" : "entries"}`,
+    description: (target) => `Add or update ${target} local dictionary ${target === 1 ? "entry" : "entries"} today.`
+  }
+];
+
+function getDailyChallengeWindow(date = new Date()) {
+  const resetAt = new Date(date);
+  resetAt.setHours(12, 0, 0, 0);
+
+  let startedAt = new Date(resetAt);
+  if (date >= resetAt) {
+    resetAt.setDate(resetAt.getDate() + 1);
+  } else {
+    startedAt.setDate(startedAt.getDate() - 1);
+  }
+
+  return {
+    cycleKey: startedAt.toISOString(),
+    startedAt: startedAt.toISOString(),
+    resetsAt: resetAt.toISOString()
+  };
+}
+
+function hashString(value: string) {
+  let hash = 1779033703 ^ value.length;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(hash ^ value.charCodeAt(index), 3432918353);
+    hash = (hash << 13) | (hash >>> 19);
+  }
+
+  hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+  hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+}
+
+function createSeededRandom(seed: string) {
+  let state = hashString(seed) || 1;
+
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let result = Math.imul(state ^ (state >>> 15), 1 | state);
+    result ^= result + Math.imul(result ^ (result >>> 7), 61 | result);
+    return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithSeed<T>(items: T[], seed: string) {
+  const random = createSeededRandom(seed);
+  const next = [...items];
+
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+
+  return next;
+}
+
+function createDailyChallengeTasks(seedBase: string): DailyChallengeTask[] {
+  const shuffledBlueprints = shuffleWithSeed(dailyChallengeBlueprints, `${seedBase}:categories`).slice(0, 3);
+
+  return shuffledBlueprints.map((blueprint, index) => {
+    const thresholdIndex = Math.floor(createSeededRandom(`${seedBase}:${blueprint.metric}:${index}`)() * blueprint.thresholds.length);
+    const target = blueprint.thresholds[thresholdIndex];
+
+    return {
+      id: `${blueprint.metric}:${target}`,
+      title: blueprint.title(target),
+      description: blueprint.description(target),
+      metric: blueprint.metric,
+      target,
+      rewardXp: DAILY_CHALLENGE_REWARD_XP,
+      completedAt: null,
+      rewardGranted: false
+    };
+  });
+}
+
+function createDailyChallengeSet(seedBase: string, date = new Date()): DailyChallengeSet {
+  const window = getDailyChallengeWindow(date);
+  const seed = `${seedBase}:${window.cycleKey}`;
+
+  return {
+    version: DAILY_CHALLENGE_SET_VERSION,
+    cycleKey: window.cycleKey,
+    startedAt: window.startedAt,
+    resetsAt: window.resetsAt,
+    tasks: createDailyChallengeTasks(seed),
+    progress: { ...defaultDailyChallengeProgress },
+    completedSetRewardGranted: false,
+    setCompletedAt: null
+  };
+}
+
+function normalizeDailyChallengeProgress(progress: Partial<DailyChallengeProgress> | undefined): DailyChallengeProgress {
+  return {
+    dictatedWords: Math.max(0, Number(progress?.dictatedWords ?? 0) || 0),
+    dictatedCharacters: Math.max(0, Number(progress?.dictatedCharacters ?? 0) || 0),
+    completedDictations: Math.max(0, Number(progress?.completedDictations ?? 0) || 0),
+    longestDictationWords: Math.max(0, Number(progress?.longestDictationWords ?? 0) || 0),
+    longDictations: Math.max(0, Number(progress?.longDictations ?? 0) || 0),
+    marathonDictations: Math.max(0, Number(progress?.marathonDictations ?? 0) || 0),
+    activityXpEarned: Math.max(0, Number(progress?.activityXpEarned ?? 0) || 0),
+    voiceSamplesRecorded: Math.max(0, Number(progress?.voiceSamplesRecorded ?? 0) || 0),
+    dictionaryEntriesSaved: Math.max(0, Number(progress?.dictionaryEntriesSaved ?? 0) || 0)
+  };
+}
+
+function normalizeDailyChallenges(
+  challenges: Partial<DailyChallengeSet> | undefined,
+  seedBase: string,
+  date = new Date()
+): DailyChallengeSet {
+  const currentWindow = getDailyChallengeWindow(date);
+
+  if (
+    !challenges ||
+    challenges.version !== DAILY_CHALLENGE_SET_VERSION ||
+    challenges.cycleKey !== currentWindow.cycleKey ||
+    !Array.isArray(challenges.tasks) ||
+    challenges.tasks.length !== 3
+  ) {
+    return createDailyChallengeSet(seedBase, date);
+  }
+
+  const regeneratedTasks = createDailyChallengeTasks(`${seedBase}:${currentWindow.cycleKey}`);
+  const knownTaskMap = new Map(challenges.tasks.map((task) => [task.id, task]));
+
+  return {
+    version: DAILY_CHALLENGE_SET_VERSION,
+    cycleKey: currentWindow.cycleKey,
+    startedAt: currentWindow.startedAt,
+    resetsAt: currentWindow.resetsAt,
+    tasks: regeneratedTasks.map((task) => {
+      const savedTask = knownTaskMap.get(task.id);
+      return {
+        ...task,
+        completedAt: typeof savedTask?.completedAt === "string" ? savedTask.completedAt : null,
+        rewardGranted: Boolean(savedTask?.rewardGranted)
+      };
+    }),
+    progress: normalizeDailyChallengeProgress(challenges.progress),
+    completedSetRewardGranted: Boolean(challenges.completedSetRewardGranted),
+    setCompletedAt: typeof challenges.setCompletedAt === "string" ? challenges.setCompletedAt : null
+  };
+}
+
+function getDailyChallengeSeedBase(current: LocalData) {
+  return current.settings.activeProfileId ?? current.installRegistrationKey;
+}
+
+function getCurrentDailyChallenges(current: LocalData) {
+  return getActiveProfile(current)?.dailyChallenges ?? current.dailyChallenges;
+}
+
+function setCurrentDailyChallenges(current: LocalData, dailyChallenges: DailyChallengeSet) {
+  const activeProfile = getActiveProfile(current);
+  if (activeProfile) {
+    activeProfile.dailyChallenges = dailyChallenges;
+  }
+  current.dailyChallenges = dailyChallenges;
+}
+
+function applyXpToCurrentStats(current: LocalData, xp: number) {
+  if (xp <= 0) {
+    return;
+  }
+
+  const activeProfile = getActiveProfile(current);
+  const sourceStats = activeProfile ? normalizeUserStats(activeProfile.stats) : normalizeUserStats(current.stats);
+  const totalXp = sourceStats.totalXp + xp;
+  const nextStats: UserStats = {
+    ...sourceStats,
+    totalXp,
+    currentLevel: getLevelFromXp(totalXp)
+  };
+
+  if (activeProfile) {
+    activeProfile.stats = nextStats;
+  }
+  current.stats = nextStats;
+}
+
+function ensureCurrentDailyChallenges(current: LocalData) {
+  const next = normalizeDailyChallenges(getCurrentDailyChallenges(current), getDailyChallengeSeedBase(current));
+  setCurrentDailyChallenges(current, next);
+  return next;
+}
+
+function applyDailyChallengeActivity(current: LocalData, patch: Partial<DailyChallengeProgress>) {
+  const dailyChallenges = ensureCurrentDailyChallenges(current);
+  const nextProgress: DailyChallengeProgress = {
+    ...dailyChallenges.progress,
+    dictatedWords: dailyChallenges.progress.dictatedWords + (patch.dictatedWords ?? 0),
+    dictatedCharacters: dailyChallenges.progress.dictatedCharacters + (patch.dictatedCharacters ?? 0),
+    completedDictations: dailyChallenges.progress.completedDictations + (patch.completedDictations ?? 0),
+    longestDictationWords: Math.max(dailyChallenges.progress.longestDictationWords, patch.longestDictationWords ?? 0),
+    longDictations: dailyChallenges.progress.longDictations + (patch.longDictations ?? 0),
+    marathonDictations: dailyChallenges.progress.marathonDictations + (patch.marathonDictations ?? 0),
+    activityXpEarned: dailyChallenges.progress.activityXpEarned + (patch.activityXpEarned ?? 0),
+    voiceSamplesRecorded: dailyChallenges.progress.voiceSamplesRecorded + (patch.voiceSamplesRecorded ?? 0),
+    dictionaryEntriesSaved: dailyChallenges.progress.dictionaryEntriesSaved + (patch.dictionaryEntriesSaved ?? 0)
+  };
+
+  const now = new Date().toISOString();
+  let rewardXp = 0;
+  const nextTasks = dailyChallenges.tasks.map((task) => {
+    const isComplete = nextProgress[task.metric] >= task.target;
+    if (!isComplete) {
+      return task;
+    }
+
+    if (!task.rewardGranted) {
+      rewardXp += task.rewardXp;
+    }
+
+    return {
+      ...task,
+      completedAt: task.completedAt ?? now,
+      rewardGranted: true
+    };
+  });
+
+  const completedCount = nextTasks.filter((task) => task.rewardGranted).length;
+  const shouldGrantSetBonus = completedCount === nextTasks.length && !dailyChallenges.completedSetRewardGranted;
+  if (shouldGrantSetBonus) {
+    rewardXp += DAILY_CHALLENGE_SET_BONUS_XP;
+  }
+
+  const nextDailyChallenges: DailyChallengeSet = {
+    ...dailyChallenges,
+    progress: nextProgress,
+    tasks: nextTasks,
+    completedSetRewardGranted: dailyChallenges.completedSetRewardGranted || shouldGrantSetBonus,
+    setCompletedAt:
+      dailyChallenges.setCompletedAt ??
+      (shouldGrantSetBonus ? now : null)
+  };
+
+  setCurrentDailyChallenges(current, nextDailyChallenges);
+  applyXpToCurrentStats(current, rewardXp);
 }
 
 function getXpForNextLevel(level: number) {
@@ -138,6 +475,7 @@ function syncActiveProfileProgress(current: LocalData) {
   const activeProfile = getActiveProfile(current);
   if (!activeProfile) {
     current.stats = normalizeUserStats(current.stats);
+    current.dailyChallenges = normalizeDailyChallenges(current.dailyChallenges, current.installRegistrationKey);
     current.unlockedAchievements = Array.isArray(current.unlockedAchievements)
       ? current.unlockedAchievements.filter((entry): entry is string => typeof entry === "string")
       : [];
@@ -145,10 +483,12 @@ function syncActiveProfileProgress(current: LocalData) {
   }
 
   activeProfile.stats = normalizeUserStats(activeProfile.stats);
+  activeProfile.dailyChallenges = normalizeDailyChallenges(activeProfile.dailyChallenges, activeProfile.id);
   activeProfile.unlockedAchievements = Array.isArray(activeProfile.unlockedAchievements)
     ? activeProfile.unlockedAchievements.filter((entry): entry is string => typeof entry === "string")
     : [];
   current.stats = activeProfile.stats;
+  current.dailyChallenges = activeProfile.dailyChallenges;
   current.unlockedAchievements = activeProfile.unlockedAchievements;
   return current;
 }
@@ -185,13 +525,14 @@ export function readData(): LocalData {
   try {
     const parsed = JSON.parse(content) as Partial<LocalData>;
     const currentUserProfileKey = getCurrentUserProfileKey();
+    const installRegistrationKey =
+      typeof parsed.installRegistrationKey === "string" && parsed.installRegistrationKey.trim()
+        ? parsed.installRegistrationKey
+        : randomUUID();
     const nextData: LocalData = {
       ...defaultData,
       ...parsed,
-      installRegistrationKey:
-        typeof parsed.installRegistrationKey === "string" && parsed.installRegistrationKey.trim()
-          ? parsed.installRegistrationKey
-          : randomUUID(),
+      installRegistrationKey,
       onboardingProfileKey:
         typeof parsed.onboardingProfileKey === "string" && parsed.onboardingProfileKey.trim()
           ? parsed.onboardingProfileKey
@@ -201,6 +542,7 @@ export function readData(): LocalData {
         ...parsed.settings
       },
       stats: normalizeUserStats(parsed.stats),
+      dailyChallenges: normalizeDailyChallenges(parsed.dailyChallenges, installRegistrationKey),
       unlockedAchievements: Array.isArray((parsed as { unlockedAchievements?: unknown }).unlockedAchievements)
         ? ((parsed as { unlockedAchievements?: unknown[] }).unlockedAchievements ?? []).filter(
             (entry): entry is string => typeof entry === "string"
@@ -219,6 +561,10 @@ export function readData(): LocalData {
           ).map((entry) => ({
             ...entry,
             stats: normalizeUserStats((entry as Partial<VoiceProfile>).stats),
+            dailyChallenges: normalizeDailyChallenges(
+              (entry as Partial<VoiceProfile>).dailyChallenges,
+              entry.id
+            ),
             unlockedAchievements: Array.isArray((entry as Partial<VoiceProfile>).unlockedAchievements)
               ? ((entry as Partial<VoiceProfile>).unlockedAchievements ?? []).filter(
                   (achievement): achievement is string => typeof achievement === "string"
@@ -295,18 +641,20 @@ export function readData(): LocalData {
 
     if (nextData.settings.activeProfileId) {
       const activeProfile = nextData.voiceProfiles.find((profile) => profile.id === nextData.settings.activeProfileId);
-      if (activeProfile) {
-        const shouldMigrateLegacyProgress =
+        if (activeProfile) {
+          const shouldMigrateLegacyProgress =
           activeProfile.stats.totalWords === 0 &&
           activeProfile.stats.totalXp === 0 &&
           activeProfile.stats.currentLevel === 1 &&
           activeProfile.stats.currentStreakDays === 0 &&
           activeProfile.stats.lastUsedOn === null &&
+          activeProfile.dailyChallenges.tasks.length === 0 &&
           activeProfile.unlockedAchievements.length === 0 &&
           (nextData.stats.totalWords > 0 || nextData.stats.totalXp > 0 || nextData.unlockedAchievements.length > 0);
 
         if (shouldMigrateLegacyProgress) {
           activeProfile.stats = normalizeUserStats(nextData.stats);
+          activeProfile.dailyChallenges = normalizeDailyChallenges(nextData.dailyChallenges, activeProfile.id);
           activeProfile.unlockedAchievements = [...nextData.unlockedAchievements];
         }
       }
@@ -325,7 +673,10 @@ export function readData(): LocalData {
 
     return nextData;
   } catch {
-    return defaultData;
+    return {
+      ...defaultData,
+      dailyChallenges: createDailyChallengeSet(defaultData.installRegistrationKey)
+    };
   }
 }
 
@@ -384,26 +735,39 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
       sampleCount: existing.sampleCount + input.incrementSamplesBy,
       averageEmbedding: blendEmbeddings(existing.averageEmbedding, input.embedding, existing.sampleCount),
       stats: normalizeUserStats(existing.stats),
+      dailyChallenges: normalizeDailyChallenges(existing.dailyChallenges, existing.id),
       unlockedAchievements: Array.isArray(existing.unlockedAchievements) ? existing.unlockedAchievements : []
     };
     current.voiceProfiles = current.voiceProfiles.map((item) =>
       item.id === existing.id ? profile : item
     );
   } else {
+    const profileId = randomUUID();
     profile = {
-      id: randomUUID(),
+      id: profileId,
       name: input.name,
       createdAt: now,
       updatedAt: now,
       sampleCount: input.incrementSamplesBy,
       averageEmbedding: input.embedding,
       stats: { ...defaultUserStats },
+      dailyChallenges: createDailyChallengeSet(profileId),
       unlockedAchievements: []
     };
     current.voiceProfiles = [profile, ...current.voiceProfiles];
     current.settings.activeProfileId = profile.id;
   }
 
+  if (input.incrementSamplesBy > 0) {
+    if (!existing) {
+      current.settings.activeProfileId = profile.id;
+    }
+    applyDailyChallengeActivity(current, {
+      voiceSamplesRecorded: input.incrementSamplesBy
+    });
+  }
+
+  syncActiveProfileProgress(current);
   writeData(current);
   return profile;
 }
@@ -459,6 +823,9 @@ export function saveManualDictionaryEntry(input: {
     current.manualDictionary = [entry, ...current.manualDictionary];
   }
 
+  applyDailyChallengeActivity(current, {
+    dictionaryEntriesSaved: 1
+  });
   writeData(current);
   return entry;
 }
@@ -511,6 +878,15 @@ export function updateStatsFromTranscript(transcript: string): UserStats {
     activeProfile.stats = nextStats;
   }
   current.stats = nextStats;
+  applyDailyChallengeActivity(current, {
+    dictatedWords: words,
+    dictatedCharacters: transcript.trim().length,
+    completedDictations: 1,
+    longestDictationWords: words,
+    longDictations: words >= LONG_DICTATION_WORD_COUNT ? 1 : 0,
+    marathonDictations: words >= MARATHON_DICTATION_WORD_COUNT ? 1 : 0,
+    activityXpEarned: words
+  });
 
   writeData(current);
   return syncActiveProfileProgress(current).stats;
@@ -552,6 +928,9 @@ export function syncAchievementUnlocks(unlocked: AchievementUnlockInput[]): Achi
 
     current.unlockedAchievements = nextUnlocks;
     current.stats = nextStats;
+    applyDailyChallengeActivity(current, {
+      activityXpEarned: xpAward
+    });
     writeData(current);
   }
 

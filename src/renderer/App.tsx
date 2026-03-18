@@ -26,7 +26,9 @@ import {
   AppSettings,
   AppThemeName,
   CustomThemeColors,
+  DailyChallengeSet,
   DictationResult,
+  LocalData,
   ManualDictionaryEntry,
   PushToTalkEvent,
   RuntimeDiscoveryResult,
@@ -441,6 +443,27 @@ const defaultStats: UserStats = {
   currentLevel: 1,
   currentStreakDays: 0,
   lastUsedOn: null
+};
+
+const defaultDailyChallenges: DailyChallengeSet = {
+  version: 1,
+  cycleKey: "",
+  startedAt: "",
+  resetsAt: "",
+  tasks: [],
+  progress: {
+    dictatedWords: 0,
+    dictatedCharacters: 0,
+    completedDictations: 0,
+    longestDictationWords: 0,
+    longDictations: 0,
+    marathonDictations: 0,
+    activityXpEarned: 0,
+    voiceSamplesRecorded: 0,
+    dictionaryEntriesSaved: 0
+  },
+  completedSetRewardGranted: false,
+  setCompletedAt: null
 };
 
 const modifierOrder: ShortcutModifier[] = ["meta", "ctrl", "alt", "shift"];
@@ -1040,6 +1063,24 @@ function getPathLeaf(path: string) {
   return trimmed.split(/[\\/]/).pop() ?? trimmed;
 }
 
+function getFallbackDailyResetTime(date = new Date()) {
+  const resetAt = new Date(date);
+  resetAt.setHours(12, 0, 0, 0);
+  if (date >= resetAt) {
+    resetAt.setDate(resetAt.getDate() + 1);
+  }
+  return resetAt.toISOString();
+}
+
+function formatDailyCountdown(targetIso: string, nowMs: number) {
+  const remainingMs = Math.max(0, new Date(targetIso).getTime() - nowMs);
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => value.toString().padStart(2, "0")).join(":");
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabKey>("dictation");
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -1065,6 +1106,8 @@ export default function App() {
   const [status, setStatus] = useState("Loading local workspace...");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<UserStats>(defaultStats);
+  const [dailyChallenges, setDailyChallenges] = useState<DailyChallengeSet>(defaultDailyChallenges);
+  const [dailyTimerNow, setDailyTimerNow] = useState(() => Date.now());
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<DictationResult | null>(null);
   const [whisperStatus, setWhisperStatus] = useState<WhisperConfigStatus>({
@@ -1117,6 +1160,7 @@ export default function App() {
   const autoDictionaryToastTimeoutRef = useRef<number | null>(null);
   const achievementToastTimeoutRef = useRef<number | null>(null);
   const pastedStatusTimeoutRef = useRef<number | null>(null);
+  const dailyChallengeRefreshRef = useRef<string | null>(null);
   const shortcutCaptureCodesRef = useRef<Set<string>>(new Set());
   const brandClickCountRef = useRef(0);
   const konamiProgressRef = useRef(0);
@@ -1207,6 +1251,33 @@ export default function App() {
     });
     setStatusLogs((current) => [{ timestamp, message: status }, ...current].slice(0, 60));
   }, [status]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setDailyTimerNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!dailyChallenges.resetsAt) {
+      return;
+    }
+
+    if (dailyTimerNow < new Date(dailyChallenges.resetsAt).getTime()) {
+      return;
+    }
+
+    if (dailyChallengeRefreshRef.current === dailyChallenges.resetsAt) {
+      return;
+    }
+
+    dailyChallengeRefreshRef.current = dailyChallenges.resetsAt;
+    void refreshDataSnapshot();
+  }, [dailyChallenges.resetsAt, dailyTimerNow]);
 
   useEffect(() => {
     if (!settings.devModeUnlocked) {
@@ -1753,16 +1824,28 @@ export default function App() {
   async function loadInitialData() {
     const runtimeResult = await window.wisprApi.discoverRuntime();
     const data = await window.wisprApi.loadData();
-    setSettings(data.settings);
-    setProfiles(data.voiceProfiles);
-    setManualDictionary(data.manualDictionary);
-    setStats(data.stats);
-    setUnlockedAchievements(data.unlockedAchievements);
-    setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
+    applyLoadedData(data);
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
     hasLoadedInitialDataRef.current = true;
     setStatus(`Hold ${shortcutToLabel(data.settings.activationShortcut)} anywhere to dictate.`);
+  }
+
+  function applyLoadedData(data: LocalData) {
+    setSettings(data.settings);
+    setProfiles(data.voiceProfiles);
+    setManualDictionary(data.manualDictionary);
+    setStats(data.stats);
+    setDailyChallenges(data.dailyChallenges);
+    setUnlockedAchievements(data.unlockedAchievements);
+    setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
+  }
+
+  async function refreshDataSnapshot() {
+    const data = await window.wisprApi.loadData();
+    applyLoadedData(data);
+    hasLoadedInitialDataRef.current = true;
+    return data;
   }
 
   async function refreshDevices() {
@@ -1781,16 +1864,9 @@ export default function App() {
 
   async function refreshLocalData() {
     const runtimeResult = await window.wisprApi.discoverRuntime();
-    const data = await window.wisprApi.loadData();
-    setSettings(data.settings);
-    setProfiles(data.voiceProfiles);
-    setManualDictionary(data.manualDictionary);
-    setStats(data.stats);
-    setUnlockedAchievements(data.unlockedAchievements);
-    setTranscriptHistory(data.transcriptHistory.slice(0, data.settings.transcriptHistoryLimit));
+    await refreshDataSnapshot();
     setWhisperStatus(await window.wisprApi.getWhisperStatus());
     setRuntimeDiscovery(runtimeResult);
-    hasLoadedInitialDataRef.current = true;
   }
 
   function getXpForNextLevel(level: number) {
@@ -2430,22 +2506,22 @@ export default function App() {
           nextHistory,
           settingsRef.current.transcriptHistoryLimit
         );
-        const updatedStats = await window.wisprApi.trackTranscriptStats(result.transcript);
-        setStats(updatedStats);
+        await window.wisprApi.trackTranscriptStats(result.transcript);
       }
 
       setLastResult(enrichedResult);
 
       if (profile && result.transcript.trim()) {
-        const updatedProfile = await window.wisprApi.saveVoiceProfile({
+        await window.wisprApi.saveVoiceProfile({
           id: profile.id,
           name: profile.name,
           embedding,
           incrementSamplesBy: 1
         });
-        setProfiles((current) =>
-          current.map((item) => (item.id === updatedProfile.id ? updatedProfile : item))
-        );
+      }
+
+      if (result.transcript.trim()) {
+        await refreshDataSnapshot();
       }
 
       if (options.pasteResult && currentSettings.autoPaste && result.transcript.trim()) {
@@ -2566,6 +2642,15 @@ export default function App() {
   const xpIntoCurrentLevel = Math.max(0, stats.totalXp - currentLevelFloor);
   const xpNeededForCurrentLevel = Math.max(1, nextLevelThreshold - currentLevelFloor);
   const xpRemainingToNextLevel = Math.max(0, nextLevelThreshold - stats.totalXp);
+  const dailyResetTime = dailyChallenges.resetsAt || getFallbackDailyResetTime();
+  const dailyResetRemainingMs = Math.max(0, new Date(dailyResetTime).getTime() - dailyTimerNow);
+  const dailyCountdownLabel = formatDailyCountdown(dailyResetTime, dailyTimerNow);
+  const isDailyTimerInLastHour = dailyResetRemainingMs <= 60 * 60 * 1000;
+  const dailyCompletedCount = dailyChallenges.tasks.filter((task) => task.rewardGranted).length;
+  const isDailySetComplete = dailyChallenges.completedSetRewardGranted;
+  const dailyTotalRewardXp =
+    dailyChallenges.tasks.reduce((sum, task) => sum + task.rewardXp, 0) +
+    (dailyChallenges.tasks.length > 0 ? 400 : 0);
   const currentOnboardingStep = onboardingSteps[onboardingStep];
   const runtimeReady = whisperStatus.binaryExists && whisperStatus.modelExists;
   const runtimeInstallHealthy = runtimeReady && runtimeInstallTone !== "error";
@@ -2715,7 +2800,7 @@ export default function App() {
       term: parsedEntry.term,
       replacement: parsedEntry.replacement
     });
-    setManualDictionary((current) => [entry, ...current.filter((item) => item.id !== entry.id)]);
+    await refreshDataSnapshot();
     setDictionaryTerm("");
     setStatus(
       entry.replacement
@@ -2740,16 +2825,14 @@ export default function App() {
     entry: ManualDictionaryEntry,
     nextKind: (typeof dictionaryEntryKinds)[number]
   ) {
-    const updatedEntry = await window.wisprApi.saveManualDictionaryEntry({
+    await window.wisprApi.saveManualDictionaryEntry({
       id: entry.id,
       term: entry.term,
       replacement: entry.replacement,
       entryTypeOverride: nextKind,
       addedBySystem: entry.addedBySystem
     });
-    setManualDictionary((current) =>
-      current.map((item) => (item.id === updatedEntry.id ? updatedEntry : item))
-    );
+    await refreshDataSnapshot();
     setEditingDictionaryTypeEntryId(null);
     setStatus(`Saved "${entry.term}" as ${nextKind.toLowerCase()}.`);
   }
@@ -2834,7 +2917,15 @@ export default function App() {
                 <span className="nav-icon" aria-hidden="true">
                   <Icon className={`nav-icon-glyph ${iconClassName}`} strokeWidth={1.8} />
                 </span>
-                <span>{label}</span>
+                <span className="nav-label">{label}</span>
+                {key === "stats" && (
+                  <span
+                    className={isDailyTimerInLastHour ? "nav-timer-chip daily-timer-alert" : "nav-timer-chip"}
+                    title="Daily challenges reset every day at 12:00 PM local time."
+                  >
+                    Daily {dailyCountdownLabel}
+                  </span>
+                )}
               </span>
             </button>
           ))}
@@ -3391,6 +3482,65 @@ export default function App() {
               </div>
             </section>
             <section className="panel-grid stats-grid">
+              <section className="panel daily-challenges-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Daily Challenges</p>
+                    <h3>
+                      Noon Reset in{" "}
+                      <span className={isDailyTimerInLastHour ? "daily-timer-alert" : "daily-timer-normal"}>
+                        {dailyCountdownLabel}
+                      </span>
+                    </h3>
+                  </div>
+                </div>
+                <p className="supporting">
+                  You get 3 daily tasks from a pool of 99. Each one awards 200 XP, and finishing the set adds a 400 XP bonus for {dailyTotalRewardXp.toLocaleString()} XP total.
+                </p>
+                <div className="daily-challenge-summary">
+                  <div className="stat-card">
+                    <span>Completed today</span>
+                    <strong>{dailyCompletedCount} / {dailyChallenges.tasks.length || 3}</strong>
+                  </div>
+                  <div className="stat-card">
+                    <span>Set bonus</span>
+                    <strong>{isDailySetComplete ? "Claimed" : "400 XP"}</strong>
+                  </div>
+                  <div className="stat-card">
+                    <span>Resets at</span>
+                    <strong>{new Date(dailyResetTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</strong>
+                  </div>
+                </div>
+                <div className="daily-challenges-list">
+                  {dailyChallenges.tasks.map((task) => {
+                    const progressValue = Math.min(task.target, dailyChallenges.progress[task.metric]);
+                    const percent = task.target > 0 ? Math.min(100, (progressValue / task.target) * 100) : 0;
+
+                    return (
+                      <article key={task.id} className={task.rewardGranted ? "daily-challenge-card completed" : "daily-challenge-card"}>
+                        <div className="daily-challenge-card-header">
+                          <div>
+                            <p className="eyebrow">+{task.rewardXp} XP</p>
+                            <h4>{task.title}</h4>
+                          </div>
+                          <span className={task.rewardGranted ? "daily-challenge-badge done" : "daily-challenge-badge"}>
+                            {task.rewardGranted ? "Complete" : "Active"}
+                          </span>
+                        </div>
+                        <p className="supporting">{task.description}</p>
+                        <div className="level-progress daily-challenge-progress">
+                          <div className="level-progress-bar">
+                            <div className="level-progress-fill" style={{ width: `${percent}%` }} />
+                          </div>
+                          <p className="supporting progress-meta">
+                            <strong>{progressValue.toLocaleString()} / {task.target.toLocaleString()}</strong>
+                          </p>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
               <section className="panel">
                 <div className="panel-header">
                   <div>

@@ -1153,6 +1153,21 @@ select option:disabled {
   gap: var(--space-2);
 }
 
+.settings-group {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.settings-group:first-of-type {
+  margin-top: 0;
+}
+
+.settings-group-header {
+  display: grid;
+  gap: 6px;
+}
+
 .settings-switch-row {
   display: flex;
   align-items: flex-start;

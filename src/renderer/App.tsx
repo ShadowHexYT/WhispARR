@@ -3904,208 +3904,221 @@ export default function App() {
                 `Escape` cancels the capture.
               </p>
 
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">System</p>
-                  <h3>Background Behavior</h3>
+              <div className="settings-group">
+                <div className="settings-group-header">
+                  <p className="eyebrow">Startup And Display</p>
                 </div>
-              </div>
-              <div className="settings-switch-list">
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Auto-paste</strong>
-                    <p>
-                      Uses the system clipboard plus a local paste keystroke so dictated text lands
-                      back in the app you were using.
-                    </p>
-                  </div>
-                  <button
-                    className={settings.autoPaste ? "settings-switch active" : "settings-switch"}
-                    onClick={() => void patchSettings({ autoPaste: !settings.autoPaste })}
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.autoPaste}
-                    aria-label="Toggle auto-paste"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Launch at login</strong>
-                    <p>Keeps WhispARR ready after restart so dictation is available right away.</p>
-                  </div>
-                  <button
-                    className={settings.launchOnLogin ? "settings-switch active" : "settings-switch"}
-                    onClick={() => void patchSettings({ launchOnLogin: !settings.launchOnLogin })}
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.launchOnLogin}
-                    aria-label="Toggle launch at login"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Pill always visible</strong>
-                    <p>Leaves the HUD on screen in a ready state even when you are not dictating.</p>
-                    <div className="button-row">
-                      <button
-                        className={isMovingHud ? "primary-button" : "secondary-button"}
-                        type="button"
-                        onClick={() => void toggleHudMoveMode()}
-                      >
-                        {isMovingHud ? "Stop moving and save pill location" : "Move pill location"}
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={() => void recenterHudPill()}
-                      >
-                        Recenter pill
-                      </button>
+                <div className="settings-switch-list">
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Launch at login</strong>
+                      <p>Keeps WhispARR ready after restart so dictation is available right away.</p>
                     </div>
-                  </div>
-                  <button
-                    className={settings.alwaysShowPill ? "settings-switch active" : "settings-switch"}
-                    onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.alwaysShowPill}
-                    aria-label="Toggle always show pill"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Dictation sounds</strong>
-                    <p>Controls WhispARR sound cues like the pill pop and the level-up sound.</p>
-                  </div>
-                  <button
-                    className={!settings.muteDictationSounds ? "settings-switch active" : "settings-switch"}
-                    onClick={() =>
-                      void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
-                    }
-                    type="button"
-                    role="switch"
-                    aria-checked={!settings.muteDictationSounds}
-                    aria-label="Toggle dictation sounds"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Auto mute music when speaking</strong>
-                    <p>Pauses media that is actively playing when dictation starts and never resumes anything automatically.</p>
-                  </div>
-                  <button
-                    className={settings.muteMusicWhileDictating ? "settings-switch active" : "settings-switch"}
-                    onClick={() =>
-                      void patchSettings({
-                        muteMusicWhileDictating: !settings.muteMusicWhileDictating
-                      })
-                    }
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.muteMusicWhileDictating}
-                    aria-label="Toggle auto mute music when speaking"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Auto dictionary learning</strong>
-                    <p>
-                      Watches copied edits from the last dictated transcript for about a minute and
-                      learns corrected words, phrases, abbreviations, and short sentence replacements.
-                    </p>
-                  </div>
-                  <button
-                    className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
-                    onClick={() =>
-                      void patchSettings({
-                        autoLearnDictionary: !settings.autoLearnDictionary
-                      })
-                    }
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.autoLearnDictionary}
-                    aria-label="Toggle auto dictionary learning"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Coding language mode</strong>
-                    <p>
-                      Keeps commands, file names, extensions, flags, and code-style punctuation easier
-                      to recognize, with less prose-style auto-capitalization.
-                    </p>
-                  </div>
-                  <button
-                    className={settings.codingLanguageMode ? "settings-switch active" : "settings-switch"}
-                    onClick={() =>
-                      void patchSettings({
-                        codingLanguageMode: !settings.codingLanguageMode
-                      })
-                    }
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.codingLanguageMode}
-                    aria-label="Toggle coding language mode"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Smart formatting</strong>
-                    <p>
-                      Auto-capitalizes text and cleans up spoken structure cues like bullets,
-                      numbered items, lists, and line breaks before paste.
-                    </p>
-                  </div>
-                  <button
-                    className={settings.smartFormatting ? "settings-switch active" : "settings-switch"}
-                    onClick={() =>
-                      void patchSettings({
-                        smartFormatting: !settings.smartFormatting
-                      })
-                    }
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.smartFormatting}
-                    aria-label="Toggle smart formatting"
+                    <button
+                      className={settings.launchOnLogin ? "settings-switch active" : "settings-switch"}
+                      onClick={() => void patchSettings({ launchOnLogin: !settings.launchOnLogin })}
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.launchOnLogin}
+                      aria-label="Toggle launch at login"
                     >
                       <span className="settings-switch-thumb" aria-hidden="true" />
                     </button>
-                </div>
-                <div className="settings-switch-row">
-                  <div className="settings-switch-copy">
-                    <strong>Filter profanity</strong>
-                    <p>
-                      Masks common profanity in the final transcript before it is pasted or saved.
-                    </p>
                   </div>
-                  <button
-                    className={settings.filterProfanity ? "settings-switch active" : "settings-switch"}
-                    onClick={() =>
-                      void patchSettings({
-                        filterProfanity: !settings.filterProfanity
-                      })
-                    }
-                    type="button"
-                    role="switch"
-                    aria-checked={settings.filterProfanity}
-                    aria-label="Toggle profanity filter"
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Pill always visible</strong>
+                      <p>Leaves the HUD on screen in a ready state even when you are not dictating.</p>
+                      <div className="button-row">
+                        <button
+                          className={isMovingHud ? "primary-button" : "secondary-button"}
+                          type="button"
+                          onClick={() => void toggleHudMoveMode()}
+                        >
+                          {isMovingHud ? "Stop moving and save pill location" : "Move pill location"}
+                        </button>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => void recenterHudPill()}
+                        >
+                          Recenter pill
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      className={settings.alwaysShowPill ? "settings-switch active" : "settings-switch"}
+                      onClick={() => void patchSettings({ alwaysShowPill: !settings.alwaysShowPill })}
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.alwaysShowPill}
+                      aria-label="Toggle always show pill"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="settings-group">
+                <div className="settings-group-header">
+                  <p className="eyebrow">Clipboard And Audio</p>
+                </div>
+                <div className="settings-switch-list">
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Auto-paste</strong>
+                      <p>
+                        Uses the system clipboard plus a local paste keystroke so dictated text lands
+                        back in the app you were using.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.autoPaste ? "settings-switch active" : "settings-switch"}
+                      onClick={() => void patchSettings({ autoPaste: !settings.autoPaste })}
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.autoPaste}
+                      aria-label="Toggle auto-paste"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Dictation sounds</strong>
+                      <p>Controls WhispARR sound cues like the pill pop and the level-up sound.</p>
+                    </div>
+                    <button
+                      className={!settings.muteDictationSounds ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({ muteDictationSounds: !settings.muteDictationSounds })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={!settings.muteDictationSounds}
+                      aria-label="Toggle dictation sounds"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Auto mute music when speaking</strong>
+                      <p>Pauses media that is actively playing when dictation starts and never resumes anything automatically.</p>
+                    </div>
+                    <button
+                      className={settings.muteMusicWhileDictating ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({
+                          muteMusicWhileDictating: !settings.muteMusicWhileDictating
+                        })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.muteMusicWhileDictating}
+                      aria-label="Toggle auto mute music when speaking"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="settings-group">
+                <div className="settings-group-header">
+                  <p className="eyebrow">Transcript Processing</p>
+                </div>
+                <div className="settings-switch-list">
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Auto dictionary learning</strong>
+                      <p>
+                        Watches copied edits from the last dictated transcript for about a minute and
+                        learns corrected words, phrases, abbreviations, and short sentence replacements.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({
+                          autoLearnDictionary: !settings.autoLearnDictionary
+                        })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.autoLearnDictionary}
+                      aria-label="Toggle auto dictionary learning"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Coding language mode</strong>
+                      <p>
+                        Keeps commands, file names, extensions, flags, and code-style punctuation easier
+                        to recognize, with less prose-style auto-capitalization.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.codingLanguageMode ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({
+                          codingLanguageMode: !settings.codingLanguageMode
+                        })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.codingLanguageMode}
+                      aria-label="Toggle coding language mode"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Smart formatting</strong>
+                      <p>
+                        Auto-capitalizes text and cleans up spoken structure cues like bullets,
+                        numbered items, lists, and line breaks before paste.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.smartFormatting ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({
+                          smartFormatting: !settings.smartFormatting
+                        })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.smartFormatting}
+                      aria-label="Toggle smart formatting"
+                      >
+                        <span className="settings-switch-thumb" aria-hidden="true" />
+                      </button>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Filter profanity</strong>
+                      <p>
+                        Masks common profanity in the final transcript before it is pasted or saved.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.filterProfanity ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({
+                          filterProfanity: !settings.filterProfanity
+                        })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.filterProfanity}
+                      aria-label="Toggle profanity filter"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="settings-column-footer">

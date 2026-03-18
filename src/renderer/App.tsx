@@ -833,13 +833,13 @@ function ElasticSettingSlider(props: {
   return (
     <motion.div
       className={disabled ? "elastic-slider-wrapper disabled" : "elastic-slider-wrapper"}
-      onHoverStart={() => !disabled && animate(scale, 1.12)}
+      onHoverStart={() => !disabled && animate(scale, 1.05)}
       onHoverEnd={() => animate(scale, 1)}
-      onTouchStart={() => !disabled && animate(scale, 1.12)}
+      onTouchStart={() => !disabled && animate(scale, 1.05)}
       onTouchEnd={() => animate(scale, 1)}
       style={{
         scale,
-        opacity: useTransform(scale, [1, 1.12], [0.82, 1])
+        opacity: useTransform(scale, [1, 1.05], [0.82, 1])
       }}
     >
       <motion.div
@@ -899,9 +899,9 @@ function ElasticSettingSlider(props: {
               const { left, width } = sliderRef.current.getBoundingClientRect();
               return clientX.get() < left + width / 2 ? "right" : "left";
             }),
-            height: useTransform(scale, [1, 1.12], [16, 20]),
-            marginTop: useTransform(scale, [1, 1.12], [0, -2]),
-            marginBottom: useTransform(scale, [1, 1.12], [0, -2])
+            height: useTransform(scale, [1, 1.05], [16, 18]),
+            marginTop: useTransform(scale, [1, 1.05], [0, -1]),
+            marginBottom: useTransform(scale, [1, 1.05], [0, -1])
           }}
         >
           <div className="elastic-slider-track">

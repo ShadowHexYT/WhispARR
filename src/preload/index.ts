@@ -12,6 +12,7 @@ import {
   SaveVoiceProfileInput,
   TrainingSample,
   HudState,
+  PushToTalkEvent,
   UserStats
 } from "../shared/types";
 
@@ -53,9 +54,9 @@ contextBridge.exposeInMainWorld("wisprApi", {
   updateHud: (state: HudState) => ipcRenderer.invoke("hud:update", state) as Promise<boolean>,
   startHudMoveMode: () => ipcRenderer.invoke("hud:move:start") as Promise<boolean>,
   stopHudMoveMode: () => ipcRenderer.invoke("hud:move:stop") as Promise<AppSettings>,
-  onPushToTalk: (listener: (state: "start" | "stop") => void) => {
-    const wrapped = (_event: Electron.IpcRendererEvent, state: "start" | "stop") => {
-      listener(state);
+  onPushToTalk: (listener: (event: PushToTalkEvent) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, event: PushToTalkEvent) => {
+      listener(event);
     };
     ipcRenderer.on("ptt:event", wrapped);
     return () => {

@@ -10,6 +10,7 @@ import {
   HudState,
   LocalData,
   ManualDictionaryEntry,
+  PushToTalkEvent,
   RuntimeDiscoveryResult,
   RuntimeInstallResult,
   SaveVoiceProfileInput,
@@ -50,7 +51,7 @@ declare global {
       updateHud: (state: HudState) => Promise<boolean>;
       startHudMoveMode: () => Promise<boolean>;
       stopHudMoveMode: () => Promise<AppSettings>;
-      onPushToTalk: (listener: (state: "start" | "stop") => void) => () => void;
+      onPushToTalk: (listener: (event: PushToTalkEvent) => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;
       onAutoDictionaryLearned: (listener: (terms: string[]) => void) => () => void;
     };

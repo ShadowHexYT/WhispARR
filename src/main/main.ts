@@ -39,6 +39,7 @@ import {
   CustomThemeColors,
   HudState,
   AppDiagnostics,
+  PushToTalkEvent,
   SaveVoiceProfileInput,
   ShortcutModifier,
   TrainingSample
@@ -146,6 +147,7 @@ let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
 let registeredActivationAccelerator: string | null = null;
+let pushToTalkEventId = 0;
 const HUD_BASE_WIDTH = 110;
 const HUD_BASE_HEIGHT = 44;
 const HUD_MARGIN = 6;
@@ -387,7 +389,11 @@ function sendPushToTalkEvent(state: "start" | "stop") {
     createWindow();
   }
 
-  mainWindow?.webContents.send("ptt:event", state);
+  const event: PushToTalkEvent = {
+    id: ++pushToTalkEventId,
+    state
+  };
+  mainWindow?.webContents.send("ptt:event", event);
 }
 
 function updateLaunchOnLogin(settings: AppSettings) {

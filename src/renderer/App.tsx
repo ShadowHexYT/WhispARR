@@ -25,6 +25,7 @@ import {
   CustomThemeColors,
   DictationResult,
   ManualDictionaryEntry,
+  PushToTalkEvent,
   RuntimeDiscoveryResult,
   RuntimeInstallResult,
   ShortcutModifier,
@@ -962,6 +963,8 @@ export default function App() {
   const recorder = useAudioRecorder(settings.selectedMicId);
   const recorderRef = useRef(recorder);
   const isRecordingRef = useRef(false);
+  const latestPushToTalkEventIdRef = useRef(0);
+  const activePushToTalkSessionIdRef = useRef<number | null>(null);
 
   const activeProfile = useMemo(
     () => profiles.find((profile) => profile.id === settings.activeProfileId) ?? null,
@@ -1294,11 +1297,16 @@ export default function App() {
     void loadInitialData();
     void refreshDevices();
 
-    const unsubscribe = window.wisprApi.onPushToTalk((state) => {
-      if (state === "start") {
-        void beginGlobalDictation();
+    const unsubscribe = window.wisprApi.onPushToTalk((event: PushToTalkEvent) => {
+      if (event.id <= latestPushToTalkEventIdRef.current) {
+        return;
+      }
+
+      latestPushToTalkEventIdRef.current = event.id;
+      if (event.state === "start") {
+        void beginGlobalDictation(event.id);
       } else {
-        void finishGlobalDictation();
+        void finishGlobalDictation(event.id);
       }
     });
     const unsubscribeAutoLearn = window.wisprApi.onAutoDictionaryLearned((terms) => {
@@ -1748,7 +1756,11 @@ export default function App() {
     }, 4000);
   }
 
-  async function beginGlobalDictation() {
+  async function beginGlobalDictation(eventId: number) {
+    if (eventId < latestPushToTalkEventIdRef.current) {
+      return;
+    }
+
     if (isRecordingRef.current) {
       return;
     }
@@ -1758,8 +1770,18 @@ export default function App() {
     }
 
     isRecordingRef.current = true;
+    activePushToTalkSessionIdRef.current = eventId;
     setIsPushToTalkActive(true);
     await recorderRef.current.start();
+
+    if (
+      activePushToTalkSessionIdRef.current !== eventId ||
+      latestPushToTalkEventIdRef.current !== eventId
+    ) {
+      await finishGlobalDictation(eventId);
+      return;
+    }
+
     setStatus(`Listening... release ${shortcutToLabel(settingsRef.current.activationShortcut)} to transcribe.`);
   }
 
@@ -1854,8 +1876,18 @@ export default function App() {
     }
   }
 
-  async function finishGlobalDictation() {
+  async function finishGlobalDictation(eventId: number) {
+    if (
+      activePushToTalkSessionIdRef.current !== null &&
+      eventId < activePushToTalkSessionIdRef.current
+    ) {
+      return;
+    }
+
+    activePushToTalkSessionIdRef.current = null;
+
     if (!isRecordingRef.current) {
+      setIsPushToTalkActive(false);
       return;
     }
 

@@ -116,6 +116,8 @@ export type AchievementSyncResult = {
 };
 
 export type LocalData = {
+  installRegistrationKey: string;
+  onboardingProfileKey: string | null;
   settings: AppSettings;
   voiceProfiles: VoiceProfile[];
   manualDictionary: ManualDictionaryEntry[];
@@ -129,6 +131,11 @@ export type LocalData = {
 export type WhisperConfigStatus = {
   binaryExists: boolean;
   modelExists: boolean;
+};
+
+export type PushToTalkEvent = {
+  id: number;
+  state: "start" | "stop";
 };
 
 export type RuntimeCandidate = {

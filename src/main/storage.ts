@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { app } from "electron";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   AchievementSyncResult,
@@ -56,6 +57,8 @@ const defaultSettings: AppSettings = {
 };
 
 const defaultData: LocalData = {
+  installRegistrationKey: randomUUID(),
+  onboardingProfileKey: null,
   settings: defaultSettings,
   voiceProfiles: [],
   manualDictionary: [],
@@ -94,6 +97,18 @@ function getDataFilePath() {
   return path.join(app.getPath("userData"), "whisparr.json");
 }
 
+function getCurrentUserProfileKey() {
+  const username = (() => {
+    try {
+      return os.userInfo().username;
+    } catch {
+      return process.env.USERNAME ?? process.env.USER ?? "unknown-user";
+    }
+  })();
+
+  return `${process.platform}::${username.toLowerCase()}::${os.homedir().toLowerCase()}`;
+}
+
 function ensureDataFile() {
   const filePath = getDataFilePath();
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -109,9 +124,18 @@ export function readData(): LocalData {
 
   try {
     const parsed = JSON.parse(content) as Partial<LocalData>;
-    return {
+    const currentUserProfileKey = getCurrentUserProfileKey();
+    const nextData: LocalData = {
       ...defaultData,
       ...parsed,
+      installRegistrationKey:
+        typeof parsed.installRegistrationKey === "string" && parsed.installRegistrationKey.trim()
+          ? parsed.installRegistrationKey
+          : randomUUID(),
+      onboardingProfileKey:
+        typeof parsed.onboardingProfileKey === "string" && parsed.onboardingProfileKey.trim()
+          ? parsed.onboardingProfileKey
+          : null,
       settings: {
         ...defaultSettings,
         ...parsed.settings
@@ -167,6 +191,21 @@ export function readData(): LocalData {
         ? parsed.savedNotes.filter((entry): entry is string => typeof entry === "string")
         : []
     };
+
+    if (nextData.settings.onboardingCompleted && !nextData.onboardingProfileKey) {
+      nextData.onboardingProfileKey = currentUserProfileKey;
+    }
+
+    nextData.settings.onboardingCompleted =
+      nextData.settings.onboardingCompleted && nextData.onboardingProfileKey === currentUserProfileKey;
+
+    const serializedNext = JSON.stringify(nextData);
+    const serializedParsed = JSON.stringify(parsed);
+    if (serializedNext !== serializedParsed) {
+      writeData(nextData);
+    }
+
+    return nextData;
   } catch {
     return defaultData;
   }
@@ -179,6 +218,7 @@ export function writeData(data: LocalData) {
 
 export function updateSettings(patch: Partial<AppSettings>) {
   const current = readData();
+  const nextOnboardingCompleted = patch.onboardingCompleted ?? current.settings.onboardingCompleted;
   const nextTranscriptHistoryLimit = Math.max(
     1,
     Math.round(patch.transcriptHistoryLimit ?? current.settings.transcriptHistoryLimit)
@@ -188,8 +228,10 @@ export function updateSettings(patch: Partial<AppSettings>) {
     settings: {
       ...current.settings,
       ...patch,
+      onboardingCompleted: nextOnboardingCompleted,
       transcriptHistoryLimit: nextTranscriptHistoryLimit
     },
+    onboardingProfileKey: nextOnboardingCompleted ? getCurrentUserProfileKey() : null,
     transcriptHistory: current.transcriptHistory.slice(0, nextTranscriptHistoryLimit)
   };
   writeData(next);

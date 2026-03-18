@@ -641,7 +641,7 @@ function getActiveProfile(current: LocalData) {
 }
 
 function getOnboardingScopeKey(current: Pick<LocalData, "installRegistrationKey" | "settings">) {
-  return current.settings.activeProfileId ?? current.installRegistrationKey;
+  return current.installRegistrationKey;
 }
 
 function normalizeOnboardingCompletedKeys(keys: string[] | undefined, current: Pick<LocalData, "installRegistrationKey" | "settings">) {
@@ -649,11 +649,11 @@ function normalizeOnboardingCompletedKeys(keys: string[] | undefined, current: P
     ? keys.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
     : [];
 
-  if (normalized.length === 0 && current.settings.onboardingCompleted) {
-    normalized.push(getOnboardingScopeKey(current));
+  if (normalized.length > 0 || current.settings.onboardingCompleted) {
+    return [current.installRegistrationKey];
   }
 
-  return [...new Set(normalized)];
+  return [];
 }
 
 function syncActiveProfileProgress(current: LocalData) {
@@ -873,9 +873,7 @@ function parseDataContent(content: string): LocalData | null {
     };
 
     if (nextData.onboardingCompletedKeys.length === 0 && nextData.settings.onboardingCompleted) {
-      nextData.onboardingCompletedKeys = legacyOnboardingProfileKey
-        ? [legacyOnboardingProfileKey, nextData.installRegistrationKey, ...nextData.voiceProfiles.map((profile) => profile.id)]
-        : [nextData.installRegistrationKey, ...nextData.voiceProfiles.map((profile) => profile.id)];
+      nextData.onboardingCompletedKeys = [nextData.installRegistrationKey];
     }
 
     if (

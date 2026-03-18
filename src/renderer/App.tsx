@@ -1148,6 +1148,7 @@ export default function App() {
   const dictionaryTypeMenuRef = useRef<HTMLDivElement | null>(null);
   const hasLoadedInitialDataRef = useRef(false);
   const previousLevelRef = useRef(defaultStats.currentLevel);
+  const previousLevelScopeRef = useRef<string | null>(null);
   const levelUpAudioRef = useRef<HTMLAudioElement | null>(null);
   const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
   const dictionaryNotificationAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1435,6 +1436,12 @@ export default function App() {
   }, [activeProfile]);
 
   useEffect(() => {
+    const nextLevelScope = settings.activeProfileId ?? "__global__";
+    previousLevelScopeRef.current = nextLevelScope;
+    previousLevelRef.current = stats.currentLevel;
+  }, [settings.activeProfileId]);
+
+  useEffect(() => {
     if (!hasLoadedInitialDataRef.current) {
       return;
     }
@@ -1468,6 +1475,14 @@ export default function App() {
   useEffect(() => {
     if (!hasLoadedInitialDataRef.current) {
       previousLevelRef.current = stats.currentLevel;
+      previousLevelScopeRef.current = settings.activeProfileId ?? "__global__";
+      return;
+    }
+
+    const currentLevelScope = settings.activeProfileId ?? "__global__";
+    if (previousLevelScopeRef.current !== currentLevelScope) {
+      previousLevelScopeRef.current = currentLevelScope;
+      previousLevelRef.current = stats.currentLevel;
       return;
     }
 
@@ -1489,7 +1504,7 @@ export default function App() {
     }
 
     previousLevelRef.current = stats.currentLevel;
-  }, [stats.currentLevel]);
+  }, [settings.activeProfileId, stats.currentLevel]);
 
   useEffect(() => {
     if (!isTranscriptHistoryMenuOpen || isEditingTranscriptHistoryLimit) {

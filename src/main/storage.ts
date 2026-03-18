@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { app } from "electron";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import {
   AchievementSyncResult,
@@ -86,7 +85,7 @@ const defaultDailyChallengeProgress: DailyChallengeProgress = {
 
 const defaultData: LocalData = {
   installRegistrationKey: randomUUID(),
-  onboardingProfileKey: null,
+  onboardingCompletedKeys: [],
   settings: defaultSettings,
   voiceProfiles: [],
   manualDictionary: [],
@@ -471,6 +470,22 @@ function getActiveProfile(current: LocalData) {
   return current.voiceProfiles.find((profile) => profile.id === current.settings.activeProfileId) ?? null;
 }
 
+function getOnboardingScopeKey(current: Pick<LocalData, "installRegistrationKey" | "settings">) {
+  return current.settings.activeProfileId ?? current.installRegistrationKey;
+}
+
+function normalizeOnboardingCompletedKeys(keys: string[] | undefined, current: Pick<LocalData, "installRegistrationKey" | "settings">) {
+  const normalized = Array.isArray(keys)
+    ? keys.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    : [];
+
+  if (normalized.length === 0 && current.settings.onboardingCompleted) {
+    normalized.push(getOnboardingScopeKey(current));
+  }
+
+  return [...new Set(normalized)];
+}
+
 function syncActiveProfileProgress(current: LocalData) {
   const activeProfile = getActiveProfile(current);
   if (!activeProfile) {
@@ -497,18 +512,6 @@ function getDataFilePath() {
   return path.join(app.getPath("userData"), "whisparr.json");
 }
 
-function getCurrentUserProfileKey() {
-  const username = (() => {
-    try {
-      return os.userInfo().username;
-    } catch {
-      return process.env.USERNAME ?? process.env.USER ?? "unknown-user";
-    }
-  })();
-
-  return `${process.platform}::${username.toLowerCase()}::${os.homedir().toLowerCase()}`;
-}
-
 function ensureDataFile() {
   const filePath = getDataFilePath();
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -524,19 +527,24 @@ export function readData(): LocalData {
 
   try {
     const parsed = JSON.parse(content) as Partial<LocalData>;
-    const currentUserProfileKey = getCurrentUserProfileKey();
     const installRegistrationKey =
       typeof parsed.installRegistrationKey === "string" && parsed.installRegistrationKey.trim()
         ? parsed.installRegistrationKey
         : randomUUID();
+    const legacyOnboardingProfileKey =
+      typeof (parsed as { onboardingProfileKey?: unknown }).onboardingProfileKey === "string" &&
+      ((parsed as { onboardingProfileKey?: string }).onboardingProfileKey?.trim()?.length ?? 0) > 0
+        ? (parsed as { onboardingProfileKey: string }).onboardingProfileKey
+        : null;
     const nextData: LocalData = {
       ...defaultData,
       ...parsed,
       installRegistrationKey,
-      onboardingProfileKey:
-        typeof parsed.onboardingProfileKey === "string" && parsed.onboardingProfileKey.trim()
-          ? parsed.onboardingProfileKey
-          : null,
+      onboardingCompletedKeys: Array.isArray((parsed as { onboardingCompletedKeys?: unknown }).onboardingCompletedKeys)
+        ? ((parsed as { onboardingCompletedKeys?: unknown[] }).onboardingCompletedKeys ?? []).filter(
+            (entry): entry is string => typeof entry === "string" && entry.trim().length > 0
+          )
+        : [],
       settings: {
         ...defaultSettings,
         ...parsed.settings
@@ -628,8 +636,10 @@ export function readData(): LocalData {
         : []
     };
 
-    if (nextData.settings.onboardingCompleted && !nextData.onboardingProfileKey) {
-      nextData.onboardingProfileKey = currentUserProfileKey;
+    if (nextData.onboardingCompletedKeys.length === 0 && nextData.settings.onboardingCompleted) {
+      nextData.onboardingCompletedKeys = legacyOnboardingProfileKey
+        ? [legacyOnboardingProfileKey, nextData.installRegistrationKey, ...nextData.voiceProfiles.map((profile) => profile.id)]
+        : [nextData.installRegistrationKey, ...nextData.voiceProfiles.map((profile) => profile.id)];
     }
 
     if (
@@ -660,8 +670,8 @@ export function readData(): LocalData {
       }
     }
 
-    nextData.settings.onboardingCompleted =
-      nextData.settings.onboardingCompleted && nextData.onboardingProfileKey === currentUserProfileKey;
+    nextData.onboardingCompletedKeys = normalizeOnboardingCompletedKeys(nextData.onboardingCompletedKeys, nextData);
+    nextData.settings.onboardingCompleted = nextData.onboardingCompletedKeys.includes(getOnboardingScopeKey(nextData));
 
     syncActiveProfileProgress(nextData);
 
@@ -687,20 +697,33 @@ export function writeData(data: LocalData) {
 
 export function updateSettings(patch: Partial<AppSettings>) {
   const current = readData();
-  const nextOnboardingCompleted = patch.onboardingCompleted ?? current.settings.onboardingCompleted;
   const nextTranscriptHistoryLimit = Math.max(
     1,
     Math.round(patch.transcriptHistoryLimit ?? current.settings.transcriptHistoryLimit)
   );
+  const nextSettings: AppSettings = {
+    ...current.settings,
+    ...patch,
+    transcriptHistoryLimit: nextTranscriptHistoryLimit
+  };
+  const nextOnboardingScopeKey = getOnboardingScopeKey({
+    installRegistrationKey: current.installRegistrationKey,
+    settings: nextSettings
+  });
+  const nextOnboardingCompletedKeys = new Set(normalizeOnboardingCompletedKeys(current.onboardingCompletedKeys, current));
+  const requestedOnboardingCompleted = patch.onboardingCompleted;
+
+  if (requestedOnboardingCompleted === true) {
+    nextOnboardingCompletedKeys.add(nextOnboardingScopeKey);
+  } else if (requestedOnboardingCompleted === false) {
+    nextOnboardingCompletedKeys.delete(nextOnboardingScopeKey);
+  }
+
+  nextSettings.onboardingCompleted = nextOnboardingCompletedKeys.has(nextOnboardingScopeKey);
   const next = {
     ...current,
-    settings: {
-      ...current.settings,
-      ...patch,
-      onboardingCompleted: nextOnboardingCompleted,
-      transcriptHistoryLimit: nextTranscriptHistoryLimit
-    },
-    onboardingProfileKey: nextOnboardingCompleted ? getCurrentUserProfileKey() : null,
+    settings: nextSettings,
+    onboardingCompletedKeys: [...nextOnboardingCompletedKeys],
     transcriptHistory: current.transcriptHistory.slice(0, nextTranscriptHistoryLimit)
   };
   syncActiveProfileProgress(next);
@@ -775,9 +798,11 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
 export function deleteVoiceProfile(id: string) {
   const current = readData();
   current.voiceProfiles = current.voiceProfiles.filter((profile) => profile.id !== id);
+  current.onboardingCompletedKeys = current.onboardingCompletedKeys.filter((key) => key !== id);
   if (current.settings.activeProfileId === id) {
     current.settings.activeProfileId = current.voiceProfiles[0]?.id ?? null;
   }
+  current.settings.onboardingCompleted = current.onboardingCompletedKeys.includes(getOnboardingScopeKey(current));
   syncActiveProfileProgress(current);
   writeData(current);
   return current.voiceProfiles;

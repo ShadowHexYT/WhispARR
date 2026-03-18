@@ -173,7 +173,7 @@ export type AchievementSyncResult = {
 
 export type LocalData = {
   installRegistrationKey: string;
-  onboardingProfileKey: string | null;
+  onboardingCompletedKeys: string[];
   settings: AppSettings;
   voiceProfiles: VoiceProfile[];
   manualDictionary: ManualDictionaryEntry[];

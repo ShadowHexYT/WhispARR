@@ -51,6 +51,7 @@ declare global {
       saveSavedNotes: (savedNotes: string[]) => Promise<string[]>;
       pickFile: () => Promise<string | null>;
       pasteText: (text: string) => Promise<boolean>;
+      prepareClipboardForSinglePaste: (text: string) => Promise<boolean>;
       showWindow: () => Promise<boolean>;
       getAppDiagnostics: () => Promise<AppDiagnostics>;
       updateHud: (state: HudState) => Promise<boolean>;

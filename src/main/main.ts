@@ -147,6 +147,15 @@ const pressedKeys = new Set<number>();
 let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
+let ignoredClipboardText: string | null = null;
+let managedClipboardSession:
+  | {
+      originalText: string;
+      stagedText: string;
+      mode: "auto" | "manual";
+      cleanupTimeout: NodeJS.Timeout | null;
+    }
+  | null = null;
 let registeredActivationAccelerator: string | null = null;
 let pushToTalkEventId = 0;
 const HUD_BASE_WIDTH = 110;
@@ -433,6 +442,7 @@ function clearClipboardLearningWatch() {
   }
 
   lastObservedClipboardText = "";
+  ignoredClipboardText = null;
 }
 
 function normalizeWordForLearning(word: string) {
@@ -562,6 +572,12 @@ function startClipboardLearningWatch(sourceTranscript: string) {
   clipboardLearningInterval = setInterval(() => {
     const nextClipboardText = clipboard.readText();
     if (!nextClipboardText || nextClipboardText === lastObservedClipboardText) {
+      return;
+    }
+
+    if (ignoredClipboardText !== null && nextClipboardText === ignoredClipboardText) {
+      lastObservedClipboardText = nextClipboardText;
+      ignoredClipboardText = null;
       return;
     }
 
@@ -849,6 +865,17 @@ function registerGlobalPushToTalk() {
   uIOhook.on("keydown", (event) => {
     pressedKeys.add(event.keycode);
 
+    const isManualManagedPaste =
+      managedClipboardSession?.mode === "manual" &&
+      event.keycode === UiohookKey.V &&
+      pressedKeys.has(getPasteModifier());
+    if (isManualManagedPaste) {
+      const stagedText = managedClipboardSession?.stagedText;
+      setTimeout(() => {
+        restoreManagedClipboardIfNeeded(stagedText);
+      }, 250);
+    }
+
     if (registeredActivationAccelerator) {
       return;
     }
@@ -900,10 +927,60 @@ function getPasteModifier() {
   return process.platform === "darwin" ? UiohookKey.Meta : UiohookKey.Ctrl;
 }
 
-async function pasteText(text: string) {
+function clearManagedClipboardSession() {
+  if (managedClipboardSession?.cleanupTimeout) {
+    clearTimeout(managedClipboardSession.cleanupTimeout);
+  }
+  managedClipboardSession = null;
+}
+
+function restoreManagedClipboardIfNeeded(expectedText?: string) {
+  if (!managedClipboardSession) {
+    return false;
+  }
+
+  const currentClipboardText = clipboard.readText();
+  if (expectedText && currentClipboardText !== expectedText) {
+    clearManagedClipboardSession();
+    return false;
+  }
+
+  if (!expectedText && currentClipboardText !== managedClipboardSession.stagedText) {
+    clearManagedClipboardSession();
+    return false;
+  }
+
+  clipboard.writeText(managedClipboardSession.originalText);
+  ignoredClipboardText = managedClipboardSession.originalText;
+  clearManagedClipboardSession();
+  return true;
+}
+
+function stageClipboardText(text: string, mode: "auto" | "manual") {
+  clearManagedClipboardSession();
+  managedClipboardSession = {
+    originalText: clipboard.readText(),
+    stagedText: text,
+    mode,
+    cleanupTimeout: null
+  };
   clipboard.writeText(text);
+}
+
+async function pasteText(text: string) {
+  stageClipboardText(text, "auto");
   await new Promise((resolve) => setTimeout(resolve, 20));
   uIOhook.keyTap(UiohookKey.V, [getPasteModifier()]);
+  startClipboardLearningWatch(text);
+  if (managedClipboardSession) {
+    managedClipboardSession.cleanupTimeout = setTimeout(() => {
+      restoreManagedClipboardIfNeeded(text);
+    }, 250);
+  }
+}
+
+function prepareClipboardForSinglePaste(text: string) {
+  stageClipboardText(text, "manual");
   startClipboardLearningWatch(text);
 }
 
@@ -1052,6 +1129,10 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("paste:text", async (_event, text: string) => {
     await pasteText(text);
+    return true;
+  });
+  ipcMain.handle("clipboard:prepare-single-paste", (_event, text: string) => {
+    prepareClipboardForSinglePaste(text);
     return true;
   });
   ipcMain.handle("hud:update", (_event, state: HudState) => {

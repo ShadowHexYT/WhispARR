@@ -2621,7 +2621,12 @@ export default function App() {
             : "Transcribed locally and pasted into the active app."
         );
       } else {
-        setStatus("Local dictation completed.");
+        await window.wisprApi.prepareClipboardForSinglePaste(result.transcript);
+        setStatus(
+          currentSettings.autoLearnDictionary
+            ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy your corrected text within 45 seconds to auto-learn dictionary terms."
+            : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
+        );
       }
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Local transcription failed.");

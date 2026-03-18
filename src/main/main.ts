@@ -449,6 +449,14 @@ function normalizeWordForLearning(word: string) {
   return word.toLowerCase().replace(/[^a-z0-9'-]+/g, "");
 }
 
+function normalizePhraseForLearning(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function tokenizeTranscriptForLearning(transcript: string) {
+  return transcript.match(/[A-Za-z0-9][A-Za-z0-9'/_-]*/g) ?? [];
+}
+
 function levenshteinDistance(left: string, right: string) {
   const rows = left.length + 1;
   const cols = right.length + 1;
@@ -498,66 +506,175 @@ function shouldLearnCorrectedWord(originalWord: string, correctedWord: string) {
   return distance <= allowedDistance && (sameFirstLetter || distance <= 1) && similarLength;
 }
 
-function getLearnableWords(originalTranscript: string, correctedTranscript: string) {
-  const originalWords = originalTranscript.match(/[A-Za-z0-9'-]+/g) ?? [];
-  const correctedWords = correctedTranscript.match(/[A-Za-z0-9'-]+/g) ?? [];
-
-  if (originalWords.length === 0 || correctedWords.length === 0) {
+function buildTokenReplacementCandidates(originalTokens: string[], correctedTokens: string[]) {
+  if (originalTokens.length === 0 || correctedTokens.length === 0) {
     return [];
   }
 
-  const learnableTerms = new Set<string>();
-  const comparisons = correctedWords.length;
+  const dp = Array.from({ length: originalTokens.length + 1 }, () =>
+    new Array<number>(correctedTokens.length + 1).fill(0)
+  );
 
-  for (let index = 0; index < comparisons; index += 1) {
-    const correctedWord = correctedWords[index] ?? "";
-    let bestOriginalWord = "";
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (let offset = -2; offset <= 2; offset += 1) {
-      const originalWord = originalWords[index + offset] ?? "";
-      const normalizedOriginal = normalizeWordForLearning(originalWord);
-      const normalizedCorrected = normalizeWordForLearning(correctedWord);
-      if (!normalizedOriginal || !normalizedCorrected) {
-        continue;
+  for (let left = originalTokens.length - 1; left >= 0; left -= 1) {
+    for (let right = correctedTokens.length - 1; right >= 0; right -= 1) {
+      if (normalizeWordForLearning(originalTokens[left] ?? "") === normalizeWordForLearning(correctedTokens[right] ?? "")) {
+        dp[left][right] = dp[left + 1][right + 1] + 1;
+      } else {
+        dp[left][right] = Math.max(dp[left + 1][right], dp[left][right + 1]);
       }
-
-      const distance = levenshteinDistance(normalizedOriginal, normalizedCorrected);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestOriginalWord = originalWord;
-      }
-    }
-
-    if (bestOriginalWord && shouldLearnCorrectedWord(bestOriginalWord, correctedWord)) {
-      learnableTerms.add(correctedWord);
     }
   }
 
-  return [...learnableTerms];
+  const operations: Array<
+    | { type: "same"; original: string; corrected: string }
+    | { type: "delete"; original: string }
+    | { type: "insert"; corrected: string }
+  > = [];
+
+  let left = 0;
+  let right = 0;
+  while (left < originalTokens.length && right < correctedTokens.length) {
+    const original = originalTokens[left] ?? "";
+    const corrected = correctedTokens[right] ?? "";
+    if (normalizeWordForLearning(original) === normalizeWordForLearning(corrected)) {
+      operations.push({ type: "same", original, corrected });
+      left += 1;
+      right += 1;
+      continue;
+    }
+
+    if (dp[left + 1][right] >= dp[left][right + 1]) {
+      operations.push({ type: "delete", original });
+      left += 1;
+    } else {
+      operations.push({ type: "insert", corrected });
+      right += 1;
+    }
+  }
+
+  while (left < originalTokens.length) {
+    operations.push({ type: "delete", original: originalTokens[left] ?? "" });
+    left += 1;
+  }
+
+  while (right < correctedTokens.length) {
+    operations.push({ type: "insert", corrected: correctedTokens[right] ?? "" });
+    right += 1;
+  }
+
+  const candidates: Array<{ term: string; replacement: string }> = [];
+  let deleted: string[] = [];
+  let inserted: string[] = [];
+
+  const flush = () => {
+    const term = deleted.join(" ").trim();
+    const replacement = inserted.join(" ").trim();
+    if (term && replacement && normalizePhraseForLearning(term) !== normalizePhraseForLearning(replacement)) {
+      candidates.push({ term, replacement });
+    }
+    deleted = [];
+    inserted = [];
+  };
+
+  for (const operation of operations) {
+    if (operation.type === "same") {
+      flush();
+      continue;
+    }
+
+    if (operation.type === "delete") {
+      deleted.push(operation.original);
+      continue;
+    }
+
+    inserted.push(operation.corrected);
+  }
+
+  flush();
+  return candidates;
+}
+
+function inferDictionaryEntryType(term: string, replacement: string): "Abbreviation" | "Word" | "Phrase" | "Sentence" {
+  const termWordCount = tokenizeTranscriptForLearning(term).length;
+  const replacementWordCount = tokenizeTranscriptForLearning(replacement).length;
+  const maxWordCount = Math.max(termWordCount, replacementWordCount);
+  const abbreviationPattern = /^[A-Z0-9]{2,8}$/;
+
+  if (
+    replacementWordCount === 1 &&
+    termWordCount >= 2 &&
+    abbreviationPattern.test(replacement.trim().replace(/[.]/g, ""))
+  ) {
+    return "Abbreviation";
+  }
+
+  if (maxWordCount <= 1) {
+    return "Word";
+  }
+
+  if (maxWordCount >= 6 || /[.!?]/.test(term) || /[.!?]/.test(replacement)) {
+    return "Sentence";
+  }
+
+  return "Phrase";
+}
+
+function shouldLearnReplacement(term: string, replacement: string) {
+  const normalizedTerm = normalizePhraseForLearning(term);
+  const normalizedReplacement = normalizePhraseForLearning(replacement);
+
+  if (!normalizedTerm || !normalizedReplacement || normalizedTerm === normalizedReplacement) {
+    return false;
+  }
+
+  const termWords = tokenizeTranscriptForLearning(term);
+  const replacementWords = tokenizeTranscriptForLearning(replacement);
+  if (termWords.length === 1 && replacementWords.length === 1) {
+    return shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "");
+  }
+
+  return termWords.length <= 16 && replacementWords.length <= 16;
 }
 
 function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedClipboardText: string) {
-  const learnableTerms = getLearnableWords(sourceTranscript, correctedClipboardText);
-  if (learnableTerms.length === 0) {
+  const originalTokens = tokenizeTranscriptForLearning(sourceTranscript);
+  const correctedTokens = tokenizeTranscriptForLearning(correctedClipboardText);
+  const candidateReplacements = buildTokenReplacementCandidates(originalTokens, correctedTokens)
+    .filter((candidate) => shouldLearnReplacement(candidate.term, candidate.replacement));
+
+  if (candidateReplacements.length === 0) {
     return [];
   }
 
   const data = readData();
-  const knownTerms = new Set(data.manualDictionary.map((entry) => entry.term.toLowerCase()));
-  const savedTerms: string[] = [];
+  const savedLabels: string[] = [];
 
-  for (const term of learnableTerms) {
-    if (knownTerms.has(term.toLowerCase())) {
+  for (const candidate of candidateReplacements) {
+    const existing = data.manualDictionary.find(
+      (entry) => normalizePhraseForLearning(entry.term) === normalizePhraseForLearning(candidate.term)
+    );
+
+    if (existing && !existing.addedBySystem) {
       continue;
     }
 
-    saveManualDictionaryEntry({ term, addedBySystem: true });
-    knownTerms.add(term.toLowerCase());
-    savedTerms.push(term);
+    const entryTypeOverride = inferDictionaryEntryType(candidate.term, candidate.replacement);
+    saveManualDictionaryEntry({
+      id: existing?.id,
+      term: candidate.term,
+      replacement: candidate.replacement,
+      entryTypeOverride,
+      addedBySystem: true
+    });
+
+    savedLabels.push(
+      entryTypeOverride === "Word" || entryTypeOverride === "Abbreviation"
+        ? candidate.replacement
+        : `${candidate.term} -> ${candidate.replacement}`
+    );
   }
 
-  return savedTerms;
+  return [...new Set(savedLabels)];
 }
 
 function startClipboardLearningWatch(sourceTranscript: string) {
@@ -592,8 +709,8 @@ function startClipboardLearningWatch(sourceTranscript: string) {
       mainWindow?.webContents.send("dictionary:auto-learned", savedTerms);
       if (Notification.isSupported()) {
         const body = savedTerms.length === 1
-          ? `Added "${savedTerms[0]}" to your dictionary.`
-          : `Added ${savedTerms.length} corrected terms to your dictionary.`;
+          ? `Learned "${savedTerms[0]}" from your correction.`
+          : `Learned ${savedTerms.length} corrected entries from your edits.`;
         new Notification({
           title: "WhispARR Dictionary Updated",
           body,
@@ -602,12 +719,11 @@ function startClipboardLearningWatch(sourceTranscript: string) {
         }).show();
       }
     }
-    clearClipboardLearningWatch();
   }, 1000);
 
   clipboardLearningDeadline = setTimeout(() => {
     clearClipboardLearningWatch();
-  }, 45000);
+  }, 60000);
 }
 
 function pauseActiveMediaSessions() {

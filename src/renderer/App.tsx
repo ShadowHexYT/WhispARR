@@ -2617,14 +2617,14 @@ export default function App() {
         await window.wisprApi.pasteText(result.transcript);
         setStatus(
           currentSettings.autoLearnDictionary
-            ? "Transcribed locally and pasted. Copy your corrected text within 45 seconds to auto-learn dictionary terms."
+            ? "Transcribed locally and pasted. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, abbreviations, and sentences."
             : "Transcribed locally and pasted into the active app."
         );
       } else {
         await window.wisprApi.prepareClipboardForSinglePaste(result.transcript);
         setStatus(
           currentSettings.autoLearnDictionary
-            ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy your corrected text within 45 seconds to auto-learn dictionary terms."
+            ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, abbreviations, and sentences."
             : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
         );
       }
@@ -3518,6 +3518,7 @@ export default function App() {
                   Save to dictionary
                 </button>
               </div>
+              <div className="dictionary-section-separator" aria-hidden="true" />
               <div className="panel-header dictation-subsection-header dictionary-header">
                 <div>
                   <p className="eyebrow">Saved Terms</p>
@@ -4019,8 +4020,8 @@ export default function App() {
                   <div className="settings-switch-copy">
                     <strong>Auto dictionary learning</strong>
                     <p>
-                      Watches for copied corrections from the last pasted transcript and saves likely
-                      corrected words into your local dictionary.
+                      Watches copied edits from the last dictated transcript for about a minute and
+                      learns corrected words, phrases, abbreviations, and short sentence replacements.
                     </p>
                   </div>
                   <button

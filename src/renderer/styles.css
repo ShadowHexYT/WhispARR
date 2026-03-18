@@ -1563,6 +1563,13 @@ select option:disabled {
   margin-top: var(--space-5);
 }
 
+.dictionary-section-separator {
+  margin: var(--space-5) 0 0;
+  height: 1px;
+  width: 100%;
+  background: color-mix(in srgb, var(--button-border) 78%, transparent);
+}
+
 .dictionary-header-toggle {
   display: grid;
   justify-items: end;

@@ -18,7 +18,6 @@ Released: 2026-03-18
 Highlights
 
 - Added a fuller in-app update experience so release notes can be reviewed during update checks and then shown again after installation completes.
-- Introduced seasonal Easter eggs for Halloween, Christmas, and the Fourth of July, plus a dedicated Easter Eggs preview area in Developer mode for testing them any time.
 - Refined the app shell with a shimmer-and-glow brand hover, a visible version label under the WhispARR title, and compact sidebar quick links for GitHub, Legal Information, and Terms of Service.
 - Expanded tray controls for showing the app, jumping to Settings, restarting the local engine, toggling the always-visible pill, and quitting quickly.
 
@@ -48,9 +47,6 @@ Brand, Navigation, and Seasonal Extras
 
 - Made the `WhispARR` application name clickable, with a direct path to the GitHub page after confirmation.
 - Kept the hidden 20-click developer-mode unlock on the application icon only so the title link and Easter egg no longer compete.
-- Added Halloween skeleton dance visuals with a more polished skeleton stage and pumpkin accents.
-- Added a Christmas Eve and Christmas Day voice-triggered Santa parade with reindeer, sleigh drops, and a Developer preview.
-- Added a Fourth of July streak Easter egg that launches fireworks from the `days` label on July 4, with a Developer preview for testing.
 
 ## 1.1.3 And Earlier
 

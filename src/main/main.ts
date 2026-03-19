@@ -160,6 +160,7 @@ let ignoredClipboardText: string | null = null;
 let managedClipboardSession:
   | {
       originalText: string;
+      originalHadText: boolean;
       stagedText: string;
       mode: "auto" | "manual";
       cleanupTimeout: NodeJS.Timeout | null;
@@ -1205,16 +1206,23 @@ function restoreManagedClipboardIfNeeded(expectedText?: string) {
     return false;
   }
 
-  clipboard.writeText(managedClipboardSession.originalText);
-  ignoredClipboardText = managedClipboardSession.originalText;
+  if (managedClipboardSession.originalHadText) {
+    clipboard.writeText(managedClipboardSession.originalText);
+    ignoredClipboardText = managedClipboardSession.originalText;
+  } else {
+    clipboard.clear();
+    ignoredClipboardText = "";
+  }
   clearManagedClipboardSession();
   return true;
 }
 
 function stageClipboardText(text: string, mode: "auto" | "manual") {
   clearManagedClipboardSession();
+  const originalText = clipboard.readText();
   managedClipboardSession = {
-    originalText: clipboard.readText(),
+    originalText,
+    originalHadText: originalText.length > 0,
     stagedText: text,
     mode,
     cleanupTimeout: null
@@ -1237,6 +1245,11 @@ async function pasteText(text: string) {
 function prepareClipboardForSinglePaste(text: string) {
   stageClipboardText(text, "manual");
   startClipboardLearningWatch(text);
+  if (managedClipboardSession) {
+    managedClipboardSession.cleanupTimeout = setTimeout(() => {
+      restoreManagedClipboardIfNeeded(text);
+    }, 20000);
+  }
 }
 
 if (!app.requestSingleInstanceLock()) {

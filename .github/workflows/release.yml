@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -34,6 +32,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/write-release-notes.mjs "${{ github.ref_name }}" release-notes.txt
+
+      - name: Create or update GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: release-notes.txt
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: npm ci

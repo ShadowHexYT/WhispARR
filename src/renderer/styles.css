@@ -103,7 +103,7 @@ textarea {
   flex-direction: column;
   height: 100%;
   margin-top: calc(-1 * env(titlebar-area-height, 0px));
-  padding: calc(env(titlebar-area-height, 0px) + 28px) 28px calc(36px + var(--bottom-bar-clearance));
+  padding: calc(env(titlebar-area-height, 0px) + 28px) 28px calc(var(--bottom-bar-clearance) - 84px);
   border-right: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   background: var(--sidebar-background);
   backdrop-filter: blur(20px);
@@ -333,8 +333,11 @@ textarea {
 
 .nav {
   display: grid;
+  flex: 1 1 auto;
+  align-content: start;
   gap: var(--space-2);
   margin: var(--space-5) 0;
+  min-height: 0;
 }
 
 .sidebar-update-button {
@@ -380,6 +383,68 @@ textarea {
   width: 100%;
   margin-top: 14px;
   margin-bottom: 18px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  flex: 0 0 auto;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+}
+
+.sidebar-footer-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.sidebar-footer-copy {
+  margin: 0;
+  text-align: center;
+  color: color-mix(in srgb, var(--muted) 94%, var(--text) 6%);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sidebar-footer-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
+  background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.sidebar-footer-icon-button:hover {
+  color: var(--text);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--button-top) 100%, white 8%),
+    color-mix(in srgb, var(--button-bottom) 100%, white 4%)
+  );
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.sidebar-footer-icon-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .nav-button,
@@ -3081,6 +3146,46 @@ select option:disabled {
   color: var(--muted);
   line-height: 1.65;
   white-space: pre-wrap;
+}
+
+.sidebar-info-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 10, 14, 0.56);
+  backdrop-filter: blur(12px);
+  z-index: 46;
+}
+
+.sidebar-info-modal {
+  width: min(100%, 760px);
+  max-height: min(84vh, 820px);
+  display: grid;
+  gap: var(--space-3);
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line) 80%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 10%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 95%, black 5%), color-mix(in srgb, var(--panel) 91%, black 9%));
+  box-shadow: var(--shadow);
+}
+
+.sidebar-info-content {
+  display: grid;
+  gap: 14px;
+  max-height: min(50vh, 460px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.sidebar-info-content p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.68;
 }
 
 .auto-dictionary-toast {

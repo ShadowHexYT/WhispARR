@@ -4,10 +4,13 @@ import {
   BookText,
   ChartColumnBig,
   Clock3,
+  FileText,
+  Github,
   Mic,
   Play,
   RefreshCw,
   Settings2,
+  Shield,
   SquareTerminal,
   UserRound,
   Minimize2,
@@ -46,6 +49,7 @@ type StatusLogEntry = { timestamp: string; message: string };
 type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 type AchievementDifficulty = "Easy" | "Medium" | "Hard" | "Almost Impossible";
 type UpdateDialogState = "closed" | "none" | "available" | "error";
+type SidebarInfoDialog = "closed" | "legal" | "terms";
 type AutoDictionaryToast = { terms: string[]; id: number } | null;
 type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
@@ -1142,6 +1146,7 @@ export default function App() {
   const [updateDialogState, setUpdateDialogState] = useState<UpdateDialogState>("closed");
   const [updateDialogMessage, setUpdateDialogMessage] = useState("");
   const [postInstallPatchNotes, setPostInstallPatchNotes] = useState<PatchNotesRecord | null>(null);
+  const [sidebarInfoDialog, setSidebarInfoDialog] = useState<SidebarInfoDialog>("closed");
   const [autoDictionaryToast, setAutoDictionaryToast] = useState<AutoDictionaryToast>(null);
   const [achievementToast, setAchievementToast] = useState<AchievementToast>(null);
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
@@ -2394,6 +2399,11 @@ export default function App() {
     setStatus("Opened the WhispARR GitHub page.");
   }
 
+  async function openGithubLink() {
+    await window.wisprApi.openExternal("https://github.com/ShadowHexYT");
+    setStatus("Opened the WhispARR GitHub page.");
+  }
+
   function playRetroZombieSound() {
     if (settingsRef.current.muteDictationSounds) {
       return;
@@ -3286,18 +3296,50 @@ export default function App() {
             </button>
           )}
         </nav>
-        {isRetroModeEnabled && (
-          <button
-            className="secondary-button retro-exit-button"
-            type="button"
-            onClick={() => {
-              setIsRetroModeEnabled(false);
-              setStatus("Retro mode disabled.");
-            }}
-          >
-            Exit retro mode
-          </button>
-        )}
+        <div className="sidebar-footer">
+          {isRetroModeEnabled && (
+            <button
+              className="secondary-button retro-exit-button"
+              type="button"
+              onClick={() => {
+                setIsRetroModeEnabled(false);
+                setStatus("Retro mode disabled.");
+              }}
+            >
+              Exit retro mode
+            </button>
+          )}
+          <div className="sidebar-footer-icons" aria-label="Footer links">
+            <button
+              className="sidebar-footer-icon-button"
+              type="button"
+              onClick={() => void openGithubLink()}
+              aria-label="Open GitHub"
+              title="GitHub"
+            >
+              <Github strokeWidth={1.8} />
+            </button>
+            <button
+              className="sidebar-footer-icon-button"
+              type="button"
+              onClick={() => setSidebarInfoDialog("legal")}
+              aria-label="Open legal information"
+              title="Legal"
+            >
+              <Shield strokeWidth={1.8} />
+            </button>
+            <button
+              className="sidebar-footer-icon-button"
+              type="button"
+              onClick={() => setSidebarInfoDialog("terms")}
+              aria-label="Open terms of service"
+              title="Terms of Service"
+            >
+              <FileText strokeWidth={1.8} />
+            </button>
+          </div>
+          <p className="sidebar-footer-copy">All rights reserved WhispARR 2026 ©</p>
+        </div>
       </aside>
       <main className="content">
         <section className="top-stats">
@@ -5393,6 +5435,96 @@ export default function App() {
                 onClick={() => void neverShowPatchNotesAgain()}
               >
                 Never show again
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {sidebarInfoDialog !== "closed" && (
+        <div className="sidebar-info-backdrop" role="presentation">
+          <section
+            className="sidebar-info-modal"
+            aria-label={sidebarInfoDialog === "legal" ? "Legal information" : "Terms of service"}
+          >
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">WhispARR</p>
+                <h3>{sidebarInfoDialog === "legal" ? "Legal Information" : "Terms of Service"}</h3>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setSidebarInfoDialog("closed")}
+                aria-label="Close legal dialog"
+                title="Close"
+              >
+                X
+              </button>
+            </div>
+            <div className="sidebar-info-content">
+              {sidebarInfoDialog === "legal" ? (
+                <>
+                  <p>
+                    WhispARR is a locally focused dictation application designed to process voice input on the
+                    user&apos;s device whenever the required runtime is installed and available. The application,
+                    interface copy, bundled assets, and original product branding are provided for personal and
+                    internal productivity use unless a separate written license says otherwise.
+                  </p>
+                  <p>
+                    Voice profiles, dictionary entries, notes, transcript history, and settings are stored on the
+                    device profile associated with the current installation. You are responsible for complying with
+                    workplace rules, privacy obligations, recording consent requirements, and any laws that apply to
+                    dictation, microphone use, pasted output, or saved transcripts in your region.
+                  </p>
+                  <p>
+                    WhispARR is provided on an &quot;as is&quot; and &quot;as available&quot; basis, without warranties of
+                    any kind, express or implied, including merchantability, fitness for a particular purpose,
+                    availability, accuracy, or non-infringement. Dictation results may contain mistakes, omissions,
+                    formatting issues, or unintended wording and should be reviewed before use in important,
+                    professional, financial, medical, legal, or safety-sensitive contexts.
+                  </p>
+                  <p>
+                    To the maximum extent permitted by law, the authors and distributors of WhispARR are not liable
+                    for indirect, incidental, consequential, special, exemplary, or punitive damages, or for lost
+                    profits, data loss, business interruption, or claims arising from transcription errors, runtime
+                    failures, update issues, automation behavior, or third-party components used with the app.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    By installing or using WhispARR, you agree to use the application responsibly and only for lawful
+                    purposes. You may not use the app to violate privacy rights, collect audio without required
+                    consent, infringe intellectual property rights, harass others, evade workplace or platform
+                    restrictions, or generate content that would be unlawful where you use it.
+                  </p>
+                  <p>
+                    You remain fully responsible for reviewing and validating any dictated text before sending,
+                    publishing, or relying on it. WhispARR is an assistive drafting tool, not a guaranteed source of
+                    truth, and it may misunderstand speech, insert incorrect words, or preserve user corrections that
+                    improve future dictation on the same device.
+                  </p>
+                  <p>
+                    Updates, local runtimes, optional integrations, and background behaviors may change over time.
+                    The application may add, remove, or modify features, update flows, and stored local metadata to
+                    preserve compatibility, reliability, and usability. Continued use after an update means you accept
+                    the revised behavior of the installed version.
+                  </p>
+                  <p>
+                    If you do not agree to these terms, your remedy is to stop using WhispARR and remove it from your
+                    device. These terms are intended to be interpreted as broadly as allowed by applicable law, and if
+                    one section is found unenforceable, the rest will remain in effect.
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="button-row">
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => setSidebarInfoDialog("closed")}
+              >
+                Close
               </button>
             </div>
           </section>

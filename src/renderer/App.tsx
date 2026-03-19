@@ -60,6 +60,7 @@ const notificationSoundUrl = new URL("../../assets/Notif.mp3?v=20260317", import
 const dictionaryNotificationSoundUrl = new URL("../../assets/Book_Flip.mp3?v=20260317c", import.meta.url).href;
 const appIconUrl = new URL("../../assets/WhispARR new logo.png", import.meta.url).href;
 const konamiSequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
+const spookySkeletonPhrase = "spooky scary skeletons";
 
 const defaultShortcut: ActivationShortcut = {
   modifiers: ["meta", "ctrl"],
@@ -1031,6 +1032,142 @@ function parseDictionaryInput(value: string) {
   };
 }
 
+function normalizeLoosePhrase(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isLocalHalloween(date = new Date()) {
+  return date.getMonth() === 9 && date.getDate() === 31;
+}
+
+function isLocalChristmas(date = new Date()) {
+  return date.getMonth() === 11 && (date.getDate() === 24 || date.getDate() === 25);
+}
+
+function isLocalFourthOfJuly(date = new Date()) {
+  return date.getMonth() === 6 && date.getDate() === 4;
+}
+
+function SkeletonDancer({ className }: { className: string }) {
+  return (
+    <div className={className}>
+      <svg className="skeleton-dancer-svg" viewBox="0 0 160 240" aria-hidden="true">
+        <g className="skeleton-skull-group">
+          <ellipse className="skeleton-bone-fill" cx="80" cy="34" rx="26" ry="28" />
+          <circle className="skeleton-eye-fill" cx="70" cy="30" r="6" />
+          <circle className="skeleton-eye-fill" cx="90" cy="30" r="6" />
+          <path className="skeleton-eye-fill" d="M76 42c2-2 6-2 8 0v4h-8z" />
+          <path className="skeleton-bone-stroke" d="M67 52c9 5 17 5 26 0" />
+        </g>
+        <g className="skeleton-body-group">
+          <path className="skeleton-bone-stroke" d="M80 62v24" />
+          <path className="skeleton-bone-stroke" d="M56 84h48" />
+          <path className="skeleton-bone-stroke" d="M56 94h48" />
+          <path className="skeleton-bone-stroke" d="M60 104h40" />
+          <path className="skeleton-bone-stroke" d="M66 114h28" />
+          <path className="skeleton-bone-stroke" d="M80 86v40" />
+          <path className="skeleton-bone-stroke" d="M68 126h24" />
+        </g>
+        <g className="skeleton-arm-group skeleton-arm-group-left">
+          <path className="skeleton-bone-stroke" d="M56 88l-22 20" />
+          <path className="skeleton-bone-stroke" d="M34 108l-16 28" />
+          <circle className="skeleton-joint-fill" cx="56" cy="88" r="5" />
+          <circle className="skeleton-joint-fill" cx="34" cy="108" r="5" />
+          <circle className="skeleton-joint-fill" cx="18" cy="136" r="4" />
+        </g>
+        <g className="skeleton-arm-group skeleton-arm-group-right">
+          <path className="skeleton-bone-stroke" d="M104 88l22 20" />
+          <path className="skeleton-bone-stroke" d="M126 108l16 28" />
+          <circle className="skeleton-joint-fill" cx="104" cy="88" r="5" />
+          <circle className="skeleton-joint-fill" cx="126" cy="108" r="5" />
+          <circle className="skeleton-joint-fill" cx="142" cy="136" r="4" />
+        </g>
+        <g className="skeleton-pelvis-group">
+          <path className="skeleton-bone-stroke" d="M64 132c8 8 24 8 32 0" />
+          <path className="skeleton-bone-stroke" d="M68 140c7 5 17 5 24 0" />
+        </g>
+        <g className="skeleton-leg-group skeleton-leg-group-left">
+          <path className="skeleton-bone-stroke" d="M72 142l-12 34" />
+          <path className="skeleton-bone-stroke" d="M60 176l-10 42" />
+          <circle className="skeleton-joint-fill" cx="72" cy="142" r="5" />
+          <circle className="skeleton-joint-fill" cx="60" cy="176" r="5" />
+          <path className="skeleton-bone-stroke" d="M46 218h18" />
+        </g>
+        <g className="skeleton-leg-group skeleton-leg-group-right">
+          <path className="skeleton-bone-stroke" d="M88 142l12 34" />
+          <path className="skeleton-bone-stroke" d="M100 176l10 42" />
+          <circle className="skeleton-joint-fill" cx="88" cy="142" r="5" />
+          <circle className="skeleton-joint-fill" cx="100" cy="176" r="5" />
+          <path className="skeleton-bone-stroke" d="M96 218h18" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function Reindeer({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 180 120" aria-hidden="true">
+      <g className="reindeer-antlers">
+        <path d="M60 24l-12-18" />
+        <path d="M60 24l-18-6" />
+        <path d="M124 24l14-18" />
+        <path d="M124 24l20-6" />
+      </g>
+      <path className="reindeer-body" d="M38 66c0-16 16-28 42-28h18c21 0 37 12 37 29 0 11-9 22-22 24H74C53 91 38 81 38 66z" />
+      <path className="reindeer-neck" d="M110 42l18-18c10-9 25-10 35-1 5 4 8 10 8 16 0 13-11 23-25 23h-22z" />
+      <circle className="reindeer-nose" cx="168" cy="39" r="7" />
+      <circle className="reindeer-eye" cx="147" cy="31" r="4" />
+      <path className="reindeer-leg" d="M64 88v24" />
+      <path className="reindeer-leg" d="M88 88v26" />
+      <path className="reindeer-leg" d="M112 88v24" />
+      <path className="reindeer-leg" d="M134 84v28" />
+      <path className="reindeer-tail" d="M38 60l-12-10" />
+    </svg>
+  );
+}
+
+function SantaSleigh({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 320 190" aria-hidden="true">
+      <path className="santa-rein" d="M214 100c24-16 54-22 88-14" />
+      <path className="santa-sleigh-runner" d="M38 150c22 18 54 24 96 24h118" />
+      <path className="santa-sleigh-runner" d="M92 162c12 9 26 12 42 12h114" />
+      <path className="santa-sleigh-base" d="M34 122h146c30 0 52 13 60 34H94c-26 0-46-10-60-34z" />
+      <path className="santa-sleigh-seat" d="M116 98h66c16 0 28 12 28 24H92c0-13 11-24 24-24z" />
+      <path className="santa-sack" d="M136 26c36 0 62 20 62 50 0 17-8 33-21 46h-79c-14-13-21-29-21-46 0-30 25-50 59-50z" />
+      <ellipse className="santa-belt" cx="126" cy="107" rx="32" ry="18" />
+      <path className="santa-body" d="M84 106c0-28 19-50 43-50s43 22 43 50v16H84z" />
+      <path className="santa-coat-trim" d="M121 60v62" />
+      <path className="santa-beard" d="M88 62c0-15 13-27 30-27s30 12 30 27c0 22-13 39-30 39S88 84 88 62z" />
+      <circle className="santa-face" cx="118" cy="52" r="18" />
+      <circle className="santa-eye" cx="111" cy="50" r="2.7" />
+      <circle className="santa-eye" cx="125" cy="50" r="2.7" />
+      <path className="santa-smile" d="M112 60c4 4 10 4 14 0" />
+      <path className="santa-mustache" d="M102 61c5 5 10 6 16 0 6 6 11 5 16 0" />
+      <path className="santa-hat" d="M95 40c10-28 49-38 68-15-8 3-18 11-23 24z" />
+      <path className="santa-hat-trim" d="M94 39c15 8 34 9 49 0" />
+      <circle className="santa-trim" cx="163" cy="28" r="8" />
+      <path className="santa-arm" d="M158 100l34-13" />
+      <path className="santa-glove" d="M192 87l12 7-8 10-11-6z" />
+      <path className="santa-boot" d="M88 123h25" />
+      <path className="santa-boot" d="M132 123h27" />
+    </svg>
+  );
+}
+
+function normalizeHolidayTranscript(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function containsHoHoHo(value: string) {
+  return /\bho ho ho\b/.test(normalizeHolidayTranscript(value));
+}
+
 const dictionaryEntryKinds = ["Abbreviation", "Word", "Phrase"] as const;
 
 function getDictionaryEntryKind(entry: ManualDictionaryEntry) {
@@ -1115,6 +1252,9 @@ export default function App() {
   const [isRetroModeEnabled, setIsRetroModeEnabled] = useState(false);
   const [isRetroCelebrationVisible, setIsRetroCelebrationVisible] = useState(false);
   const [isJumpscareVisible, setIsJumpscareVisible] = useState(false);
+  const [isSkeletonDanceVisible, setIsSkeletonDanceVisible] = useState(false);
+  const [isChristmasParadeVisible, setIsChristmasParadeVisible] = useState(false);
+  const [isFourthOfJulyVisible, setIsFourthOfJulyVisible] = useState(false);
   const [appDiagnostics, setAppDiagnostics] = useState<AppDiagnostics | null>(null);
   const [statusLogs, setStatusLogs] = useState<StatusLogEntry[]>([]);
   const [status, setStatus] = useState("Loading local workspace...");
@@ -1173,6 +1313,9 @@ export default function App() {
   const devUnlockTimeoutRef = useRef<number | null>(null);
   const retroCelebrationTimeoutRef = useRef<number | null>(null);
   const jumpscareTimeoutRef = useRef<number | null>(null);
+  const skeletonDanceTimeoutRef = useRef<number | null>(null);
+  const christmasParadeTimeoutRef = useRef<number | null>(null);
+  const fourthOfJulyTimeoutRef = useRef<number | null>(null);
   const hudPreviewTimeoutRef = useRef<number | null>(null);
   const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
@@ -1347,6 +1490,18 @@ export default function App() {
       if (jumpscareTimeoutRef.current) {
         window.clearTimeout(jumpscareTimeoutRef.current);
         jumpscareTimeoutRef.current = null;
+      }
+      if (skeletonDanceTimeoutRef.current) {
+        window.clearTimeout(skeletonDanceTimeoutRef.current);
+        skeletonDanceTimeoutRef.current = null;
+      }
+      if (christmasParadeTimeoutRef.current) {
+        window.clearTimeout(christmasParadeTimeoutRef.current);
+        christmasParadeTimeoutRef.current = null;
+      }
+      if (fourthOfJulyTimeoutRef.current) {
+        window.clearTimeout(fourthOfJulyTimeoutRef.current);
+        fourthOfJulyTimeoutRef.current = null;
       }
       window.removeEventListener("keydown", handleKonamiCode);
     };
@@ -1680,6 +1835,15 @@ export default function App() {
       }
       if (devUnlockTimeoutRef.current) {
         window.clearTimeout(devUnlockTimeoutRef.current);
+      }
+      if (skeletonDanceTimeoutRef.current) {
+        window.clearTimeout(skeletonDanceTimeoutRef.current);
+      }
+      if (christmasParadeTimeoutRef.current) {
+        window.clearTimeout(christmasParadeTimeoutRef.current);
+      }
+      if (fourthOfJulyTimeoutRef.current) {
+        window.clearTimeout(fourthOfJulyTimeoutRef.current);
       }
       if (runtimeInstallProgressIntervalRef.current) {
         window.clearInterval(runtimeInstallProgressIntervalRef.current);
@@ -2580,6 +2744,67 @@ export default function App() {
     }, 780);
   }
 
+  function triggerSkeletonDance(isPreview = false) {
+    setDictionaryTerm("");
+    setIsSkeletonDanceVisible(true);
+
+    if (skeletonDanceTimeoutRef.current) {
+      window.clearTimeout(skeletonDanceTimeoutRef.current);
+    }
+
+    skeletonDanceTimeoutRef.current = window.setTimeout(() => {
+      setIsSkeletonDanceVisible(false);
+      skeletonDanceTimeoutRef.current = null;
+    }, 5000);
+
+    setStatus(isPreview ? "Preview only: skeleton dance." : "Spooky scary skeletons took over the app.");
+  }
+
+  function triggerChristmasParade(isPreview = false) {
+    setIsChristmasParadeVisible(true);
+
+    if (christmasParadeTimeoutRef.current) {
+      window.clearTimeout(christmasParadeTimeoutRef.current);
+    }
+
+    christmasParadeTimeoutRef.current = window.setTimeout(() => {
+      setIsChristmasParadeVisible(false);
+      christmasParadeTimeoutRef.current = null;
+    }, 5600);
+
+    setStatus(isPreview ? "Preview only: Santa parade." : "Santa and the reindeer just crossed WhispARR.");
+  }
+
+  function triggerFourthOfJulyFireworks() {
+    setIsFourthOfJulyVisible(true);
+
+    if (fourthOfJulyTimeoutRef.current) {
+      window.clearTimeout(fourthOfJulyTimeoutRef.current);
+    }
+
+    fourthOfJulyTimeoutRef.current = window.setTimeout(() => {
+      setIsFourthOfJulyVisible(false);
+      fourthOfJulyTimeoutRef.current = null;
+    }, 10000);
+
+    setStatus("Happy Fourth of July.");
+  }
+
+  function previewFourthOfJulyFireworks() {
+    setIsFourthOfJulyVisible(true);
+
+    if (fourthOfJulyTimeoutRef.current) {
+      window.clearTimeout(fourthOfJulyTimeoutRef.current);
+    }
+
+    fourthOfJulyTimeoutRef.current = window.setTimeout(() => {
+      setIsFourthOfJulyVisible(false);
+      fourthOfJulyTimeoutRef.current = null;
+    }, 10000);
+
+    setStatus("Preview only: Fourth of July fireworks.");
+  }
+
   function previewLevelUpCelebration() {
     const previewLevel = Math.max(stats.currentLevel + 1, 2);
     const audio = levelUpAudioRef.current;
@@ -2621,6 +2846,14 @@ export default function App() {
       retroCelebrationTimeoutRef.current = null;
     }, 5200);
     setStatus("Preview only: retro mode animation.");
+  }
+
+  function previewSkeletonDance() {
+    triggerSkeletonDance(true);
+  }
+
+  function previewChristmasParade() {
+    triggerChristmasParade(true);
   }
 
   function previewAchievementNotification() {
@@ -2784,6 +3017,10 @@ export default function App() {
         ...result,
         speakerScore
       };
+
+      if (containsHoHoHo(transcript) && isLocalChristmas()) {
+        triggerChristmasParade();
+      }
 
       setLastResult(enrichedResult);
       const nextHistory = [transcript, ...transcriptHistoryRef.current].slice(
@@ -3102,6 +3339,7 @@ export default function App() {
 
   async function saveDictionaryEntry() {
     const parsedEntry = parseDictionaryInput(dictionaryTerm);
+    const normalizedTerm = normalizeLoosePhrase(parsedEntry.term);
 
     if (!parsedEntry.term) {
       setStatus("Add the word or phrase you want WhispARR to learn before saving.");
@@ -3110,6 +3348,11 @@ export default function App() {
 
     if (parsedEntry.term.trim().toLowerCase() === "jumpscare") {
       triggerDictionaryJumpscare();
+      return;
+    }
+
+    if (normalizedTerm === spookySkeletonPhrase && isLocalHalloween()) {
+      triggerSkeletonDance();
       return;
     }
 
@@ -3178,6 +3421,7 @@ export default function App() {
                 <p className="brand-mark-title">
                   <span className="brand-mark-title-text">WhispARR</span>
                 </p>
+                <p className="brand-mark-version">Version {appDiagnostics?.version ?? "Loading..."}</p>
               </button>
             </div>
           </div>
@@ -3361,7 +3605,16 @@ export default function App() {
           </article>
           <article className="top-stat">
             <span>Streak</span>
-            <strong>{stats.currentStreakDays} days</strong>
+            <strong>
+              {stats.currentStreakDays}{" "}
+              {isLocalFourthOfJuly() ? (
+                <button className="streak-days-easter-egg-button" type="button" onClick={triggerFourthOfJulyFireworks}>
+                  days
+                </button>
+              ) : (
+                "days"
+              )}
+            </strong>
           </article>
           <article className="top-stat">
             <span>Total Achievements</span>
@@ -4844,6 +5097,20 @@ export default function App() {
                         </div>
                       </div>
                       <div className="dev-preview-group">
+                        <strong>Easter Eggs</strong>
+                        <div className="button-row">
+                          <button className="secondary-button" type="button" onClick={previewSkeletonDance}>
+                            Test skeleton dance
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewChristmasParade}>
+                            Test Santa parade
+                          </button>
+                          <button className="secondary-button" type="button" onClick={previewFourthOfJulyFireworks}>
+                            Test fireworks
+                          </button>
+                        </div>
+                      </div>
+                      <div className="dev-preview-group">
                         <strong>Notifications</strong>
                         <div className="button-row">
                           <button className="secondary-button" type="button" onClick={previewAchievementNotification}>
@@ -5273,9 +5540,86 @@ export default function App() {
           </section>
         </div>
       )}
+      {isSkeletonDanceVisible && (
+        <div className="skeleton-dance-backdrop" role="presentation" aria-hidden="true">
+          <div className="skeleton-dance-stage">
+            <div className="skeleton-spotlight skeleton-spotlight-left" />
+            <div className="skeleton-spotlight skeleton-spotlight-right" />
+            <div className="skeleton-pumpkin skeleton-pumpkin-left">
+              <span className="skeleton-pumpkin-stem" />
+              <span className="skeleton-pumpkin-eye skeleton-pumpkin-eye-left" />
+              <span className="skeleton-pumpkin-eye skeleton-pumpkin-eye-right" />
+              <span className="skeleton-pumpkin-mouth" />
+            </div>
+            <div className="skeleton-pumpkin skeleton-pumpkin-center">
+              <span className="skeleton-pumpkin-stem" />
+              <span className="skeleton-pumpkin-eye skeleton-pumpkin-eye-left" />
+              <span className="skeleton-pumpkin-eye skeleton-pumpkin-eye-right" />
+              <span className="skeleton-pumpkin-mouth" />
+            </div>
+            <div className="skeleton-pumpkin skeleton-pumpkin-right">
+              <span className="skeleton-pumpkin-stem" />
+              <span className="skeleton-pumpkin-eye skeleton-pumpkin-eye-left" />
+              <span className="skeleton-pumpkin-eye skeleton-pumpkin-eye-right" />
+              <span className="skeleton-pumpkin-mouth" />
+            </div>
+            <div className="skeleton-dance-copy">
+              <p className="eyebrow">Halloween Easter Egg</p>
+              <h3>Spooky Scary Skeletons</h3>
+            </div>
+            <div className="skeleton-dance-lineup">
+              {["one", "two", "three", "four", "five"].map((skeletonKey) => (
+                <SkeletonDancer key={skeletonKey} className={`skeleton-dancer skeleton-dancer-${skeletonKey}`} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {isChristmasParadeVisible && (
+        <div className="christmas-parade-backdrop" role="presentation" aria-hidden="true">
+          <div className="christmas-parade-snow christmas-parade-snow-one" />
+          <div className="christmas-parade-snow christmas-parade-snow-two" />
+          <div className="christmas-parade-copy">
+            <p className="eyebrow">Christmas Easter Egg</p>
+            <h3>Merry Christmas</h3>
+          </div>
+          <div className="christmas-parade-track">
+            <div className="christmas-parade-team">
+              <SantaSleigh className="christmas-sleigh" />
+              <Reindeer className="christmas-reindeer christmas-reindeer-one" />
+              <Reindeer className="christmas-reindeer christmas-reindeer-two" />
+              <Reindeer className="christmas-reindeer christmas-reindeer-three" />
+              {["one", "two", "three", "four"].map((gift) => (
+                <div key={gift} className={`christmas-present-drop christmas-present-drop-${gift}`}>
+                  <span className="christmas-present-ribbon christmas-present-ribbon-vertical" />
+                  <span className="christmas-present-ribbon christmas-present-ribbon-horizontal" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {isFourthOfJulyVisible && (
+        <div className="fourth-of-july-backdrop" role="presentation" aria-hidden="true">
+          <div className="fourth-of-july-copy">
+            <p className="eyebrow">Fourth Of July Easter Egg</p>
+            <h3>Happy Fourth of July</h3>
+          </div>
+          {["one", "two", "three", "four", "five", "six", "seven", "eight"].map((burst) => (
+            <div key={burst} className={`firework-burst firework-burst-${burst}`} />
+          ))}
+        </div>
+      )}
       {updateDialogState !== "closed" && (
         <div className="update-dialog-backdrop" role="presentation">
-          <section className="update-dialog-modal" aria-label="Application update">
+          <section
+            className={
+              updateDialogState === "none"
+                ? "update-dialog-modal update-dialog-modal-compact"
+                : "update-dialog-modal"
+            }
+            aria-label="Application update"
+          >
             <div className="panel-header">
               <div>
                 <p className="eyebrow">Updates</p>
@@ -5304,7 +5648,7 @@ export default function App() {
             </div>
             <p className="supporting">
               {updateDialogState === "none"
-                ? "You already have the latest version installed."
+                ? `You already have the latest version installed. Current version: ${appDiagnostics?.version ?? appUpdateInfo?.currentVersion ?? "Loading..."}`
                 : updateDialogMessage}
             </p>
             {appUpdateInfo?.latestVersion && updateDialogState !== "none" && (
@@ -5338,7 +5682,7 @@ export default function App() {
                 </p>
               </div>
             )}
-            <div className="button-row">
+            <div className={updateDialogState === "none" ? "button-row update-dialog-actions-compact" : "button-row"}>
               {updateDialogState === "available" ? (
                 <>
                   <button

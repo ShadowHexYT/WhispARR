@@ -1392,9 +1392,7 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
-    if (!settings.onboardingCompleted) {
-      setIsOnboardingOpen(true);
-    }
+    setIsOnboardingOpen(!settings.onboardingCompleted);
   }, [settings.onboardingCompleted]);
 
   useEffect(() => {
@@ -4191,7 +4189,7 @@ export default function App() {
                   </div>
                 </div>
                 <p className="supporting">
-                  You get 3 daily tasks from a pool of 99. Each one awards 200 XP, and finishing the set adds a 400 XP bonus for {dailyTotalRewardXp.toLocaleString()} XP total.
+                  You get 3 daily tasks from a pool of 99. Each one awards 200 XP, and finishing the set adds a 400 XP bonus for {dailyTotalRewardXp.toLocaleString()} XP total. Your level, achievements, and overall progression do not reset.
                 </p>
                 <div className="daily-challenge-summary">
                   <div className="stat-card">

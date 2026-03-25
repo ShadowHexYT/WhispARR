@@ -157,6 +157,13 @@ let clipboardLearningInterval: NodeJS.Timeout | null = null;
 let clipboardLearningDeadline: NodeJS.Timeout | null = null;
 let lastObservedClipboardText = "";
 let ignoredClipboardText: string | null = null;
+let pendingPasteTargetContext:
+  | {
+      windowHandle: string;
+      cursorX: number;
+      cursorY: number;
+    }
+  | null = null;
 let managedClipboardSession:
   | {
       originalText: string;
@@ -478,6 +485,10 @@ function sendPushToTalkEvent(state: "start" | "stop") {
     createWindow();
   }
 
+  if (state === "start") {
+    void capturePasteTargetContext();
+  }
+
   const event: PushToTalkEvent = {
     id: ++pushToTalkEventId,
     state
@@ -564,7 +575,14 @@ function shouldLearnCorrectedWord(originalWord: string, correctedWord: string) {
   const sameFirstLetter = normalizedOriginal[0] === normalizedCorrected[0];
   const similarLength = Math.abs(normalizedOriginal.length - normalizedCorrected.length) <= 3;
 
-  return distance <= allowedDistance && (sameFirstLetter || distance <= 1) && similarLength;
+  if (distance <= allowedDistance && (sameFirstLetter || distance <= 1) && similarLength) {
+    return true;
+  }
+
+  // When the user explicitly corrects a pasted word, trust longer custom-word fixes more.
+  const generousDistance = Math.max(3, Math.min(8, Math.floor(maxLength * 0.72)));
+  const correctedLooksCustom = /[A-Z]/.test(correctedWord) || normalizedCorrected.length >= 7;
+  return sameFirstLetter && correctedLooksCustom && distance <= generousDistance;
 }
 
 function isLikelyUnacceptableWord(word: string) {
@@ -685,6 +703,15 @@ function buildTokenReplacementCandidates(originalTokens: string[], correctedToke
 }
 
 function inferDictionaryEntryType(term: string, replacement: string): "Abbreviation" | "Word" | "Phrase" {
+  const normalizedReplacement = replacement.trim();
+  if (/\b[A-Z]{2,}\b/.test(normalizedReplacement) || /^[A-Z0-9._-]{2,}$/.test(normalizedReplacement)) {
+    return "Abbreviation";
+  }
+
+  if (tokenizeTranscriptForLearning(term).length > 1 || tokenizeTranscriptForLearning(replacement).length > 1) {
+    return "Phrase";
+  }
+
   return "Word";
 }
 
@@ -704,17 +731,43 @@ function shouldLearnReplacement(term: string, replacement: string) {
     return false;
   }
 
-  const termWords = tokenizeTranscriptForLearning(term);
-  const replacementWords = tokenizeTranscriptForLearning(replacement);
-  if (termWords.length !== 1 || replacementWords.length !== 1) {
+  const termWords = tokenizeTranscriptForLearning(term).filter(Boolean);
+  const replacementWords = tokenizeTranscriptForLearning(replacement).filter(Boolean);
+  if (termWords.length === 0 || replacementWords.length === 0) {
     return false;
   }
 
-  return (
-    shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "") ||
-    (isLikelyUnacceptableWord(termWords[0] ?? "") &&
-      normalizeWordForLearning(replacementWords[0] ?? "").length >= 3)
-  );
+  if (termWords.length === 1 && replacementWords.length === 1) {
+    return (
+      shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "") ||
+      (isLikelyUnacceptableWord(termWords[0] ?? "") &&
+        normalizeWordForLearning(replacementWords[0] ?? "").length >= 3)
+    );
+  }
+
+  if (termWords.length !== replacementWords.length) {
+    return false;
+  }
+
+  let changedWords = 0;
+  for (let index = 0; index < termWords.length; index += 1) {
+    const originalWord = termWords[index] ?? "";
+    const correctedWord = replacementWords[index] ?? "";
+    if (normalizeWordForLearning(originalWord) === normalizeWordForLearning(correctedWord)) {
+      continue;
+    }
+
+    if (
+      !shouldLearnCorrectedWord(originalWord, correctedWord) &&
+      !(isLikelyUnacceptableWord(originalWord) && normalizeWordForLearning(correctedWord).length >= 3)
+    ) {
+      return false;
+    }
+
+    changedWords += 1;
+  }
+
+  return changedWords > 0;
 }
 
 function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedClipboardText: string) {
@@ -725,10 +778,9 @@ function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedCl
   const rankedCandidates = [...candidateReplacements]
     .sort(
       (left, right) =>
-        scoreLearningCandidate(left.term, left.replacement) -
-        scoreLearningCandidate(right.term, right.replacement)
-    )
-    .slice(0, 1);
+        scoreLearningCandidate(right.term, right.replacement) -
+        scoreLearningCandidate(left.term, left.replacement)
+    );
 
   if (rankedCandidates.length === 0) {
     return [];
@@ -739,7 +791,9 @@ function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedCl
 
   for (const candidate of rankedCandidates) {
     const existing = data.manualDictionary.find(
-      (entry) => normalizePhraseForLearning(entry.term) === normalizePhraseForLearning(candidate.term)
+      (entry) =>
+        normalizePhraseForLearning(entry.term) === normalizePhraseForLearning(candidate.term) ||
+        normalizePhraseForLearning(entry.replacement ?? "") === normalizePhraseForLearning(candidate.replacement)
     );
 
     if (existing && !existing.addedBySystem) {
@@ -868,6 +922,145 @@ function pauseMediaForDictationIfNeeded() {
   }
 
   pauseActiveMediaSessions();
+}
+
+function runPowerShell(script: string, envOverrides: Record<string, string> = {}) {
+  return new Promise<string>((resolve, reject) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+      {
+        env: {
+          ...process.env,
+          ...envOverrides
+        }
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(stdout.trim());
+      }
+    );
+  });
+}
+
+async function writeClipboardText(text: string, options?: { allowHistory?: boolean }) {
+  const allowHistory = options?.allowHistory ?? true;
+
+  if (process.platform !== "win32") {
+    clipboard.writeText(text);
+    return;
+  }
+
+  try {
+    await runPowerShell(
+      `
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+[void][Windows.ApplicationModel.DataTransfer.Clipboard, Windows.ApplicationModel.DataTransfer, ContentType=WindowsRuntime]
+$text = $env:WHISPARR_CLIPBOARD_TEXT
+$allowHistory = $env:WHISPARR_ALLOW_CLIPBOARD_HISTORY -eq "1"
+$package = New-Object Windows.ApplicationModel.DataTransfer.DataPackage
+$package.SetText($text)
+$options = New-Object Windows.ApplicationModel.DataTransfer.ClipboardContentOptions
+$options.IsAllowedInHistory = $allowHistory
+[Windows.ApplicationModel.DataTransfer.Clipboard]::SetContentWithOptions($package, $options)
+[Windows.ApplicationModel.DataTransfer.Clipboard]::Flush()
+`,
+      {
+        WHISPARR_CLIPBOARD_TEXT: text,
+        WHISPARR_ALLOW_CLIPBOARD_HISTORY: allowHistory ? "1" : "0"
+      }
+    );
+  } catch {
+    clipboard.writeText(text);
+  }
+}
+
+async function capturePasteTargetContext() {
+  if (process.platform !== "win32") {
+    pendingPasteTargetContext = null;
+    return;
+  }
+
+  const point = screen.getCursorScreenPoint();
+  try {
+    const windowHandle = await runPowerShell(`
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class WhispARRForegroundWindow {
+  [DllImport("user32.dll")]
+  public static extern IntPtr GetForegroundWindow();
+}
+"@
+$handle = [WhispARRForegroundWindow]::GetForegroundWindow()
+if ($handle -eq [IntPtr]::Zero) {
+  ""
+} else {
+  $handle.ToInt64().ToString()
+}
+`);
+
+    pendingPasteTargetContext = windowHandle
+      ? {
+          windowHandle,
+          cursorX: point.x,
+          cursorY: point.y
+        }
+      : null;
+  } catch {
+    pendingPasteTargetContext = null;
+  }
+}
+
+async function restorePasteTargetContext() {
+  if (process.platform !== "win32" || !pendingPasteTargetContext) {
+    return;
+  }
+
+  const { windowHandle, cursorX, cursorY } = pendingPasteTargetContext;
+  pendingPasteTargetContext = null;
+
+  try {
+    await runPowerShell(`
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public struct POINT {
+  public int X;
+  public int Y;
+}
+public static class WhispARRPasteTarget {
+  [DllImport("user32.dll")]
+  public static extern bool GetCursorPos(out POINT lpPoint);
+  [DllImport("user32.dll")]
+  public static extern bool SetCursorPos(int X, int Y);
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")]
+  public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+}
+"@
+$handle = [IntPtr]::new([Int64]::Parse("${windowHandle}"))
+$original = New-Object POINT
+[void][WhispARRPasteTarget]::GetCursorPos([ref]$original)
+[void][WhispARRPasteTarget]::ShowWindowAsync($handle, 5)
+[void][WhispARRPasteTarget]::SetForegroundWindow($handle)
+Start-Sleep -Milliseconds 35
+[void][WhispARRPasteTarget]::SetCursorPos(${cursorX}, ${cursorY})
+[WhispARRPasteTarget]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+[WhispARRPasteTarget]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Milliseconds 35
+[void][WhispARRPasteTarget]::SetCursorPos($original.X, $original.Y)
+`);
+  } catch {
+    // If Windows refuses focus restoration, fall back to the normal paste path.
+  }
 }
 
 function createWindow() {
@@ -1207,7 +1400,7 @@ function restoreManagedClipboardIfNeeded(expectedText?: string) {
   }
 
   if (managedClipboardSession.originalHadText) {
-    clipboard.writeText(managedClipboardSession.originalText);
+    void writeClipboardText(managedClipboardSession.originalText, { allowHistory: false });
     ignoredClipboardText = managedClipboardSession.originalText;
   } else {
     clipboard.clear();
@@ -1217,7 +1410,7 @@ function restoreManagedClipboardIfNeeded(expectedText?: string) {
   return true;
 }
 
-function stageClipboardText(text: string, mode: "auto" | "manual") {
+async function stageClipboardText(text: string, mode: "auto" | "manual") {
   clearManagedClipboardSession();
   const originalText = clipboard.readText();
   managedClipboardSession = {
@@ -1227,11 +1420,12 @@ function stageClipboardText(text: string, mode: "auto" | "manual") {
     mode,
     cleanupTimeout: null
   };
-  clipboard.writeText(text);
+  await writeClipboardText(text, { allowHistory: false });
 }
 
 async function pasteText(text: string) {
-  stageClipboardText(text, "auto");
+  await restorePasteTargetContext();
+  await stageClipboardText(text, "auto");
   await new Promise((resolve) => setTimeout(resolve, 20));
   uIOhook.keyTap(UiohookKey.V, [getPasteModifier()]);
   startClipboardLearningWatch(text);
@@ -1242,8 +1436,8 @@ async function pasteText(text: string) {
   }
 }
 
-function prepareClipboardForSinglePaste(text: string) {
-  stageClipboardText(text, "manual");
+async function prepareClipboardForSinglePaste(text: string) {
+  await stageClipboardText(text, "manual");
   startClipboardLearningWatch(text);
   if (managedClipboardSession) {
     managedClipboardSession.cleanupTimeout = setTimeout(() => {
@@ -1394,8 +1588,8 @@ app.whenReady().then(() => {
     await pasteText(text);
     return true;
   });
-  ipcMain.handle("clipboard:prepare-single-paste", (_event, text: string) => {
-    prepareClipboardForSinglePaste(text);
+  ipcMain.handle("clipboard:prepare-single-paste", async (_event, text: string) => {
+    await prepareClipboardForSinglePaste(text);
     return true;
   });
   ipcMain.handle("hud:update", (_event, state: HudState) => {

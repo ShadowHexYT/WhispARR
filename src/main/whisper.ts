@@ -63,8 +63,120 @@ function shouldReplaceWithDictionaryTerm(word: string, term: string) {
   return distance <= allowedDistance;
 }
 
+function getAllowedDictionaryDistance(length: number) {
+  if (length >= 12) {
+    return 3;
+  }
+  if (length >= 8) {
+    return 2;
+  }
+  return 1;
+}
+
+function findDictionaryFuzzyMatch(source: string, candidates: string[]) {
+  const normalizedSource = normalizeForCompare(source);
+  if (!normalizedSource) {
+    return null;
+  }
+
+  let bestMatch: { candidate: string; distance: number } | null = null;
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeForCompare(candidate);
+    if (!normalizedCandidate) {
+      continue;
+    }
+
+    if (normalizedCandidate === normalizedSource) {
+      return candidate;
+    }
+
+    if (Math.abs(normalizedCandidate.length - normalizedSource.length) > getAllowedDictionaryDistance(normalizedCandidate.length)) {
+      continue;
+    }
+
+    if (normalizedCandidate[0] !== normalizedSource[0]) {
+      continue;
+    }
+
+    const distance = levenshteinDistance(normalizedSource, normalizedCandidate);
+    if (distance > getAllowedDictionaryDistance(normalizedCandidate.length)) {
+      continue;
+    }
+
+    if (!bestMatch || distance < bestMatch.distance) {
+      bestMatch = { candidate, distance };
+    }
+  }
+
+  return bestMatch?.candidate ?? null;
+}
+
+function replaceSingleWordDictionaryMatches(transcript: string, terms: string[]) {
+  if (terms.length === 0) {
+    return transcript;
+  }
+
+  return transcript.replace(/\b[\w'-]+\b/g, (word) => {
+    const match = findDictionaryFuzzyMatch(word, terms);
+    return match ?? word;
+  });
+}
+
+function replacePhraseDictionaryMatches(
+  transcript: string,
+  entries: Array<{ term: string; replacement?: string }>
+) {
+  const phraseEntries = entries
+    .map((entry) => ({
+      ...entry,
+      normalizedTerm: normalizeForCompare(entry.term)
+    }))
+    .filter((entry) => entry.normalizedTerm && entry.term.trim().includes(" "))
+    .sort((left, right) => right.normalizedTerm.length - left.normalizedTerm.length);
+
+  if (phraseEntries.length === 0) {
+    return transcript;
+  }
+
+  const tokens = transcript.match(/[\w'-]+|[^\w\s]+|\s+/g) ?? [];
+  const wordIndexes = tokens
+    .map((token, index) => ({ token, index }))
+    .filter(({ token }) => /[\w'-]+/.test(token));
+
+  for (const entry of phraseEntries) {
+    const entryWords = entry.term.trim().split(/\s+/).filter(Boolean);
+    if (entryWords.length < 2) {
+      continue;
+    }
+
+    for (let start = 0; start <= wordIndexes.length - entryWords.length; start += 1) {
+      const slice = wordIndexes.slice(start, start + entryWords.length);
+      const candidate = slice.map(({ token }) => token).join(" ");
+      const fuzzyMatch = findDictionaryFuzzyMatch(candidate, [entry.term]);
+      if (!fuzzyMatch) {
+        continue;
+      }
+
+      const replacement = entry.replacement?.trim() || entry.term;
+      const firstTokenIndex = slice[0]?.index ?? -1;
+      const lastTokenIndex = slice[slice.length - 1]?.index ?? -1;
+      if (firstTokenIndex < 0 || lastTokenIndex < 0) {
+        continue;
+      }
+
+      tokens.splice(firstTokenIndex, lastTokenIndex - firstTokenIndex + 1, replacement);
+      return replacePhraseDictionaryMatches(tokens.join(""), entries);
+    }
+  }
+
+  return tokens.join("");
+}
+
 function applyManualDictionary(transcript: string, manualDictionary: ManualDictionaryEntry[]) {
   let updatedTranscript = transcript;
+  const singleWordTerms: string[] = [];
+  const phraseEntries: Array<{ term: string; replacement?: string }> = [];
 
   for (const entry of manualDictionary) {
     const term = entry.term.trim();
@@ -76,22 +188,27 @@ function applyManualDictionary(transcript: string, manualDictionary: ManualDicti
     if (replacement) {
       const replacementPattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
       updatedTranscript = updatedTranscript.replace(replacementPattern, replacement);
+    } else {
+      // Exact phrase matches are normalized to the preferred dictionary spelling/casing.
+      const exactPattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
+      updatedTranscript = updatedTranscript.replace(exactPattern, term);
+    }
+
+    if (!term.includes(" ")) {
+      singleWordTerms.push(replacement || term);
       continue;
     }
 
-    // Exact phrase matches are normalized to the preferred dictionary spelling/casing.
-    const exactPattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
-    updatedTranscript = updatedTranscript.replace(exactPattern, term);
-
-    // Single-word entries also act as preferred spellings for close transcript matches.
-    if (!term.includes(" ")) {
-      updatedTranscript = updatedTranscript.replace(/\b[\w'-]+\b/g, (word) =>
-        shouldReplaceWithDictionaryTerm(word, term) ? term : word
-      );
-    }
+    phraseEntries.push({ term, replacement });
   }
 
-  return updatedTranscript;
+  updatedTranscript = replacePhraseDictionaryMatches(updatedTranscript, phraseEntries);
+  updatedTranscript = replaceSingleWordDictionaryMatches(updatedTranscript, singleWordTerms);
+
+  return updatedTranscript.replace(/\b[\w'-]+\b/g, (word) => {
+    const exactPreferred = singleWordTerms.find((term) => shouldReplaceWithDictionaryTerm(word, term));
+    return exactPreferred ?? word;
+  });
 }
 
 function normalizeTranscript(transcript: string) {
@@ -587,9 +704,10 @@ export async function transcribeLocally(args: {
   const formattedTranscript = args.settings.smartFormatting
     ? applySmartFormatting(punctuationNormalizedTranscript, args.settings.codingLanguageMode)
     : punctuationNormalizedTranscript;
+  const dictionaryAdjustedTranscript = applyManualDictionary(formattedTranscript, args.manualDictionary);
   const transcript = args.settings.filterProfanity
-    ? applyProfanityFilter(formattedTranscript)
-    : formattedTranscript;
+    ? applyProfanityFilter(dictionaryAdjustedTranscript)
+    : dictionaryAdjustedTranscript;
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 

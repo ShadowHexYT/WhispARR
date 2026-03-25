@@ -645,19 +645,48 @@ function getActiveProfile(current: LocalData) {
 }
 
 function getOnboardingScopeKey(current: Pick<LocalData, "installRegistrationKey" | "settings">) {
-  return current.installRegistrationKey;
+  return current.settings.activeProfileId
+    ? `profile:${current.settings.activeProfileId}`
+    : `install:${current.installRegistrationKey}`;
 }
 
-function normalizeOnboardingCompletedKeys(keys: string[] | undefined, current: Pick<LocalData, "installRegistrationKey" | "settings">) {
-  const normalized = Array.isArray(keys)
-    ? keys.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-    : [];
+function normalizeOnboardingCompletedKeys(
+  keys: string[] | undefined,
+  current: Pick<LocalData, "installRegistrationKey" | "settings" | "voiceProfiles">
+) {
+  const knownProfileIds = new Set(current.voiceProfiles.map((profile) => profile.id));
+  const normalized = new Set<string>();
 
-  if (normalized.length > 0 || current.settings.onboardingCompleted) {
-    return [current.installRegistrationKey];
+  for (const entry of Array.isArray(keys) ? keys : []) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    if (trimmed === current.installRegistrationKey) {
+      normalized.add(`install:${current.installRegistrationKey}`);
+      continue;
+    }
+
+    if (knownProfileIds.has(trimmed)) {
+      normalized.add(`profile:${trimmed}`);
+      continue;
+    }
+
+    if (trimmed === `install:${current.installRegistrationKey}` || trimmed.startsWith("profile:")) {
+      normalized.add(trimmed);
+    }
   }
 
-  return [];
+  if (current.settings.onboardingCompleted) {
+    normalized.add(getOnboardingScopeKey(current));
+  }
+
+  return [...normalized];
 }
 
 function syncActiveProfileProgress(current: LocalData) {
@@ -904,7 +933,14 @@ function parseDataContent(content: string): LocalData | null {
     };
 
     if (nextData.onboardingCompletedKeys.length === 0 && nextData.settings.onboardingCompleted) {
-      nextData.onboardingCompletedKeys = [nextData.installRegistrationKey];
+      nextData.onboardingCompletedKeys = [`install:${nextData.installRegistrationKey}`];
+    }
+
+    if (legacyOnboardingProfileKey) {
+      nextData.onboardingCompletedKeys = [
+        ...nextData.onboardingCompletedKeys,
+        `profile:${legacyOnboardingProfileKey}`
+      ];
     }
 
     if (
@@ -1159,7 +1195,9 @@ export function saveVoiceProfile(input: SaveVoiceProfileInput): VoiceProfile {
 export function deleteVoiceProfile(id: string) {
   const current = readData();
   current.voiceProfiles = current.voiceProfiles.filter((profile) => profile.id !== id);
-  current.onboardingCompletedKeys = current.onboardingCompletedKeys.filter((key) => key !== id);
+  current.onboardingCompletedKeys = current.onboardingCompletedKeys.filter(
+    (key) => key !== id && key !== `profile:${id}`
+  );
   if (current.settings.activeProfileId === id) {
     current.settings.activeProfileId = current.voiceProfiles[0]?.id ?? null;
   }

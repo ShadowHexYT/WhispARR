@@ -11,6 +11,38 @@ the app UI directly.
 - Group changes by user-facing impact when possible.
 - Prefer concise bullet points over implementation details.
 
+## 1.1.5
+
+Released: 2026-03-25
+
+Highlights
+
+- Fixed paste targeting so dictated text returns to the original app and click position more reliably instead of drifting farther off over time.
+- Strengthened dictionary usage and automatic learning so corrected words, names, brands, and phrases are more likely to stick after users fix them.
+- Refined daily challenge behavior so challenge sets rotate at local midnight while levels, achievements, streak tracking, and long-term progression remain intact.
+
+Behavior and Fixes
+
+- Restored the original paste target before auto-paste so dictation is inserted back where the user started instead of wherever focus drifted later.
+- Fixed onboarding persistence so skipping or completing setup is remembered properly and no longer reappears incorrectly after reopening the app.
+- Fixed onboarding completion tracking to respect the current user/profile scope instead of collapsing back into a single install-wide state.
+- Restored daily challenge midnight resets using the computer's local timezone while keeping permanent progression cumulative.
+- Updated the Stats and challenge interface copy so daily resets apply only to the challenge set and not to overall user progress.
+
+Dictionary and Learning
+
+- Improved manual dictionary matching so saved terms can correct close mis-hearings more aggressively, including custom names and longer words.
+- Improved phrase handling so multi-word dictionary entries can influence transcript cleanup instead of only exact single-word replacements.
+- Re-applied dictionary cleanup after formatting passes so preferred spellings survive punctuation and casing adjustments.
+- Expanded auto dictionary learning so corrections made within the one-minute review window can save stronger replacements instead of only very small spelling changes.
+- Improved auto-learning for larger custom-word corrections such as `Dumrat` to `Doomwrought`.
+- Allowed more than one strong correction candidate to be learned from the same post-paste edit session when appropriate.
+
+Clipboard and Paste Flow
+
+- Prevented dictated clipboard staging from polluting Windows clipboard history during both auto-paste and one-time manual paste flows.
+- Continued restoring the user's real clipboard contents after WhispARR uses the clipboard for dictated text.
+
 ## 1.1.4
 
 Released: 2026-03-18

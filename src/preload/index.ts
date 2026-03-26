@@ -8,6 +8,7 @@ import {
   AppSettings,
   LocalData,
   ManualDictionaryEntry,
+  PasteTextResult,
   PatchNotesRecord,
   RuntimeDiscoveryResult,
   RuntimeInstallResult,
@@ -66,7 +67,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
   saveSavedNotes: (savedNotes: string[]) =>
     ipcRenderer.invoke("notes:saved-list:save", savedNotes) as Promise<string[]>,
   pickFile: () => ipcRenderer.invoke("dialog:pick-file") as Promise<string | null>,
-  pasteText: (text: string) => ipcRenderer.invoke("paste:text", text) as Promise<boolean>,
+  pasteText: (text: string) => ipcRenderer.invoke("paste:text", text) as Promise<PasteTextResult>,
   prepareClipboardForSinglePaste: (text: string) =>
     ipcRenderer.invoke("clipboard:prepare-single-paste", text) as Promise<boolean>,
   showWindow: () => ipcRenderer.invoke("app:show-window") as Promise<boolean>,
@@ -90,15 +91,6 @@ contextBridge.exposeInMainWorld("wisprApi", {
     ipcRenderer.on("hud:state", wrapped);
     return () => {
       ipcRenderer.removeListener("hud:state", wrapped);
-    };
-  },
-  onAutoDictionaryLearned: (listener: (terms: string[]) => void) => {
-    const wrapped = (_event: Electron.IpcRendererEvent, terms: string[]) => {
-      listener(terms);
-    };
-    ipcRenderer.on("dictionary:auto-learned", wrapped);
-    return () => {
-      ipcRenderer.removeListener("dictionary:auto-learned", wrapped);
     };
   },
   onAppUpdateState: (listener: (state: AppUpdateState) => void) => {

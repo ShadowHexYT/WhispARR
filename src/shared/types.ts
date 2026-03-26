@@ -50,7 +50,7 @@ export type AppSettings = {
   dictionarySoundPath: string;
   dictionarySoundVolume: number;
   muteMusicWhileDictating: boolean;
-  autoLearnDictionary: boolean;
+  saveDictationToClipboardHistory: boolean;
   codingLanguageMode: boolean;
   smartFormatting: boolean;
   filterProfanity: boolean;
@@ -66,6 +66,11 @@ export type DictationResult = {
   transcript: string;
   elapsedMs: number;
   speakerScore?: number;
+};
+
+export type PasteTextResult = {
+  autoPasted: boolean;
+  manualPasteReady: boolean;
 };
 
 export type VoiceEmbedding = {

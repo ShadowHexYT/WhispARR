@@ -57,7 +57,7 @@ const defaultSettings: AppSettings = {
   dictionarySoundPath: "",
   dictionarySoundVolume: 50,
   muteMusicWhileDictating: false,
-  autoLearnDictionary: false,
+  saveDictationToClipboardHistory: false,
   codingLanguageMode: false,
   smartFormatting: true,
   filterProfanity: false,

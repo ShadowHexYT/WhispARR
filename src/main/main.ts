@@ -45,6 +45,7 @@ import {
   CustomThemeColors,
   HudState,
   AppDiagnostics,
+  PasteTextResult,
   PatchNotesRecord,
   PushToTalkEvent,
   SaveVoiceProfileInput,
@@ -153,15 +154,9 @@ let lastHudSignature = JSON.stringify(currentHudState);
 let lastHudDimensions = { width: 0, height: 0 };
 let lastHudPosition = { x: Number.NaN, y: Number.NaN };
 const pressedKeys = new Set<number>();
-let clipboardLearningInterval: NodeJS.Timeout | null = null;
-let clipboardLearningDeadline: NodeJS.Timeout | null = null;
-let lastObservedClipboardText = "";
-let ignoredClipboardText: string | null = null;
 let pendingPasteTargetContext:
   | {
       windowHandle: string;
-      cursorX: number;
-      cursorY: number;
     }
   | null = null;
 let managedClipboardSession:
@@ -502,372 +497,6 @@ function updateLaunchOnLogin(settings: AppSettings) {
   });
 }
 
-function clearClipboardLearningWatch() {
-  if (clipboardLearningInterval) {
-    clearInterval(clipboardLearningInterval);
-    clipboardLearningInterval = null;
-  }
-
-  if (clipboardLearningDeadline) {
-    clearTimeout(clipboardLearningDeadline);
-    clipboardLearningDeadline = null;
-  }
-
-  lastObservedClipboardText = "";
-  ignoredClipboardText = null;
-}
-
-function normalizeWordForLearning(word: string) {
-  return word.toLowerCase().replace(/[^a-z0-9'-]+/g, "");
-}
-
-function normalizePhraseForLearning(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function tokenizeTranscriptForLearning(transcript: string) {
-  return transcript.match(/[A-Za-z0-9][A-Za-z0-9'/_-]*/g) ?? [];
-}
-
-function levenshteinDistance(left: string, right: string) {
-  const rows = left.length + 1;
-  const cols = right.length + 1;
-  const dp = Array.from({ length: rows }, () => new Array<number>(cols).fill(0));
-
-  for (let row = 0; row < rows; row += 1) {
-    dp[row][0] = row;
-  }
-
-  for (let col = 0; col < cols; col += 1) {
-    dp[0][col] = col;
-  }
-
-  for (let row = 1; row < rows; row += 1) {
-    for (let col = 1; col < cols; col += 1) {
-      const cost = left[row - 1] === right[col - 1] ? 0 : 1;
-      dp[row][col] = Math.min(
-        dp[row - 1][col] + 1,
-        dp[row][col - 1] + 1,
-        dp[row - 1][col - 1] + cost
-      );
-    }
-  }
-
-  return dp[left.length][right.length];
-}
-
-function shouldLearnCorrectedWord(originalWord: string, correctedWord: string) {
-  const normalizedOriginal = normalizeWordForLearning(originalWord);
-  const normalizedCorrected = normalizeWordForLearning(correctedWord);
-
-  if (
-    !normalizedOriginal ||
-    !normalizedCorrected ||
-    normalizedOriginal === normalizedCorrected ||
-    normalizedCorrected.length < 3
-  ) {
-    return false;
-  }
-
-  const distance = levenshteinDistance(normalizedOriginal, normalizedCorrected);
-  const maxLength = Math.max(normalizedOriginal.length, normalizedCorrected.length);
-  const allowedDistance = Math.max(1, Math.min(3, Math.floor(maxLength * 0.34)));
-  const sameFirstLetter = normalizedOriginal[0] === normalizedCorrected[0];
-  const similarLength = Math.abs(normalizedOriginal.length - normalizedCorrected.length) <= 3;
-
-  if (distance <= allowedDistance && (sameFirstLetter || distance <= 1) && similarLength) {
-    return true;
-  }
-
-  // When the user explicitly corrects a pasted word, trust longer custom-word fixes more.
-  const generousDistance = Math.max(3, Math.min(8, Math.floor(maxLength * 0.72)));
-  const correctedLooksCustom = /[A-Z]/.test(correctedWord) || normalizedCorrected.length >= 7;
-  return sameFirstLetter && correctedLooksCustom && distance <= generousDistance;
-}
-
-function isLikelyUnacceptableWord(word: string) {
-  const normalized = normalizeWordForLearning(word);
-  if (!normalized) {
-    return false;
-  }
-
-  return [
-    "fuck",
-    "fucking",
-    "fucked",
-    "fucker",
-    "shit",
-    "shitty",
-    "bitch",
-    "bitches",
-    "asshole",
-    "assholes",
-    "damn",
-    "crap",
-    "bastard",
-    "bastards",
-    "dick",
-    "dickhead",
-    "dickheads",
-    "piss",
-    "pissed"
-  ].includes(normalized);
-}
-
-function buildTokenReplacementCandidates(originalTokens: string[], correctedTokens: string[]) {
-  if (originalTokens.length === 0 || correctedTokens.length === 0) {
-    return [];
-  }
-
-  const dp = Array.from({ length: originalTokens.length + 1 }, () =>
-    new Array<number>(correctedTokens.length + 1).fill(0)
-  );
-
-  for (let left = originalTokens.length - 1; left >= 0; left -= 1) {
-    for (let right = correctedTokens.length - 1; right >= 0; right -= 1) {
-      if (normalizeWordForLearning(originalTokens[left] ?? "") === normalizeWordForLearning(correctedTokens[right] ?? "")) {
-        dp[left][right] = dp[left + 1][right + 1] + 1;
-      } else {
-        dp[left][right] = Math.max(dp[left + 1][right], dp[left][right + 1]);
-      }
-    }
-  }
-
-  const operations: Array<
-    | { type: "same"; original: string; corrected: string }
-    | { type: "delete"; original: string }
-    | { type: "insert"; corrected: string }
-  > = [];
-
-  let left = 0;
-  let right = 0;
-  while (left < originalTokens.length && right < correctedTokens.length) {
-    const original = originalTokens[left] ?? "";
-    const corrected = correctedTokens[right] ?? "";
-    if (normalizeWordForLearning(original) === normalizeWordForLearning(corrected)) {
-      operations.push({ type: "same", original, corrected });
-      left += 1;
-      right += 1;
-      continue;
-    }
-
-    if (dp[left + 1][right] >= dp[left][right + 1]) {
-      operations.push({ type: "delete", original });
-      left += 1;
-    } else {
-      operations.push({ type: "insert", corrected });
-      right += 1;
-    }
-  }
-
-  while (left < originalTokens.length) {
-    operations.push({ type: "delete", original: originalTokens[left] ?? "" });
-    left += 1;
-  }
-
-  while (right < correctedTokens.length) {
-    operations.push({ type: "insert", corrected: correctedTokens[right] ?? "" });
-    right += 1;
-  }
-
-  const candidates: Array<{ term: string; replacement: string }> = [];
-  let deleted: string[] = [];
-  let inserted: string[] = [];
-
-  const flush = () => {
-    const term = deleted.join(" ").trim();
-    const replacement = inserted.join(" ").trim();
-    if (term && replacement && normalizePhraseForLearning(term) !== normalizePhraseForLearning(replacement)) {
-      candidates.push({ term, replacement });
-    }
-    deleted = [];
-    inserted = [];
-  };
-
-  for (const operation of operations) {
-    if (operation.type === "same") {
-      flush();
-      continue;
-    }
-
-    if (operation.type === "delete") {
-      deleted.push(operation.original);
-      continue;
-    }
-
-    inserted.push(operation.corrected);
-  }
-
-  flush();
-  return candidates;
-}
-
-function inferDictionaryEntryType(term: string, replacement: string): "Abbreviation" | "Word" | "Phrase" {
-  const normalizedReplacement = replacement.trim();
-  if (/\b[A-Z]{2,}\b/.test(normalizedReplacement) || /^[A-Z0-9._-]{2,}$/.test(normalizedReplacement)) {
-    return "Abbreviation";
-  }
-
-  if (tokenizeTranscriptForLearning(term).length > 1 || tokenizeTranscriptForLearning(replacement).length > 1) {
-    return "Phrase";
-  }
-
-  return "Word";
-}
-
-function scoreLearningCandidate(term: string, replacement: string) {
-  const termWords = tokenizeTranscriptForLearning(term).length;
-  const replacementWords = tokenizeTranscriptForLearning(replacement).length;
-  const maxWords = Math.max(termWords, replacementWords);
-  const charDelta = Math.abs(term.trim().length - replacement.trim().length);
-  return maxWords * 100 + charDelta;
-}
-
-function shouldLearnReplacement(term: string, replacement: string) {
-  const normalizedTerm = normalizePhraseForLearning(term);
-  const normalizedReplacement = normalizePhraseForLearning(replacement);
-
-  if (!normalizedTerm || !normalizedReplacement || normalizedTerm === normalizedReplacement) {
-    return false;
-  }
-
-  const termWords = tokenizeTranscriptForLearning(term).filter(Boolean);
-  const replacementWords = tokenizeTranscriptForLearning(replacement).filter(Boolean);
-  if (termWords.length === 0 || replacementWords.length === 0) {
-    return false;
-  }
-
-  if (termWords.length === 1 && replacementWords.length === 1) {
-    return (
-      shouldLearnCorrectedWord(termWords[0] ?? "", replacementWords[0] ?? "") ||
-      (isLikelyUnacceptableWord(termWords[0] ?? "") &&
-        normalizeWordForLearning(replacementWords[0] ?? "").length >= 3)
-    );
-  }
-
-  if (termWords.length !== replacementWords.length) {
-    return false;
-  }
-
-  let changedWords = 0;
-  for (let index = 0; index < termWords.length; index += 1) {
-    const originalWord = termWords[index] ?? "";
-    const correctedWord = replacementWords[index] ?? "";
-    if (normalizeWordForLearning(originalWord) === normalizeWordForLearning(correctedWord)) {
-      continue;
-    }
-
-    if (
-      !shouldLearnCorrectedWord(originalWord, correctedWord) &&
-      !(isLikelyUnacceptableWord(originalWord) && normalizeWordForLearning(correctedWord).length >= 3)
-    ) {
-      return false;
-    }
-
-    changedWords += 1;
-  }
-
-  return changedWords > 0;
-}
-
-function maybeLearnDictionaryFromClipboard(sourceTranscript: string, correctedClipboardText: string) {
-  const originalTokens = tokenizeTranscriptForLearning(sourceTranscript);
-  const correctedTokens = tokenizeTranscriptForLearning(correctedClipboardText);
-  const candidateReplacements = buildTokenReplacementCandidates(originalTokens, correctedTokens)
-    .filter((candidate) => shouldLearnReplacement(candidate.term, candidate.replacement));
-  const rankedCandidates = [...candidateReplacements]
-    .sort(
-      (left, right) =>
-        scoreLearningCandidate(right.term, right.replacement) -
-        scoreLearningCandidate(left.term, left.replacement)
-    );
-
-  if (rankedCandidates.length === 0) {
-    return [];
-  }
-
-  const data = readData();
-  const savedLabels: string[] = [];
-
-  for (const candidate of rankedCandidates) {
-    const existing = data.manualDictionary.find(
-      (entry) =>
-        normalizePhraseForLearning(entry.term) === normalizePhraseForLearning(candidate.term) ||
-        normalizePhraseForLearning(entry.replacement ?? "") === normalizePhraseForLearning(candidate.replacement)
-    );
-
-    if (existing && !existing.addedBySystem) {
-      continue;
-    }
-
-    const entryTypeOverride = inferDictionaryEntryType(candidate.term, candidate.replacement);
-    saveManualDictionaryEntry({
-      id: existing?.id,
-      term: candidate.term,
-      replacement: candidate.replacement,
-      entryTypeOverride,
-      addedBySystem: true
-    });
-
-    savedLabels.push(
-      entryTypeOverride === "Word" || entryTypeOverride === "Abbreviation"
-        ? candidate.replacement
-        : `${candidate.term} -> ${candidate.replacement}`
-    );
-  }
-
-  return [...new Set(savedLabels)];
-}
-
-function startClipboardLearningWatch(sourceTranscript: string) {
-  clearClipboardLearningWatch();
-
-  if (!currentSettings.autoLearnDictionary || !sourceTranscript.trim()) {
-    return;
-  }
-
-  lastObservedClipboardText = clipboard.readText();
-
-  clipboardLearningInterval = setInterval(() => {
-    const nextClipboardText = clipboard.readText();
-    if (!nextClipboardText || nextClipboardText === lastObservedClipboardText) {
-      return;
-    }
-
-    if (ignoredClipboardText !== null && nextClipboardText === ignoredClipboardText) {
-      lastObservedClipboardText = nextClipboardText;
-      ignoredClipboardText = null;
-      return;
-    }
-
-    lastObservedClipboardText = nextClipboardText;
-
-    if (nextClipboardText.trim() === sourceTranscript.trim()) {
-      return;
-    }
-
-    const savedTerms = maybeLearnDictionaryFromClipboard(sourceTranscript, nextClipboardText);
-    if (savedTerms.length > 0) {
-      mainWindow?.webContents.send("dictionary:auto-learned", savedTerms);
-      if (Notification.isSupported()) {
-        const body = savedTerms.length === 1
-          ? `Learned "${savedTerms[0]}" from your correction.`
-          : `Learned ${savedTerms.length} corrected entries from your edits.`;
-        new Notification({
-          title: "WhispARR Dictionary Updated",
-          body,
-          icon: createZoomedIcon(1.7, 256),
-          silent: false
-        }).show();
-      }
-    }
-  }, 1000);
-
-  clipboardLearningDeadline = setTimeout(() => {
-    clearClipboardLearningWatch();
-  }, 60000);
-}
-
 function pauseActiveMediaSessions() {
   if (process.platform !== "win32") {
     return;
@@ -985,9 +614,20 @@ async function capturePasteTargetContext() {
     return;
   }
 
-  const point = screen.getCursorScreenPoint();
   try {
-    const windowHandle = await runPowerShell(`
+    const windowHandle = await getForegroundWindowHandle();
+    pendingPasteTargetContext = windowHandle ? { windowHandle } : null;
+  } catch {
+    pendingPasteTargetContext = null;
+  }
+}
+
+async function getForegroundWindowHandle() {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  const windowHandle = await runPowerShell(`
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -1004,62 +644,23 @@ if ($handle -eq [IntPtr]::Zero) {
 }
 `);
 
-    pendingPasteTargetContext = windowHandle
-      ? {
-          windowHandle,
-          cursorX: point.x,
-          cursorY: point.y
-        }
-      : null;
-  } catch {
-    pendingPasteTargetContext = null;
-  }
+  return windowHandle || null;
 }
 
-async function restorePasteTargetContext() {
-  if (process.platform !== "win32" || !pendingPasteTargetContext) {
-    return;
+async function canAutoPasteToCapturedTarget() {
+  if (!pendingPasteTargetContext) {
+    return process.platform !== "win32";
   }
 
-  const { windowHandle, cursorX, cursorY } = pendingPasteTargetContext;
-  pendingPasteTargetContext = null;
+  if (process.platform !== "win32") {
+    return true;
+  }
 
   try {
-    await runPowerShell(`
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public struct POINT {
-  public int X;
-  public int Y;
-}
-public static class WhispARRPasteTarget {
-  [DllImport("user32.dll")]
-  public static extern bool GetCursorPos(out POINT lpPoint);
-  [DllImport("user32.dll")]
-  public static extern bool SetCursorPos(int X, int Y);
-  [DllImport("user32.dll")]
-  public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
-  [DllImport("user32.dll")]
-  public static extern bool SetForegroundWindow(IntPtr hWnd);
-  [DllImport("user32.dll")]
-  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
-}
-"@
-$handle = [IntPtr]::new([Int64]::Parse("${windowHandle}"))
-$original = New-Object POINT
-[void][WhispARRPasteTarget]::GetCursorPos([ref]$original)
-[void][WhispARRPasteTarget]::ShowWindowAsync($handle, 5)
-[void][WhispARRPasteTarget]::SetForegroundWindow($handle)
-Start-Sleep -Milliseconds 35
-[void][WhispARRPasteTarget]::SetCursorPos(${cursorX}, ${cursorY})
-[WhispARRPasteTarget]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-[WhispARRPasteTarget]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-Start-Sleep -Milliseconds 35
-[void][WhispARRPasteTarget]::SetCursorPos($original.X, $original.Y)
-`);
+    const activeWindowHandle = await getForegroundWindowHandle();
+    return activeWindowHandle === pendingPasteTargetContext.windowHandle;
   } catch {
-    // If Windows refuses focus restoration, fall back to the normal paste path.
+    return false;
   }
 }
 
@@ -1178,9 +779,6 @@ function applySettingsPatch(patch: Partial<AppSettings>) {
   const next = updateSettings(patch);
   currentSettings = next;
   syncActivationGlobalShortcut();
-  if (!next.autoLearnDictionary) {
-    clearClipboardLearningWatch();
-  }
   updateLaunchOnLogin(next);
   syncWindowTheme(next);
   updateHud({
@@ -1401,10 +999,8 @@ function restoreManagedClipboardIfNeeded(expectedText?: string) {
 
   if (managedClipboardSession.originalHadText) {
     void writeClipboardText(managedClipboardSession.originalText, { allowHistory: false });
-    ignoredClipboardText = managedClipboardSession.originalText;
   } else {
     clipboard.clear();
-    ignoredClipboardText = "";
   }
   clearManagedClipboardSession();
   return true;
@@ -1420,25 +1016,38 @@ async function stageClipboardText(text: string, mode: "auto" | "manual") {
     mode,
     cleanupTimeout: null
   };
-  await writeClipboardText(text, { allowHistory: false });
+  await writeClipboardText(text, {
+    allowHistory: currentSettings.saveDictationToClipboardHistory
+  });
 }
 
-async function pasteText(text: string) {
-  await restorePasteTargetContext();
+async function pasteText(text: string): Promise<PasteTextResult> {
+  const canAutoPaste = await canAutoPasteToCapturedTarget();
+  pendingPasteTargetContext = null;
+  if (!canAutoPaste) {
+    await prepareClipboardForSinglePaste(text);
+    return {
+      autoPasted: false,
+      manualPasteReady: true
+    };
+  }
+
   await stageClipboardText(text, "auto");
   await new Promise((resolve) => setTimeout(resolve, 20));
   uIOhook.keyTap(UiohookKey.V, [getPasteModifier()]);
-  startClipboardLearningWatch(text);
   if (managedClipboardSession) {
     managedClipboardSession.cleanupTimeout = setTimeout(() => {
       restoreManagedClipboardIfNeeded(text);
     }, 250);
   }
+  return {
+    autoPasted: true,
+    manualPasteReady: false
+  };
 }
 
 async function prepareClipboardForSinglePaste(text: string) {
   await stageClipboardText(text, "manual");
-  startClipboardLearningWatch(text);
   if (managedClipboardSession) {
     managedClipboardSession.cleanupTimeout = setTimeout(() => {
       restoreManagedClipboardIfNeeded(text);
@@ -1585,8 +1194,7 @@ app.whenReady().then(() => {
     return result.canceled ? null : result.filePaths[0];
   });
   ipcMain.handle("paste:text", async (_event, text: string) => {
-    await pasteText(text);
-    return true;
+    return pasteText(text);
   });
   ipcMain.handle("clipboard:prepare-single-paste", async (_event, text: string) => {
     await prepareClipboardForSinglePaste(text);
@@ -1630,7 +1238,6 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
-  clearClipboardLearningWatch();
   pressedKeys.clear();
   globalShortcut.unregisterAll();
   uIOhook.stop();

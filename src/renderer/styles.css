@@ -4017,6 +4017,18 @@ select option:disabled {
   white-space: pre-wrap;
 }
 
+.release-notes-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+}
+
+.release-notes-list li {
+  margin: 0;
+}
+
 .update-dialog-progress {
   display: grid;
   gap: var(--space-2);

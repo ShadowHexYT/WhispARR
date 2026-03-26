@@ -50,7 +50,6 @@ type RuntimeFeedbackTone = "idle" | "success" | "error" | "working";
 type AchievementDifficulty = "Easy" | "Medium" | "Hard" | "Almost Impossible";
 type UpdateDialogState = "closed" | "none" | "available" | "error";
 type SidebarInfoDialog = "closed" | "legal" | "terms";
-type AutoDictionaryToast = { terms: string[]; id: number } | null;
 type AchievementToast = { titles: string[]; xp: number; id: number } | null;
 const MAX_SLIDER_OVERFLOW = 50;
 const DEFAULT_PROFILE_EMOJI = "🎙️";
@@ -70,6 +69,47 @@ const defaultShortcut: ActivationShortcut = {
 function normalizeProfileEmojiInput(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed.slice(0, 16) : DEFAULT_PROFILE_EMOJI;
+}
+
+function decodeHtmlEntities(value: string) {
+  if (typeof document === "undefined") {
+    return value;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value;
+  return textarea.value;
+}
+
+function formatReleaseNotesAsBullets(releaseNotes: string | null | undefined) {
+  if (!releaseNotes?.trim()) {
+    return [];
+  }
+
+  const normalized = decodeHtmlEntities(
+    releaseNotes
+      .replace(/<li\b[^>]*>/gi, "\n- ")
+      .replace(/<\/li>/gi, "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+  )
+    .replace(/\r/g, "")
+    .replace(/^[ \t]*[#*_>`]+[ \t]*/gm, "")
+    .replace(/^[ \t]*[-*•][ \t]*/gm, "- ")
+    .replace(/^\s*\d+\.\s+/gm, "- ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const lines = normalized
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^-+\s*/, "").trim())
+    .filter(Boolean);
+
+  return [...new Set(lines)];
 }
 
 const defaultSettings: AppSettings = {
@@ -93,7 +133,7 @@ const defaultSettings: AppSettings = {
   dictionarySoundPath: "",
   dictionarySoundVolume: 50,
   muteMusicWhileDictating: false,
-  autoLearnDictionary: false,
+  saveDictationToClipboardHistory: false,
   codingLanguageMode: false,
   smartFormatting: true,
   filterProfanity: false,
@@ -719,8 +759,6 @@ function compactStatus(message: string) {
     [/removed \".*\" from your local dictionary/, "Dictionary removed"],
     [/choose or type the word you want whisparr to learn first/, "Choose a word"],
     [/add the word or phrase you want whisparr to learn before saving/, "Enter a dictionary term"],
-    [/auto dictionary learning saved .* new terms/, "Dictionary auto-saved"],
-    [/auto dictionary learning saved /, "Dictionary auto-saved"],
     [/achievement unlocked:/, "Achievement unlocked"],
     [/unlocked \d+ achievements/, "Achievements unlocked"],
     [/retro mode unlocked/, "Retro mode unlocked"],
@@ -1287,7 +1325,6 @@ export default function App() {
   const [updateDialogMessage, setUpdateDialogMessage] = useState("");
   const [postInstallPatchNotes, setPostInstallPatchNotes] = useState<PatchNotesRecord | null>(null);
   const [sidebarInfoDialog, setSidebarInfoDialog] = useState<SidebarInfoDialog>("closed");
-  const [autoDictionaryToast, setAutoDictionaryToast] = useState<AutoDictionaryToast>(null);
   const [achievementToast, setAchievementToast] = useState<AchievementToast>(null);
   const [isEditingTranscriptHistoryLimit, setIsEditingTranscriptHistoryLimit] = useState(false);
   const [isTranscriptHistoryMenuOpen, setIsTranscriptHistoryMenuOpen] = useState(false);
@@ -1319,7 +1356,6 @@ export default function App() {
   const hudPreviewTimeoutRef = useRef<number | null>(null);
   const transcriptHistoryClickTimeoutRef = useRef<number | null>(null);
   const runtimeInstallProgressIntervalRef = useRef<number | null>(null);
-  const autoDictionaryToastTimeoutRef = useRef<number | null>(null);
   const achievementToastTimeoutRef = useRef<number | null>(null);
   const pastedStatusTimeoutRef = useRef<number | null>(null);
   const dailyChallengeRefreshRef = useRef<string | null>(null);
@@ -1349,6 +1385,8 @@ export default function App() {
     [settings.appTheme, settings.customTheme]
   );
   const visibleStatus = compactStatus(status);
+  const updateReleaseNotesItems = formatReleaseNotesAsBullets(appUpdateInfo?.releaseNotes);
+  const postInstallPatchNotesItems = formatReleaseNotesAsBullets(postInstallPatchNotes?.releaseNotes);
   const transcriptHistoryOptions = [3, 5, 10, 20];
   const customSoundRows = [
     {
@@ -1805,14 +1843,6 @@ export default function App() {
   }, [status]);
 
   useEffect(() => {
-    if (!autoDictionaryToast) {
-      return;
-    }
-
-    playDictionaryNotificationSound();
-  }, [autoDictionaryToast]);
-
-  useEffect(() => {
     if (!achievementToast) {
       return;
     }
@@ -1846,9 +1876,6 @@ export default function App() {
       if (runtimeInstallProgressIntervalRef.current) {
         window.clearInterval(runtimeInstallProgressIntervalRef.current);
       }
-      if (autoDictionaryToastTimeoutRef.current) {
-        window.clearTimeout(autoDictionaryToastTimeoutRef.current);
-      }
       if (achievementToastTimeoutRef.current) {
         window.clearTimeout(achievementToastTimeoutRef.current);
       }
@@ -1875,25 +1902,6 @@ export default function App() {
         void beginGlobalDictation(event.id);
       } else {
         void finishGlobalDictation(event.id);
-      }
-    });
-    const unsubscribeAutoLearn = window.wisprApi.onAutoDictionaryLearned((terms) => {
-      void refreshLocalData();
-      if (autoDictionaryToastTimeoutRef.current) {
-        window.clearTimeout(autoDictionaryToastTimeoutRef.current);
-      }
-      setAutoDictionaryToast({
-        terms,
-        id: Date.now()
-      });
-      autoDictionaryToastTimeoutRef.current = window.setTimeout(() => {
-        setAutoDictionaryToast(null);
-        autoDictionaryToastTimeoutRef.current = null;
-      }, 5000);
-      if (terms.length === 1) {
-        setStatus(`Auto dictionary learning saved "${terms[0]}".`);
-      } else if (terms.length > 1) {
-        setStatus(`Auto dictionary learning saved ${terms.length} new terms.`);
       }
     });
     const unsubscribeUpdateState = window.wisprApi.onAppUpdateState((nextState) => {
@@ -1936,7 +1944,6 @@ export default function App() {
 
     return () => {
       unsubscribe();
-      unsubscribeAutoLearn();
       unsubscribeUpdateState();
       unsubscribeSettingsChanged();
       unsubscribeNavigate();
@@ -2065,7 +2072,6 @@ export default function App() {
     if (data.pendingPatchNotes) {
       if (
         !data.neverShowPatchNotes &&
-        data.skippedPatchNotesVersion !== data.pendingPatchNotes.version &&
         data.pendingPatchNotes.version === diagnostics.version
       ) {
         setPostInstallPatchNotes(data.pendingPatchNotes);
@@ -2435,16 +2441,6 @@ export default function App() {
 
   async function dismissPostInstallPatchNotes() {
     await window.wisprApi.clearPendingPatchNotes();
-    setPostInstallPatchNotes(null);
-  }
-
-  async function skipPostInstallPatchNotesVersion() {
-    if (!postInstallPatchNotes?.version) {
-      setPostInstallPatchNotes(null);
-      return;
-    }
-
-    await window.wisprApi.skipPatchNotesVersion(postInstallPatchNotes.version);
     setPostInstallPatchNotes(null);
   }
 
@@ -2870,21 +2866,6 @@ export default function App() {
     setStatus("Preview only: achievement popup.");
   }
 
-  function previewDictionaryNotification() {
-    if (autoDictionaryToastTimeoutRef.current) {
-      window.clearTimeout(autoDictionaryToastTimeoutRef.current);
-    }
-    setAutoDictionaryToast({
-      terms: ["WhispARR"],
-      id: Date.now()
-    });
-    autoDictionaryToastTimeoutRef.current = window.setTimeout(() => {
-      setAutoDictionaryToast(null);
-      autoDictionaryToastTimeoutRef.current = null;
-    }, 5000);
-    setStatus("Preview only: dictionary popup.");
-  }
-
   function previewUpdateDialog(state: Exclude<UpdateDialogState, "closed">) {
     if (state === "available") {
       setAppUpdateInfo({
@@ -3064,18 +3045,20 @@ export default function App() {
         .catch(() => undefined);
 
       if (options.pasteResult && currentSettings.autoPaste) {
-        await window.wisprApi.pasteText(transcript);
-        setStatus(
-          currentSettings.autoLearnDictionary
-            ? "Transcribed locally and pasted. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, and abbreviations."
-            : "Transcribed locally and pasted into the active app."
-        );
+        const pasteResult = await window.wisprApi.pasteText(transcript);
+        if (pasteResult.autoPasted) {
+          setStatus(
+            "Transcribed locally and pasted into the active app."
+          );
+        } else {
+          setStatus(
+            "Local dictation completed. Auto-paste was skipped because focus changed. Transcript is ready for one manual paste, then your clipboard will be restored."
+          );
+        }
       } else {
         await window.wisprApi.prepareClipboardForSinglePaste(transcript);
         setStatus(
-          currentSettings.autoLearnDictionary
-            ? "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored. Copy edited text within the next minute so WhispARR can learn corrected words, phrases, and abbreviations."
-            : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
+          "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
         );
       }
 
@@ -4041,24 +4024,6 @@ export default function App() {
                   <p className="eyebrow">Saved Terms</p>
                   <h3>Your Local Dictionary</h3>
                 </div>
-                <div className="dictionary-header-toggle">
-                  <span>Auto Dictionary</span>
-                  <button
-                    className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
-                    type="button"
-                    onClick={() =>
-                      void patchSettings({
-                        autoLearnDictionary: !settings.autoLearnDictionary
-                      })
-                    }
-                    role="switch"
-                    aria-checked={settings.autoLearnDictionary}
-                    aria-label="Toggle auto dictionary learning"
-                    title={settings.autoLearnDictionary ? "Auto dictionary on" : "Auto dictionary off"}
-                  >
-                    <span className="settings-switch-thumb" aria-hidden="true" />
-                  </button>
-                </div>
               </div>
               {manualDictionary.length === 0 ? (
                 <p className="supporting dictionary-empty-state">
@@ -4534,6 +4499,29 @@ export default function App() {
                       <span className="settings-switch-thumb" aria-hidden="true" />
                     </button>
                   </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Save dictated text to clipboard history</strong>
+                      <p>
+                        Lets auto-paste and one-time manual paste staging appear in supported clipboard history tools,
+                        including Windows Clipboard History. Off by default.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.saveDictationToClipboardHistory ? "settings-switch active" : "settings-switch"}
+                      onClick={() =>
+                        void patchSettings({
+                          saveDictationToClipboardHistory: !settings.saveDictationToClipboardHistory
+                        })
+                      }
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.saveDictationToClipboardHistory}
+                      aria-label="Toggle saving dictated text to clipboard history"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="settings-group">
@@ -4541,29 +4529,6 @@ export default function App() {
                   <p className="eyebrow">Transcript Processing</p>
                 </div>
                 <div className="settings-switch-list">
-                  <div className="settings-switch-row">
-                    <div className="settings-switch-copy">
-                      <strong>Auto dictionary learning</strong>
-                      <p>
-                        Watches copied edits from the last dictated transcript for about a minute and
-                        learns corrected words, phrases, and abbreviations when something was heard wrong.
-                      </p>
-                    </div>
-                    <button
-                      className={settings.autoLearnDictionary ? "settings-switch active" : "settings-switch"}
-                      onClick={() =>
-                        void patchSettings({
-                          autoLearnDictionary: !settings.autoLearnDictionary
-                        })
-                      }
-                      type="button"
-                      role="switch"
-                      aria-checked={settings.autoLearnDictionary}
-                      aria-label="Toggle auto dictionary learning"
-                    >
-                      <span className="settings-switch-thumb" aria-hidden="true" />
-                    </button>
-                  </div>
                   <div className="settings-switch-row">
                     <div className="settings-switch-copy">
                       <strong>Coding language mode</strong>
@@ -5114,9 +5079,6 @@ export default function App() {
                           <button className="secondary-button" type="button" onClick={previewAchievementNotification}>
                             Test achievement
                           </button>
-                          <button className="secondary-button" type="button" onClick={previewDictionaryNotification}>
-                            Test dictionary
-                          </button>
                           <button className="secondary-button" type="button" onClick={previewPastedStatus}>
                             Test pasted status
                           </button>
@@ -5659,10 +5621,14 @@ export default function App() {
                 Release: <strong>{appUpdateInfo.releaseName}</strong>
               </p>
             )}
-            {appUpdateInfo?.releaseNotes && updateDialogState === "available" && (
+            {updateReleaseNotesItems.length > 0 && updateDialogState === "available" && (
               <div className="update-dialog-notes">
                 <strong>What's new</strong>
-                <p>{appUpdateInfo.releaseNotes}</p>
+                <ul className="release-notes-list">
+                  {updateReleaseNotesItems.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
               </div>
             )}
             {appUpdateState.progress !== null && (
@@ -5753,7 +5719,15 @@ export default function App() {
             <div className="patch-notes-scroll">
               <strong>What's new</strong>
               <div className="patch-notes-content">
-                {postInstallPatchNotes.releaseNotes || "No patch notes were included with this update."}
+                {postInstallPatchNotesItems.length > 0 ? (
+                  <ul className="release-notes-list">
+                    {postInstallPatchNotesItems.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  "No patch notes were included with this update."
+                )}
               </div>
             </div>
             <div className="button-row">
@@ -5763,13 +5737,6 @@ export default function App() {
                 onClick={() => void dismissPostInstallPatchNotes()}
               >
                 Dismiss
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => void skipPostInstallPatchNotesVersion()}
-              >
-                Skip this version
               </button>
               <button
                 className="primary-button"
@@ -5870,21 +5837,6 @@ export default function App() {
               </button>
             </div>
           </section>
-        </div>
-      )}
-      {autoDictionaryToast && (
-        <div className="auto-dictionary-toast" role="status" aria-live="polite" key={autoDictionaryToast.id}>
-          <p className="eyebrow">Dictionary Updated</p>
-          <strong>
-            {autoDictionaryToast.terms.length === 1
-              ? `Added ${autoDictionaryToast.terms[0]}`
-              : `Added ${autoDictionaryToast.terms.length} terms`}
-          </strong>
-          <p>
-            {autoDictionaryToast.terms.length === 1
-              ? "Starred in your local dictionary."
-              : autoDictionaryToast.terms.join(", ")}
-          </p>
         </div>
       )}
       {pendingDictionaryDeleteEntry && (

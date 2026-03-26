@@ -11,6 +11,15 @@ the app UI directly.
 - Group changes by user-facing impact when possible.
 - Prefer concise bullet points over implementation details.
 
+## 1.1.6
+
+- Fixed the in-app patch notes display so update notes render as a clean bulleted list instead of showing raw HTML-like formatting.
+- Removed the `Skip this version` action from the post-install patch notes modal once that version has already been installed.
+- Added a new setting to let users keep dictated text in supported clipboard history tools, including Windows Clipboard History, while leaving it off by default.
+- Removed automatic dictionary learning so dictionary improvements now come from explicit manual entries instead of background clipboard scanning.
+- Fixed the HUD audio waveform path so the pill reacts to live speech again during dictation and microphone testing.
+- Removed all mouse movement and click-based paste targeting so auto-paste only runs when the original target app is still focused.
+
 ## 1.1.5
 
 Released: 2026-03-25

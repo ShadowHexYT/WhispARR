@@ -11,6 +11,7 @@ import {
   HudState,
   LocalData,
   ManualDictionaryEntry,
+  PasteTextResult,
   PatchNotesRecord,
   PushToTalkEvent,
   RuntimeDiscoveryResult,
@@ -56,7 +57,7 @@ declare global {
       saveNotes: (notes: string) => Promise<string>;
       saveSavedNotes: (savedNotes: string[]) => Promise<string[]>;
       pickFile: () => Promise<string | null>;
-      pasteText: (text: string) => Promise<boolean>;
+      pasteText: (text: string) => Promise<PasteTextResult>;
       prepareClipboardForSinglePaste: (text: string) => Promise<boolean>;
       showWindow: () => Promise<boolean>;
       getAppDiagnostics: () => Promise<AppDiagnostics>;
@@ -65,7 +66,6 @@ declare global {
       stopHudMoveMode: () => Promise<AppSettings>;
       onPushToTalk: (listener: (event: PushToTalkEvent) => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;
-      onAutoDictionaryLearned: (listener: (terms: string[]) => void) => () => void;
       onAppUpdateState: (listener: (state: AppUpdateState) => void) => () => void;
       onSettingsChanged: (listener: (settings: AppSettings) => void) => () => void;
       onNavigate: (listener: (target: "settings") => void) => () => void;

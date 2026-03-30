@@ -138,6 +138,7 @@ const defaultSettings: AppSettings = {
   autoPaste: true,
   launchOnLogin: false,
   alwaysShowPill: false,
+  enableHudDragHotkey: true,
   hudPosition: null,
   hudScale: 100,
   muteDictationSounds: false,
@@ -4453,6 +4454,25 @@ export default function App() {
                       role="switch"
                       aria-checked={settings.alwaysShowPill}
                       aria-label="Toggle always show pill"
+                    >
+                      <span className="settings-switch-thumb" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
+                      <strong>Hold Ctrl + Alt to drag pill</strong>
+                      <p>
+                        Lets you temporarily drag the always-visible pill by holding `Ctrl + Alt`, without
+                        activating push-to-talk while moving it.
+                      </p>
+                    </div>
+                    <button
+                      className={settings.enableHudDragHotkey ? "settings-switch active" : "settings-switch"}
+                      onClick={() => void patchSettings({ enableHudDragHotkey: !settings.enableHudDragHotkey })}
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.enableHudDragHotkey}
+                      aria-label="Toggle Ctrl Alt pill drag shortcut"
                     >
                       <span className="settings-switch-thumb" aria-hidden="true" />
                     </button>

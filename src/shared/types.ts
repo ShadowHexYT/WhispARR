@@ -39,6 +39,7 @@ export type AppSettings = {
   autoPaste: boolean;
   launchOnLogin: boolean;
   alwaysShowPill: boolean;
+  enableHudDragHotkey: boolean;
   hudPosition: HudPosition | null;
   hudScale: number;
   muteDictationSounds: boolean;

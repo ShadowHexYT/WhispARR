@@ -64,6 +64,8 @@ declare global {
       updateHud: (state: HudState) => Promise<boolean>;
       startHudMoveMode: () => Promise<boolean>;
       stopHudMoveMode: () => Promise<AppSettings>;
+      startHudPressToTalk: () => Promise<boolean>;
+      stopHudPressToTalk: () => Promise<boolean>;
       onPushToTalk: (listener: (event: PushToTalkEvent) => void) => () => void;
       onHudState: (listener: (state: HudState) => void) => () => void;
       onAppUpdateState: (listener: (state: AppUpdateState) => void) => () => void;

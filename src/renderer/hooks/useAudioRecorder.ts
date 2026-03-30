@@ -142,7 +142,7 @@ export function useAudioRecorder(selectedDeviceId: string | null) {
       };
 
       source.connect(analyser);
-      source.connect(processor);
+      analyser.connect(processor);
       processor.connect(silentGain);
       silentGain.connect(context.destination);
 

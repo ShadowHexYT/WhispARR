@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import ReactDOM from "react-dom/client";
 import { HudState } from "../shared/types";
 import "./hud.css";
@@ -22,6 +22,7 @@ function Hud() {
   const exitAudioRef = useRef<HTMLAudioElement | null>(null);
   const entranceAudioRef = useRef<HTMLAudioElement | null>(null);
   const isListening = hudState.label === "Listening";
+  const hudPressActiveRef = useRef(false);
 
   useEffect(() => {
     exitAudioRef.current = new Audio(exitSoundUrl);
@@ -79,12 +80,41 @@ function Hud() {
     });
   }, [hudState.level]);
 
+  function stopHudPressToTalk() {
+    if (!hudPressActiveRef.current) {
+      return;
+    }
+
+    hudPressActiveRef.current = false;
+    void window.wisprApi.stopHudPressToTalk();
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (hudState.moveMode || !hudState.visible) {
+      return;
+    }
+
+    if (event.button !== 0) {
+      return;
+    }
+
+    hudPressActiveRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    void window.wisprApi.startHudPressToTalk();
+  }
+
   return (
     <div
       className={hudState.visible || hudState.moveMode ? "hud-shell visible" : "hud-shell"}
       style={{ "--hud-scale": `${Math.max(60, Math.min(160, hudState.hudScale ?? 100)) / 100}` } as CSSProperties}
     >
-      <div className={hudState.moveMode ? "hud-pill move-mode" : "hud-pill"}>
+      <div
+        className={hudState.moveMode ? "hud-pill move-mode" : "hud-pill"}
+        onPointerDown={handlePointerDown}
+        onPointerUp={() => stopHudPressToTalk()}
+        onPointerCancel={() => stopHudPressToTalk()}
+        onLostPointerCapture={() => stopHudPressToTalk()}
+      >
         <div className={isHeard ? "hud-icon heard" : "hud-icon quiet"} />
         <div className="hud-wave">
           {bars.map((height, index) => (

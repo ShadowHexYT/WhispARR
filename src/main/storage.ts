@@ -46,6 +46,7 @@ const defaultSettings: AppSettings = {
   autoPaste: true,
   launchOnLogin: false,
   alwaysShowPill: false,
+  enableHudDragHotkey: true,
   hudPosition: null,
   hudScale: 100,
   muteDictationSounds: false,

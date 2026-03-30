@@ -26,6 +26,7 @@ body {
 
 .hud-shell.visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .hud-pill {

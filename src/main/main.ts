@@ -168,6 +168,8 @@ let managedClipboardSession:
       cleanupTimeout: NodeJS.Timeout | null;
     }
   | null = null;
+let hudPressToTalkActive = false;
+let hudMoveModeSource: "manual" | "hotkey" | null = null;
 let registeredActivationAccelerator: string | null = null;
 let pushToTalkEventId = 0;
 const HUD_BASE_WIDTH = 110;
@@ -406,7 +408,8 @@ function syncHudWindowInteractivity() {
     return;
   }
 
-  hudWindow.setIgnoreMouseEvents(!isHudMoveMode);
+  const hudShouldCapturePointer = isHudMoveMode || currentSettings.alwaysShowPill;
+  hudWindow.setIgnoreMouseEvents(!hudShouldCapturePointer);
   hudWindow.setFocusable(isHudMoveMode);
   hudWindow.setMovable(isHudMoveMode);
 }
@@ -453,6 +456,7 @@ function updateHud(state: HudState) {
 }
 
 function startHudMoveMode() {
+  hudMoveModeSource = "manual";
   isHudMoveMode = true;
   updateHud(currentHudState);
 }
@@ -470,9 +474,30 @@ function stopHudMoveMode() {
   }
 
   isHudMoveMode = false;
+  hudMoveModeSource = null;
   lastHudDimensions = { width: 0, height: 0 };
   updateHud(currentHudState);
   return currentSettings;
+}
+
+function startHudMoveModeFromHotkey() {
+  if (isHudMoveMode) {
+    return false;
+  }
+
+  hudMoveModeSource = "hotkey";
+  isHudMoveMode = true;
+  updateHud(currentHudState);
+  return true;
+}
+
+function stopHudMoveModeFromHotkey() {
+  if (!isHudMoveMode || hudMoveModeSource !== "hotkey") {
+    return false;
+  }
+
+  stopHudMoveMode();
+  return true;
 }
 
 function sendPushToTalkEvent(state: "start" | "stop") {
@@ -489,6 +514,61 @@ function sendPushToTalkEvent(state: "start" | "stop") {
     state
   };
   mainWindow?.webContents.send("ptt:event", event);
+}
+
+function beginPushToTalkSession() {
+  if (pushToTalkActive) {
+    return false;
+  }
+
+  pushToTalkActive = true;
+  pauseMediaForDictationIfNeeded();
+  updateHud({
+    visible: true,
+    level: 0,
+    label: "Listening",
+    soundEnabled: !currentSettings.muteDictationSounds,
+    soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+    hudScale: currentSettings.hudScale
+  });
+  sendPushToTalkEvent("start");
+  return true;
+}
+
+function endPushToTalkSession() {
+  if (!pushToTalkActive) {
+    return false;
+  }
+
+  pushToTalkActive = false;
+  updateHud({
+    visible: false,
+    level: 0,
+    label: "Ready",
+    soundEnabled: !currentSettings.muteDictationSounds,
+    soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
+    hudScale: currentSettings.hudScale
+  });
+  sendPushToTalkEvent("stop");
+  return true;
+}
+
+function beginHudPressToTalk() {
+  if (!currentSettings.alwaysShowPill || isHudMoveMode || pushToTalkActive) {
+    return false;
+  }
+
+  hudPressToTalkActive = true;
+  return beginPushToTalkSession();
+}
+
+function endHudPressToTalk() {
+  if (!hudPressToTalkActive) {
+    return false;
+  }
+
+  hudPressToTalkActive = false;
+  return endPushToTalkSession();
 }
 
 function updateLaunchOnLogin(settings: AppSettings) {
@@ -886,21 +966,7 @@ function syncActivationGlobalShortcut() {
   }
 
   const registered = globalShortcut.register(accelerator, () => {
-    if (pushToTalkActive) {
-      return;
-    }
-
-    pushToTalkActive = true;
-    pauseMediaForDictationIfNeeded();
-    updateHud({
-      visible: true,
-      level: 0,
-      label: "Listening",
-      soundEnabled: !currentSettings.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
-      hudScale: currentSettings.hudScale
-    });
-    sendPushToTalkEvent("start");
+    beginPushToTalkSession();
   });
 
   if (registered) {
@@ -911,6 +977,10 @@ function syncActivationGlobalShortcut() {
 function registerGlobalPushToTalk() {
   uIOhook.on("keydown", (event) => {
     pressedKeys.add(event.keycode);
+
+    if (!pushToTalkActive && !hudPressToTalkActive && isHudDragHotkeyPressed()) {
+      startHudMoveModeFromHotkey();
+    }
 
     const isManualManagedPaste =
       managedClipboardSession?.mode === "manual" &&
@@ -927,21 +997,11 @@ function registerGlobalPushToTalk() {
       return;
     }
 
-    if (pushToTalkActive || !doesShortcutMatch(currentSettings.activationShortcut, event.keycode)) {
+    if (pushToTalkActive || isHudMoveMode || !doesShortcutMatch(currentSettings.activationShortcut, event.keycode)) {
       return;
     }
 
-    pushToTalkActive = true;
-    pauseMediaForDictationIfNeeded();
-    updateHud({
-      visible: true,
-      level: 0,
-      label: "Listening",
-      soundEnabled: !currentSettings.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
-      hudScale: currentSettings.hudScale
-    });
-    sendPushToTalkEvent("start");
+    beginPushToTalkSession();
   });
 
   uIOhook.on("keyup", (event) => {
@@ -950,20 +1010,15 @@ function registerGlobalPushToTalk() {
 
     pressedKeys.delete(event.keycode);
 
+    if (hudMoveModeSource === "hotkey" && !isHudDragHotkeyPressed()) {
+      stopHudMoveModeFromHotkey();
+    }
+
     if (!shouldStop) {
       return;
     }
 
-    pushToTalkActive = false;
-    updateHud({
-      visible: false,
-      level: 0,
-      label: "Ready",
-      soundEnabled: !currentSettings.muteDictationSounds,
-      soundVolume: Math.max(0, Math.min(1, currentSettings.appSoundVolume / 100)),
-      hudScale: currentSettings.hudScale
-    });
-    sendPushToTalkEvent("stop");
+    endPushToTalkSession();
   });
 
   syncActivationGlobalShortcut();
@@ -972,6 +1027,15 @@ function registerGlobalPushToTalk() {
 
 function getPasteModifier() {
   return process.platform === "darwin" ? UiohookKey.Meta : UiohookKey.Ctrl;
+}
+
+function isHudDragHotkeyPressed() {
+  return (
+    currentSettings.enableHudDragHotkey &&
+    currentSettings.alwaysShowPill &&
+    isModifierPressed("ctrl") &&
+    isModifierPressed("alt")
+  );
 }
 
 function clearManagedClipboardSession() {
@@ -1221,6 +1285,12 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("hud:move:stop", () => {
     return stopHudMoveMode();
+  });
+  ipcMain.handle("hud:press-to-talk:start", () => {
+    return beginHudPressToTalk();
+  });
+  ipcMain.handle("hud:press-to-talk:stop", () => {
+    return endHudPressToTalk();
   });
   ipcMain.handle("app:show-window", () => {
     showMainWindow();

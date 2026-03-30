@@ -11,6 +11,14 @@ the app UI directly.
 - Group changes by user-facing impact when possible.
 - Prefer concise bullet points over implementation details.
 
+## 1.1.9
+
+- Fixed the always-visible pill so it stays on screen after auto-paste and remains more stable during rapid toggling, clicking, pasting, and settings changes.
+- Fixed the transcription audio reduction path so volume control targets the correct output device more reliably instead of silently failing.
+- Added selectable output-device targeting for `Lower Volume on Transcription`, including macOS support.
+- Added an in-app microphone input-device selector for macOS and kept device refresh controls available in Settings.
+- Tightened and simplified the sound-file settings section with a more compact, more minimal layout.
+
 ## 1.1.8
 
 - Fixed the macOS updater flow so WhispARR stops attempting the failing in-place auto-install path and instead opens the correct release download for manual update on Mac.

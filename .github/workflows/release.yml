@@ -62,6 +62,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Stage bundled mac runtime
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p runtime/bin
+          brew install whisper-cpp
+          cp "$(brew --prefix whisper-cpp)/bin/whisper-cli" runtime/bin/whisper-cli
+          chmod +x runtime/bin/whisper-cli
+
       - name: Build application
         run: npm run build
 

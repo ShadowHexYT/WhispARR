@@ -11,6 +11,12 @@ the app UI directly.
 - Group changes by user-facing impact when possible.
 - Prefer concise bullet points over implementation details.
 
+## 1.1.10
+
+- Fixed the macOS `Install everything` flow so the packaged `.dmg` release can provide a usable local runtime path instead of blocking on missing Homebrew or CMake setup.
+- Added a bundled macOS `whisper-cli` staging step to release builds so new Mac installs can bootstrap the engine correctly from the packaged app.
+- Added an automatic portable CMake fallback for macOS runtime installation when a local CMake install is not already available.
+
 ## 1.1.9
 
 - Fixed the always-visible pill so it stays on screen after auto-paste and remains more stable during rapid toggling, clicking, pasting, and settings changes.

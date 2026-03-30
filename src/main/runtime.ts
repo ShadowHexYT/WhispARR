@@ -17,6 +17,7 @@ const MODEL_URL =
 const MODEL_FILENAME = "ggml-base.en.bin";
 const GITHUB_RELEASES_LATEST = "https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest";
 const HOMEBREW_FORMULA = "whisper-cpp";
+const CMAKE_RELEASES_LATEST = "https://api.github.com/repos/Kitware/CMake/releases/latest";
 
 function fileExists(filePath: string) {
   return Boolean(filePath) && fs.existsSync(filePath);
@@ -24,6 +25,28 @@ function fileExists(filePath: string) {
 
 function ensureDir(dirPath: string) {
   fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function findFileRecursive(root: string, targetName: string): string | null {
+  if (!fs.existsSync(root)) {
+    return null;
+  }
+
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isFile() && entry.name === targetName) {
+      return fullPath;
+    }
+    if (entry.isDirectory()) {
+      const nested = findFileRecursive(fullPath, targetName);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
 }
 
 function getManagedRuntimeRoot() {
@@ -425,17 +448,13 @@ async function installViaHomebrew(managedRoot: string) {
 }
 
 async function installMacBinaryFromSource(managedRoot: string) {
-  if (!(await commandExists("cmake", ["--version"]))) {
-    throw new Error(
-      "macOS runtime install requires either Homebrew (`brew install whisper-cpp`) or CMake to build whisper.cpp locally."
-    );
-  }
-
   if (!(await commandExists("xcode-select", ["-p"]))) {
     throw new Error(
       "macOS runtime install requires Apple Command Line Tools. Run `xcode-select --install`, then reopen WhispARR."
     );
   }
+
+  const cmakePath = await resolveMacCmakePath(managedRoot);
 
   const release = (await requestBufferJson(GITHUB_RELEASES_LATEST)) as {
     tag_name?: string;
@@ -468,7 +487,7 @@ async function installMacBinaryFromSource(managedRoot: string) {
     const cpuCount = Math.max(1, os.cpus().length);
 
     await runCommand(
-      "cmake",
+      cmakePath,
       [
         "-S",
         sourceDir,
@@ -484,7 +503,7 @@ async function installMacBinaryFromSource(managedRoot: string) {
       { timeout: 10 * 60 * 1000 }
     );
     await runCommand(
-      "cmake",
+      cmakePath,
       ["--build", buildRoot, "--config", "Release", "--target", "whisper-cli", "-j", String(cpuCount)],
       { timeout: 30 * 60 * 1000 }
     );
@@ -513,6 +532,62 @@ async function installMacBinary(managedRoot: string) {
   }
 
   return installMacBinaryFromSource(managedRoot);
+}
+
+async function downloadPortableCmake(managedRoot: string) {
+  const toolsRoot = path.join(managedRoot, "tools");
+  const cmakeRoot = path.join(toolsRoot, "cmake");
+  const existingBinary = findFileRecursive(cmakeRoot, "cmake");
+  if (existingBinary) {
+    fs.chmodSync(existingBinary, 0o755);
+    return existingBinary;
+  }
+
+  const release = (await requestBufferJson(CMAKE_RELEASES_LATEST)) as {
+    tag_name?: string;
+    assets?: Array<{ name: string; browser_download_url: string }>;
+  };
+
+  const asset = release.assets?.find((item) => item.name.endsWith("-macos-universal.tar.gz"))
+    ?? release.assets?.find((item) => item.name.endsWith("-macos10.10-universal.tar.gz"));
+  if (!asset) {
+    throw new Error("Could not locate a portable CMake download for macOS runtime installation.");
+  }
+
+  const tempRoot = fs.mkdtempSync(path.join(app.getPath("temp"), "whisparr-cmake-"));
+  const archivePath = path.join(tempRoot, asset.name);
+  const extractRoot = path.join(tempRoot, "extract");
+
+  try {
+    await downloadToFile(asset.browser_download_url, archivePath);
+    ensureDir(extractRoot);
+    await runCommand("tar", ["-xzf", archivePath, "-C", extractRoot], { timeout: 5 * 60 * 1000 });
+    const cmakeBinary = findFileRecursive(extractRoot, "cmake");
+    if (!cmakeBinary) {
+      throw new Error("Portable CMake download completed, but the cmake binary was not found.");
+    }
+
+    fs.rmSync(cmakeRoot, { recursive: true, force: true });
+    copyDirectory(extractRoot, cmakeRoot);
+    const managedBinary = findFileRecursive(cmakeRoot, "cmake");
+    if (!managedBinary) {
+      throw new Error("Portable CMake installed, but WhispARR could not locate the cmake binary.");
+    }
+
+    fs.chmodSync(managedBinary, 0o755);
+    return managedBinary;
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function resolveMacCmakePath(managedRoot: string) {
+  const systemCmakeExists = await commandExists("cmake", ["--version"]);
+  if (systemCmakeExists) {
+    return "cmake";
+  }
+
+  return downloadPortableCmake(managedRoot);
 }
 
 async function installModel(managedRoot: string) {

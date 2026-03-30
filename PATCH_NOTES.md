@@ -11,6 +11,21 @@ the app UI directly.
 - Group changes by user-facing impact when possible.
 - Prefer concise bullet points over implementation details.
 
+## 1.1.7
+
+- Added a full macOS local-engine install path so WhispARR can use a bundled runtime, Homebrew `whisper-cpp`, or a local whisper.cpp build instead of failing on Mac installs.
+- Improved macOS runtime verification so engine checks are lighter, more reliable, and produce clearer error details when verification fails.
+- Fixed pre-install update notes so release notes render cleanly instead of showing escaped HTML-like markup.
+- Persisted patch-note dismissal by version so dismissed hotfix notes do not reopen after restarting the app.
+- Fixed permanent progression so daily challenge rollover no longer resets XP, total words, achievements, or long-term user progress.
+- Changed onboarding completion tracking to stay completed per install instead of resurfacing unexpectedly after profile or restart state changes.
+- Fixed dictated clipboard persistence so repeated-paste behavior now works correctly when clipboard history saving is enabled, including on macOS.
+- Added press-and-hold dictation directly from the always-visible pill without stealing typing focus from the app the user is working in.
+- Restored live pill waveform/audio-meter behavior so the HUD reacts to speech again during dictation and microphone testing.
+- Added safer pill dragging so move mode never activates push-to-talk, plus a new optional `Ctrl + Alt` drag shortcut in Settings.
+- Replaced media pausing with a new `Lower Volume on Transcription` setting that lowers Windows system output volume during dictation and restores it afterward.
+- Added a configurable reduced-volume slider for transcription ducking and moved that control into the right-side audio slider area for a cleaner settings layout.
+
 ## 1.1.6
 
 - Fixed the in-app patch notes display so update notes render as a clean bulleted list instead of showing raw HTML-like formatting.

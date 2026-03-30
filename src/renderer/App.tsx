@@ -1403,7 +1403,8 @@ export default function App() {
     () => profiles.find((profile) => profile.id === settings.activeProfileId) ?? null,
     [profiles, settings.activeProfileId]
   );
-  const isWindowsPlatform = (appDiagnostics?.platform ?? "").toLowerCase() === "win32";
+  const currentPlatform = (appDiagnostics?.platform ?? "").toLowerCase();
+  const supportsPerDeviceOutputSelection = currentPlatform === "win32" || currentPlatform === "darwin";
   const currentTheme = useMemo(
     () => (settings.appTheme === "custom"
       ? buildCustomTheme(settings.customTheme)
@@ -1419,7 +1420,7 @@ export default function App() {
       key: "dictionarySoundPath" as const,
       volumeKey: "dictionarySoundVolume" as const,
       title: "Dictionary sound",
-      description: "Used when WhispARR auto-adds something to your dictionary.",
+      description: "Dictionary additions",
       path: settings.dictionarySoundPath,
       volume: clampSoundVolume(settings.dictionarySoundVolume)
     },
@@ -1427,7 +1428,7 @@ export default function App() {
       key: "achievementSoundPath" as const,
       volumeKey: "achievementSoundVolume" as const,
       title: "Achievement sound",
-      description: "Used for achievement popups in the app.",
+      description: "Achievement popups",
       path: settings.achievementSoundPath,
       volume: clampSoundVolume(settings.achievementSoundVolume)
     },
@@ -1435,7 +1436,7 @@ export default function App() {
       key: "levelUpSoundPath" as const,
       volumeKey: "levelUpSoundVolume" as const,
       title: "Level-up sound",
-      description: "Used when a profile levels up.",
+      description: "Profile level-ups",
       path: settings.levelUpSoundPath,
       volume: clampSoundVolume(settings.levelUpSoundVolume)
     }
@@ -4516,6 +4517,52 @@ export default function App() {
                 <div className="settings-switch-list">
                   <div className="settings-switch-row">
                     <div className="settings-switch-copy">
+                      <strong>Microphone input device</strong>
+                      <p>Choose which microphone WhispARR should listen to while dictating.</p>
+                    </div>
+                    <div className="path-field settings-inline-device-field">
+                      <select
+                        value={settings.selectedMicId ?? ""}
+                        onChange={(event) =>
+                          void patchSettings({ selectedMicId: event.target.value || null })
+                        }
+                      >
+                        <option value="">System default microphone</option>
+                        {devices.map((device) => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            {device.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="icon-button device-refresh-button"
+                        onClick={() => void refreshDevices()}
+                        type="button"
+                        aria-label="Refresh input devices"
+                        title="Refresh input devices"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path
+                            d="M20 12a8 8 0 1 1-2.34-5.66"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M20 4v5h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="settings-switch-row">
+                    <div className="settings-switch-copy">
                       <strong>Auto-paste</strong>
                       <p>
                         Uses the system clipboard plus a local paste keystroke so dictated text lands
@@ -4982,14 +5029,16 @@ export default function App() {
                 </>
               ) : null}
               <div className="settings-column-footer">
-                {isWindowsPlatform && (
+                {supportsPerDeviceOutputSelection && (
                   <div
                     className={settings.lowerVolumeOnTranscription ? "settings-slider-card active" : "settings-slider-card"}
                     aria-disabled={!settings.lowerVolumeOnTranscription}
                   >
                     <div className="settings-slider-copy">
                       <strong>Transcription output device</strong>
-                      <p>Pick which Windows output device WhispARR should lower while you are dictating.</p>
+                      <p>
+                        Pick which {currentPlatform === "darwin" ? "macOS" : "system"} output device WhispARR should lower while you are dictating.
+                      </p>
                     </div>
                     <div className="path-field">
                       <select
@@ -5043,7 +5092,7 @@ export default function App() {
                     <strong>Reduced volume while transcribing</strong>
                     <p>
                       Choose how low system output volume should drop while you are actively dictating.
-                      {isWindowsPlatform
+                      {supportsPerDeviceOutputSelection
                         ? " WhispARR restores the previous level on the same selected device when dictation ends."
                         : " On macOS this follows the current system output volume."}
                     </p>
@@ -5072,20 +5121,19 @@ export default function App() {
                 >
                   <div className="settings-slider-copy">
                     <strong>Application sound files</strong>
-                    <p>Pick custom files and tune each sound before the master app volume is applied.</p>
+                    <p>Pick optional files and tune each cue.</p>
                   </div>
                   <div className="settings-sound-file-list">
                     {customSoundRows.map((soundRow) => (
                       <div key={soundRow.key} className="settings-sound-file-row">
                         <div className="settings-sound-file-header">
                           <div className="settings-sound-file-copy">
-                            <strong>{soundRow.title}</strong>
-                            <p>{soundRow.description}</p>
-                            {soundRow.path && (
-                              <span className="settings-sound-file-name">
-                                {getPathLeaf(soundRow.path)}
-                              </span>
-                            )}
+                            <div className="settings-sound-file-title-row">
+                              <strong>{soundRow.title}</strong>
+                            </div>
+                            <span className="settings-sound-file-name">
+                              {soundRow.path ? getPathLeaf(soundRow.path) : "Default app sound"}
+                            </span>
                           </div>
                           <div className="button-row compact settings-sound-file-actions">
                             <button
@@ -5104,7 +5152,7 @@ export default function App() {
                               disabled={settings.muteDictationSounds}
                               onClick={() => void chooseSoundFile(soundRow.key)}
                             >
-                              Choose file
+                              Choose
                             </button>
                             <button
                               className="ghost-button"
@@ -5118,7 +5166,7 @@ export default function App() {
                         </div>
                         <div className="settings-sound-inline-slider">
                           <div className="settings-sound-inline-readout">
-                            <span>Volume</span>
+                            <span>Level</span>
                             <strong>{soundRow.volume}%</strong>
                           </div>
                           <ElasticSettingSlider

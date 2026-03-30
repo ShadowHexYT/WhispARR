@@ -1382,6 +1382,11 @@ select option:disabled {
   gap: var(--space-2);
 }
 
+.settings-inline-device-field {
+  width: min(100%, 440px);
+  margin-top: 10px;
+}
+
 .device-refresh-button {
   height: 50px;
 }
@@ -1647,13 +1652,13 @@ select option:disabled {
 
 .settings-sound-file-list {
   display: grid;
-  gap: var(--space-2);
+  gap: 10px;
 }
 
 .settings-sound-file-row {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
+  gap: 10px;
+  padding: 10px 0;
   border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
 }
 
@@ -1663,40 +1668,49 @@ select option:disabled {
 }
 
 .settings-sound-file-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
 }
 
 .settings-sound-file-copy {
   display: grid;
-  gap: var(--space-1);
+  gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.settings-sound-file-copy p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.5;
+.settings-sound-file-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.settings-sound-file-title-row strong {
+  line-height: 1.1;
 }
 
 .settings-sound-file-name {
   display: inline-flex;
   width: fit-content;
-  padding: 4px 10px;
+  max-width: 100%;
+  padding: 3px 9px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--button-top) 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--button-border) 100%, transparent);
   color: var(--text);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings-sound-inline-slider {
   display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  gap: 8px;
+  margin-top: 0;
 }
 
 .settings-sound-inline-readout {
@@ -1705,20 +1719,39 @@ select option:disabled {
   justify-content: space-between;
   gap: var(--space-2);
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.8rem;
 }
 
 .settings-sound-file-actions {
   flex: 0 0 auto;
   justify-content: flex-end;
   align-self: flex-start;
+  gap: 8px;
+}
+
+.settings-sound-file-actions .secondary-button,
+.settings-sound-file-actions .ghost-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-size: 0.95rem;
 }
 
 .settings-sound-preview-button {
-  width: 52px;
-  height: 48px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   padding: 0;
+}
+
+@media (max-width: 1120px) {
+  .settings-sound-file-header {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sound-file-actions {
+    justify-content: flex-start;
+  }
 }
 
 .bounce-slider-shell {

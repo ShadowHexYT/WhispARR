@@ -794,12 +794,182 @@ $target = [Math]::Max(0, [Math]::Min(100, [int]$env:WHISPARR_TARGET_VOLUME))
 `;
 }
 
+function getMacAudioScript(action: "list" | "get" | "set") {
+  return `
+import Foundation
+import CoreAudio
+
+struct OutputDevice: Codable {
+  let id: String
+  let label: String
+  let isDefault: Bool
+}
+
+enum AudioScriptError: Error {
+  case propertyUnavailable
+  case coreAudio(OSStatus)
+  case invalidValue
+}
+
+func readPropertySize(objectID: AudioObjectID, address: inout AudioObjectPropertyAddress) throws -> UInt32 {
+  var size: UInt32 = 0
+  let status = AudioObjectGetPropertyDataSize(objectID, &address, 0, nil, &size)
+  guard status == noErr else { throw AudioScriptError.coreAudio(status) }
+  return size
+}
+
+func readScalarProperty<T>(objectID: AudioObjectID, address: inout AudioObjectPropertyAddress, as type: T.Type) throws -> T {
+  var value = unsafeBitCast(0, to: T.self)
+  var size = UInt32(MemoryLayout<T>.size)
+  let status = AudioObjectGetPropertyData(objectID, &address, 0, nil, &size, &value)
+  guard status == noErr else { throw AudioScriptError.coreAudio(status) }
+  return value
+}
+
+func readCFStringProperty(objectID: AudioObjectID, address: inout AudioObjectPropertyAddress) throws -> String {
+  var unmanaged: Unmanaged<CFString>?
+  var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+  let status = AudioObjectGetPropertyData(objectID, &address, 0, nil, &size, &unmanaged)
+  guard status == noErr, let value = unmanaged?.takeRetainedValue() else { throw AudioScriptError.coreAudio(status) }
+  return value as String
+}
+
+func deviceIDs() throws -> [AudioDeviceID] {
+  var address = AudioObjectPropertyAddress(
+    mSelector: kAudioHardwarePropertyDevices,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain
+  )
+  let size = try readPropertySize(objectID: AudioObjectID(kAudioObjectSystemObject), address: &address)
+  let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+  var ids = Array(repeating: AudioDeviceID(0), count: count)
+  var mutableSize = size
+  let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &mutableSize, &ids)
+  guard status == noErr else { throw AudioScriptError.coreAudio(status) }
+  return ids
+}
+
+func defaultOutputDeviceID() throws -> AudioDeviceID {
+  var address = AudioObjectPropertyAddress(
+    mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain
+  )
+  return try readScalarProperty(objectID: AudioObjectID(kAudioObjectSystemObject), address: &address, as: AudioDeviceID.self)
+}
+
+func deviceUID(_ deviceID: AudioDeviceID) throws -> String {
+  var address = AudioObjectPropertyAddress(
+    mSelector: kAudioDevicePropertyDeviceUID,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain
+  )
+  return try readCFStringProperty(objectID: deviceID, address: &address)
+}
+
+func deviceName(_ deviceID: AudioDeviceID) throws -> String {
+  var address = AudioObjectPropertyAddress(
+    mSelector: kAudioObjectPropertyName,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain
+  )
+  return try readCFStringProperty(objectID: deviceID, address: &address)
+}
+
+func hasOutputStreams(_ deviceID: AudioDeviceID) -> Bool {
+  var address = AudioObjectPropertyAddress(
+    mSelector: kAudioDevicePropertyStreams,
+    mScope: kAudioDevicePropertyScopeOutput,
+    mElement: kAudioObjectPropertyElementMain
+  )
+  guard AudioObjectHasProperty(deviceID, &address) else { return false }
+  guard let size = try? readPropertySize(objectID: deviceID, address: &address) else { return false }
+  return size > 0
+}
+
+func resolveDeviceID(from uid: String?) throws -> AudioDeviceID {
+  guard let uid, !uid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    return try defaultOutputDeviceID()
+  }
+
+  for candidate in try deviceIDs() {
+    if let candidateUID = try? deviceUID(candidate), candidateUID == uid {
+      return candidate
+    }
+  }
+
+  return try defaultOutputDeviceID()
+}
+
+func volumeAddress() -> AudioObjectPropertyAddress {
+  AudioObjectPropertyAddress(
+    mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+    mScope: kAudioDevicePropertyScopeOutput,
+    mElement: kAudioObjectPropertyElementMain
+  )
+}
+
+func getVolumePercent(for deviceID: AudioDeviceID) throws -> Int {
+  var address = volumeAddress()
+  guard AudioObjectHasProperty(deviceID, &address) else { throw AudioScriptError.propertyUnavailable }
+  var volume = Float32(0)
+  var size = UInt32(MemoryLayout<Float32>.size)
+  let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume)
+  guard status == noErr else { throw AudioScriptError.coreAudio(status) }
+  return Int(round(max(0, min(1, volume)) * 100))
+}
+
+func setVolumePercent(for deviceID: AudioDeviceID, target: Int) throws -> Int {
+  var address = volumeAddress()
+  guard AudioObjectHasProperty(deviceID, &address) else { throw AudioScriptError.propertyUnavailable }
+  var volume = Float32(max(0, min(100, target))) / 100
+  let size = UInt32(MemoryLayout<Float32>.size)
+  let status = AudioObjectSetPropertyData(deviceID, &address, 0, nil, size, &volume)
+  guard status == noErr else { throw AudioScriptError.coreAudio(status) }
+  return Int(round(max(0, min(1, volume)) * 100))
+}
+
+let selectedUID = ProcessInfo.processInfo.environment["WHISPARR_TARGET_DEVICE_ID"]
+
+do {
+  switch "${action}" {
+  case "list":
+    let defaultID = try defaultOutputDeviceID()
+    let devices = try deviceIDs()
+      .filter { hasOutputStreams($0) }
+      .compactMap { deviceID -> OutputDevice? in
+        guard let uid = try? deviceUID(deviceID), let name = try? deviceName(deviceID) else { return nil }
+        return OutputDevice(id: uid, label: name, isDefault: deviceID == defaultID)
+      }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = []
+    let data = try encoder.encode(devices)
+    FileHandle.standardOutput.write(data)
+  case "get":
+    let deviceID = try resolveDeviceID(from: selectedUID)
+    print(try getVolumePercent(for: deviceID))
+  case "set":
+    guard let rawTarget = ProcessInfo.processInfo.environment["WHISPARR_TARGET_VOLUME"], let target = Int(rawTarget) else {
+      throw AudioScriptError.invalidValue
+    }
+    let deviceID = try resolveDeviceID(from: selectedUID)
+    print(try setVolumePercent(for: deviceID, target: target))
+  default:
+    throw AudioScriptError.invalidValue
+  }
+} catch {
+  fputs(String(describing: error), stderr)
+  exit(1)
+}
+`;
+}
+
 function normalizeOutputDeviceId(deviceId: string | null | undefined) {
   return typeof deviceId === "string" && deviceId.trim().length > 0 ? deviceId.trim() : null;
 }
 
 function getSelectedOutputDeviceId() {
-  if (process.platform !== "win32") {
+  if (process.platform !== "win32" && process.platform !== "darwin") {
     return null;
   }
 
@@ -809,7 +979,9 @@ function getSelectedOutputDeviceId() {
 async function getSystemOutputVolume(deviceId?: string | null) {
   if (process.platform === "darwin") {
     try {
-      const value = await runAppleScript("output volume of (get volume settings)");
+      const value = await runSwiftScript(getMacAudioScript("get"), {
+        ...(normalizeOutputDeviceId(deviceId) ? { WHISPARR_TARGET_DEVICE_ID: normalizeOutputDeviceId(deviceId) as string } : {})
+      });
       const parsed = Number.parseInt(value, 10);
       return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
     } catch (error) {
@@ -837,7 +1009,10 @@ async function getSystemOutputVolume(deviceId?: string | null) {
 async function setSystemOutputVolume(volume: number, deviceId?: string | null) {
   if (process.platform === "darwin") {
     try {
-      await runAppleScript(`set volume output volume ${Math.max(0, Math.min(100, Math.round(volume)))}`);
+      await runSwiftScript(getMacAudioScript("set"), {
+        WHISPARR_TARGET_VOLUME: String(Math.max(0, Math.min(100, Math.round(volume)))),
+        ...(normalizeOutputDeviceId(deviceId) ? { WHISPARR_TARGET_DEVICE_ID: normalizeOutputDeviceId(deviceId) as string } : {})
+      });
       return true;
     } catch (error) {
       console.warn("WhispARR: failed to set macOS output volume", error);
@@ -883,26 +1058,16 @@ async function listAudioOutputDevices(): Promise<AudioOutputDevice[]> {
 
   if (process.platform === "darwin") {
     try {
-      const output = await runSystemProfiler(["SPAudioDataType", "-json"]);
-      const parsed = JSON.parse(output) as {
-        SPAudioDataType?: Array<{ _items?: Array<Record<string, unknown>> }>;
-      };
-      const items = (parsed.SPAudioDataType ?? []).flatMap((section) => Array.isArray(section._items) ? section._items : []);
-      const outputs = items
-        .filter((item) =>
-          typeof item._name === "string" &&
-          (typeof item.coreaudio_device_output === "number" ||
-            item.coreaudio_default_audio_output_device === "spaudio_yes")
-        )
-        .map((item) => ({
-          id: String(item._name),
-          label: String(item._name),
-          isDefault:
-            item.coreaudio_default_audio_output_device === "spaudio_yes" ||
-            item.coreaudio_default_audio_system_device === "spaudio_yes"
-        }));
-
-      return outputs.sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.label.localeCompare(right.label));
+      const output = await runSwiftScript(getMacAudioScript("list"));
+      const parsed = JSON.parse(output) as Array<{ id?: unknown; label?: unknown; isDefault?: unknown }>;
+      return parsed
+        .filter((entry) => typeof entry?.id === "string" && typeof entry?.label === "string")
+        .map((entry) => ({
+          id: entry.id as string,
+          label: entry.label as string,
+          isDefault: entry.isDefault === true
+        }))
+        .sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.label.localeCompare(right.label));
     } catch (error) {
       console.warn("WhispARR: failed to enumerate macOS output devices", error);
       return [];
@@ -989,15 +1154,21 @@ function runAppleScript(script: string) {
   });
 }
 
-function runSystemProfiler(args: string[]) {
+function runSwiftScript(script: string, envOverrides: Record<string, string> = {}) {
   return new Promise<string>((resolve, reject) => {
-    execFile("system_profiler", args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+    execFile("swift", ["-e", script], {
+      env: {
+        ...process.env,
+        ...envOverrides
+      },
+      maxBuffer: 8 * 1024 * 1024
+    }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(stderr?.trim() || error.message));
         return;
       }
 
-      resolve(stdout);
+      resolve(stdout.trim());
     });
   });
 }

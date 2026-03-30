@@ -66,6 +66,8 @@ For the best first-run experience:
 
 - Ship packaged builds with the runtime already included under `runtime/`
 - Let users open the app and click `Install everything` only for lean builds or self-updating runtime installs
+- On macOS, `Install everything` can use Homebrew's `whisper-cpp` formula when available, then
+  falls back to building `whisper-cli` locally if no bundled runtime ships with the app
 
 The app then stores the runtime locally and only needs the user to:
 

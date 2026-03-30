@@ -4,3 +4,5 @@ Place bundled offline speech runtime files here before packaging:
 - `runtime/models/<model>.bin` or `.gguf`
 
 The packaged app will auto-detect these files on launch.
+On macOS, if no bundled runtime is present, WhispARR can also install `whisper-cpp`
+through Homebrew or build `whisper-cli` locally as a fallback.

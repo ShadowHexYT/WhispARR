@@ -16,6 +16,7 @@ const MODEL_URL =
   "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin?download=true";
 const MODEL_FILENAME = "ggml-base.en.bin";
 const GITHUB_RELEASES_LATEST = "https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest";
+const HOMEBREW_FORMULA = "whisper-cpp";
 
 function fileExists(filePath: string) {
   return Boolean(filePath) && fs.existsSync(filePath);
@@ -116,6 +117,25 @@ function getBundledRoots() {
   return [path.join(process.resourcesPath, "runtime"), path.join(process.cwd(), "runtime")];
 }
 
+function getVerificationModelPath(binaryPath: string, modelPath: string) {
+  if (process.platform !== "darwin") {
+    return modelPath;
+  }
+
+  try {
+    const resolvedBinary = fs.realpathSync(binaryPath);
+    const prefix = path.resolve(path.dirname(resolvedBinary), "..");
+    const homebrewTestModel = path.join(prefix, "share", "whisper-cpp", "for-tests-ggml-tiny.bin");
+    if (fileExists(homebrewTestModel)) {
+      return homebrewTestModel;
+    }
+  } catch {
+    // Fall back to the configured model when the binary is not symlinked into a Homebrew prefix.
+  }
+
+  return modelPath;
+}
+
 function writeSilentWav(filePath: string, sampleRate = 16000, durationMs = 250) {
   const sampleCount = Math.max(1, Math.floor((sampleRate * durationMs) / 1000));
   const numChannels = 1;
@@ -150,6 +170,23 @@ function copyDirectory(source: string, destination: string) {
 
   ensureDir(destination);
   fs.cpSync(source, destination, { recursive: true, force: true });
+}
+
+function copyFileWithMode(source: string, destination: string) {
+  ensureDir(path.dirname(destination));
+  fs.copyFileSync(source, destination);
+  fs.chmodSync(destination, 0o755);
+}
+
+function symlinkOrCopy(source: string, destination: string) {
+  ensureDir(path.dirname(destination));
+  fs.rmSync(destination, { force: true });
+
+  try {
+    fs.symlinkSync(source, destination);
+  } catch {
+    copyFileWithMode(source, destination);
+  }
 }
 
 function requestBufferJson(url: string): Promise<unknown> {
@@ -244,6 +281,52 @@ async function downloadToFile(url: string, filePath: string): Promise<void> {
   });
 }
 
+async function runCommand(
+  command: string,
+  args: string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number } = {}
+) {
+  await new Promise<void>((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      {
+        cwd: options.cwd,
+        env: options.env,
+        timeout: options.timeout ?? 30 * 60 * 1000,
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024
+      },
+      (error, stdout, stderr) => {
+        if (!error) {
+          resolve();
+          return;
+        }
+
+        const message = [error.message, stderr, stdout]
+          .filter((value) => typeof value === "string" && value.trim().length > 0)
+          .join("\n")
+          .trim();
+
+        reject(new Error(message || `Command failed: ${command} ${args.join(" ")}`));
+      }
+    );
+  });
+}
+
+async function commandExists(command: string, args = ["--version"]) {
+  return new Promise<boolean>((resolve) => {
+    execFile(command, args, { windowsHide: true, timeout: 15_000 }, (error) => {
+      if (!error) {
+        resolve(true);
+        return;
+      }
+
+      resolve((error as NodeJS.ErrnoException).code !== "ENOENT");
+    });
+  });
+}
+
 function getWindowsAssetName() {
   if (process.arch === "ia32") {
     return "whisper-bin-Win32.zip";
@@ -268,6 +351,170 @@ async function installWindowsBinary(managedRoot: string) {
   await extract(zipPath, { dir: managedRoot });
 }
 
+async function getInstalledHomebrewPrefix() {
+  try {
+    const prefix = await new Promise<string>((resolve, reject) => {
+      execFile(
+        "brew",
+        ["--prefix", HOMEBREW_FORMULA],
+        { windowsHide: true, timeout: 60_000 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(
+              new Error(
+                [error.message, stderr, stdout]
+                  .filter((value) => typeof value === "string" && value.trim().length > 0)
+                  .join("\n")
+                  .trim()
+              )
+            );
+            return;
+          }
+
+          resolve(stdout.trim());
+        }
+      );
+    });
+
+    return prefix || null;
+  } catch {
+    return null;
+  }
+}
+
+async function installViaHomebrew(managedRoot: string) {
+  const managedBinaryPath = path.join(managedRoot, "bin", "whisper-cli");
+  const existingPrefix = await getInstalledHomebrewPrefix();
+
+  if (existingPrefix) {
+    const binaryPath = path.join(existingPrefix, "bin", "whisper-cli");
+    if (fileExists(binaryPath)) {
+      symlinkOrCopy(binaryPath, managedBinaryPath);
+      return managedBinaryPath;
+    }
+  }
+
+  if (!(await commandExists("brew", ["--version"]))) {
+    return null;
+  }
+
+  await runCommand("brew", ["install", HOMEBREW_FORMULA], {
+    env: {
+      ...process.env,
+      HOMEBREW_NO_AUTO_UPDATE: "1",
+      HOMEBREW_NO_ENV_HINTS: "1"
+    }
+  });
+
+  const installedPrefix = await getInstalledHomebrewPrefix();
+  if (!installedPrefix) {
+    throw new Error(
+      "Homebrew reported a successful install, but WhispARR could not locate the whisper-cpp prefix."
+    );
+  }
+
+  const binaryPath = path.join(installedPrefix, "bin", "whisper-cli");
+  if (!fileExists(binaryPath)) {
+    throw new Error(
+      `Homebrew installed ${HOMEBREW_FORMULA}, but ${binaryPath} was not found afterward.`
+    );
+  }
+
+  symlinkOrCopy(binaryPath, managedBinaryPath);
+  return managedBinaryPath;
+}
+
+async function installMacBinaryFromSource(managedRoot: string) {
+  if (!(await commandExists("cmake", ["--version"]))) {
+    throw new Error(
+      "macOS runtime install requires either Homebrew (`brew install whisper-cpp`) or CMake to build whisper.cpp locally."
+    );
+  }
+
+  if (!(await commandExists("xcode-select", ["-p"]))) {
+    throw new Error(
+      "macOS runtime install requires Apple Command Line Tools. Run `xcode-select --install`, then reopen WhispARR."
+    );
+  }
+
+  const release = (await requestBufferJson(GITHUB_RELEASES_LATEST)) as {
+    tag_name?: string;
+    zipball_url?: string;
+  };
+
+  if (!release.zipball_url) {
+    throw new Error("Could not locate the whisper.cpp source archive for macOS runtime installation.");
+  }
+
+  const tempRoot = fs.mkdtempSync(path.join(app.getPath("temp"), "whisparr-macos-runtime-"));
+  const archivePath = path.join(tempRoot, `whisper.cpp-${release.tag_name ?? "latest"}.zip`);
+  const extractRoot = path.join(tempRoot, "source");
+  const buildRoot = path.join(tempRoot, "build");
+  const managedBinaryPath = path.join(managedRoot, "bin", "whisper-cli");
+
+  try {
+    await downloadToFile(release.zipball_url, archivePath);
+    await extract(archivePath, { dir: extractRoot });
+
+    const sourceDirName = fs
+      .readdirSync(extractRoot, { withFileTypes: true })
+      .find((entry) => entry.isDirectory())?.name;
+
+    if (!sourceDirName) {
+      throw new Error("Downloaded whisper.cpp source archive did not contain a source directory.");
+    }
+
+    const sourceDir = path.join(extractRoot, sourceDirName);
+    const cpuCount = Math.max(1, os.cpus().length);
+
+    await runCommand(
+      "cmake",
+      [
+        "-S",
+        sourceDir,
+        "-B",
+        buildRoot,
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DWHISPER_BUILD_EXAMPLES=ON",
+        "-DWHISPER_BUILD_TESTS=OFF",
+        "-DWHISPER_BUILD_SERVER=OFF",
+        "-DWHISPER_SDL2=OFF"
+      ],
+      { timeout: 10 * 60 * 1000 }
+    );
+    await runCommand(
+      "cmake",
+      ["--build", buildRoot, "--config", "Release", "--target", "whisper-cli", "-j", String(cpuCount)],
+      { timeout: 30 * 60 * 1000 }
+    );
+
+    const builtBinaryCandidates = [
+      path.join(buildRoot, "bin", "whisper-cli"),
+      path.join(buildRoot, "bin", "Release", "whisper-cli")
+    ];
+    const builtBinary = builtBinaryCandidates.find(fileExists);
+
+    if (!builtBinary) {
+      throw new Error("Local macOS runtime build finished, but whisper-cli was not produced.");
+    }
+
+    copyFileWithMode(builtBinary, managedBinaryPath);
+    return managedBinaryPath;
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function installMacBinary(managedRoot: string) {
+  const homebrewBinary = await installViaHomebrew(managedRoot);
+  if (homebrewBinary) {
+    return homebrewBinary;
+  }
+
+  return installMacBinaryFromSource(managedRoot);
+}
+
 async function installModel(managedRoot: string) {
   const modelPath = path.join(managedRoot, "models", MODEL_FILENAME);
   if (fileExists(modelPath)) {
@@ -290,6 +537,7 @@ async function verifyRuntimeCandidate(binaryPath: string, modelPath: string) {
   const tempDir = fs.mkdtempSync(path.join(app.getPath("temp"), "whisparr-runtime-check-"));
   const audioPath = path.join(tempDir, "smoke-test.wav");
   const outputBase = path.join(tempDir, "smoke-test");
+  const verificationModelPath = getVerificationModelPath(binaryPath, modelPath);
 
   try {
     writeSilentWav(audioPath);
@@ -297,13 +545,29 @@ async function verifyRuntimeCandidate(binaryPath: string, modelPath: string) {
     await new Promise<void>((resolve, reject) => {
       execFile(
         binaryPath,
-        ["-m", modelPath, "-f", audioPath, "-t", "1", "-otxt", "-of", outputBase, "-nt"],
-        { timeout: 120000, windowsHide: true },
-        (error) => {
+        [
+          "-m",
+          verificationModelPath,
+          "-f",
+          audioPath,
+          "-t",
+          "1",
+          "-otxt",
+          "-of",
+          outputBase,
+          "-nt",
+          ...(process.platform === "darwin" ? ["-ng"] : [])
+        ],
+        { timeout: process.platform === "darwin" ? 300000 : 120000, windowsHide: true },
+        (error, stdout, stderr) => {
           if (error) {
+            const details = [stderr, stdout]
+              .filter((value) => typeof value === "string" && value.trim().length > 0)
+              .join("\n")
+              .trim();
             reject(
               new Error(
-                `Installed runtime failed its local verification check: ${error.message}.`
+                `Installed runtime failed its local verification check: ${error.message}${details ? `\n${details}` : ""}`
               )
             );
             return;
@@ -375,9 +639,11 @@ export async function installRuntime(): Promise<RuntimeInstallResult> {
   if (!findBinary(managedRoot)) {
     if (process.platform === "win32") {
       await installWindowsBinary(managedRoot);
+    } else if (process.platform === "darwin") {
+      await installMacBinary(managedRoot);
     } else {
       throw new Error(
-        "This build does not include a bundled macOS runtime. Package a local runtime under runtime/bin for turnkey macOS installs."
+        "This build does not include a bundled runtime for this platform."
       );
     }
   }

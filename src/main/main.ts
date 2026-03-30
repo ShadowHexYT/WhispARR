@@ -170,6 +170,12 @@ let managedClipboardSession:
   | null = null;
 let hudPressToTalkActive = false;
 let hudMoveModeSource: "manual" | "hotkey" | null = null;
+let volumeDuckSession:
+  | {
+      originalVolume: number;
+      loweredVolume: number;
+    }
+  | null = null;
 let registeredActivationAccelerator: string | null = null;
 let pushToTalkEventId = 0;
 const HUD_BASE_WIDTH = 110;
@@ -522,7 +528,7 @@ function beginPushToTalkSession() {
   }
 
   pushToTalkActive = true;
-  pauseMediaForDictationIfNeeded();
+  void duckVolumeForDictationIfNeeded();
   updateHud({
     visible: true,
     level: 0,
@@ -541,6 +547,7 @@ function endPushToTalkSession() {
   }
 
   pushToTalkActive = false;
+  void restoreVolumeAfterDictationIfNeeded();
   updateHud({
     visible: false,
     level: 0,
@@ -577,60 +584,142 @@ function updateLaunchOnLogin(settings: AppSettings) {
   });
 }
 
-function pauseActiveMediaSessions() {
-  if (process.platform !== "win32") {
-    return;
-  }
+function getWindowsVolumeScript(action: "get" | "set") {
+  return `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
 
-  const script = `
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime]
-[void][System.WindowsRuntimeSystemExtensions, System.Runtime.WindowsRuntime, ContentType=WindowsRuntime]
-function Await($operation) {
-  return [System.WindowsRuntimeSystemExtensions]::AsTask($operation).GetAwaiter().GetResult()
-}
-$manager = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
-foreach ($session in $manager.GetSessions()) {
-  try {
-    $appId = ""
-    try {
-      $appId = [string]$session.SourceAppUserModelId
-    } catch {
-      $appId = ""
-    }
-    if ($appId -match "discord") {
-      continue
-    }
+[Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), ComImport]
+public class MMDeviceEnumeratorComObject {}
 
-    $playbackInfo = $session.GetPlaybackInfo()
-    if (
-      $playbackInfo -and
-      $playbackInfo.PlaybackStatus -eq
-        [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
-    ) {
-      $controls = $playbackInfo.Controls
-      if ($controls -and $controls.IsPauseEnabled) {
-        [void](Await($session.TryPauseAsync()))
-      }
-    }
-  } catch {
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator {
+  int NotImpl1();
+  int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppDevice);
+}
+
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice {
+  int Activate(ref Guid iid, int dwClsCtx, IntPtr pActivationParams, [MarshalAs(UnmanagedType.IUnknown)] out object ppInterface);
+}
+
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume {
+  int RegisterControlChangeNotify(IntPtr pNotify);
+  int UnregisterControlChangeNotify(IntPtr pNotify);
+  int GetChannelCount(out uint pnChannelCount);
+  int SetMasterVolumeLevel(float fLevelDB, ref Guid pguidEventContext);
+  int SetMasterVolumeLevelScalar(float fLevel, ref Guid pguidEventContext);
+  int GetMasterVolumeLevel(out float pfLevelDB);
+  int GetMasterVolumeLevelScalar(out float pfLevel);
+  int SetChannelVolumeLevel(uint nChannel, float fLevelDB, ref Guid pguidEventContext);
+  int SetChannelVolumeLevelScalar(uint nChannel, float fLevel, ref Guid pguidEventContext);
+  int GetChannelVolumeLevel(uint nChannel, out float pfLevelDB);
+  int GetChannelVolumeLevelScalar(uint nChannel, out float pfLevel);
+  int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, ref Guid pguidEventContext);
+  int GetMute(out bool pbMute);
+  int GetVolumeStepInfo(out uint pnStep, out uint pnStepCount);
+  int VolumeStepUp(ref Guid pguidEventContext);
+  int VolumeStepDown(ref Guid pguidEventContext);
+  int QueryHardwareSupport(out uint pdwHardwareSupportMask);
+  int GetVolumeRange(out float pflVolumeMindB, out float pflVolumeMaxdB, out float pflVolumeIncrementdB);
+}
+
+public static class WhispARRSystemVolume {
+  public static IAudioEndpointVolume GetEndpointVolume() {
+    var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+    IMMDevice device;
+    Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(0, 1, out device));
+    object endpointVolume;
+    var iid = typeof(IAudioEndpointVolume).GUID;
+    Marshal.ThrowExceptionForHR(device.Activate(ref iid, 23, IntPtr.Zero, out endpointVolume));
+    return (IAudioEndpointVolume)endpointVolume;
   }
 }
+"@
+$volume = [WhispARRSystemVolume]::GetEndpointVolume()
+${action === "get"
+  ? `
+[float]$level = 0
+[void]$volume.GetMasterVolumeLevelScalar([ref]$level)
+[Math]::Round($level * 100)
+`
+  : `
+$target = [Math]::Max(0, [Math]::Min(100, [int]$env:WHISPARR_TARGET_VOLUME))
+$context = [Guid]::Empty
+[void]$volume.SetMasterVolumeLevelScalar($target / 100.0, [ref]$context)
+Write-Output $target
+`}
 `;
-
-  execFile(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-    () => {}
-  );
 }
 
-function pauseMediaForDictationIfNeeded() {
-  if (!currentSettings.muteMusicWhileDictating) {
+async function getSystemOutputVolume() {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  try {
+    const value = await runPowerShell(getWindowsVolumeScript("get"));
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setSystemOutputVolume(volume: number) {
+  if (process.platform !== "win32") {
+    return false;
+  }
+
+  try {
+    await runPowerShell(getWindowsVolumeScript("set"), {
+      WHISPARR_TARGET_VOLUME: String(Math.max(0, Math.min(100, Math.round(volume))))
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function duckVolumeForDictationIfNeeded() {
+  if (!currentSettings.lowerVolumeOnTranscription || volumeDuckSession || process.platform !== "win32") {
     return;
   }
 
-  pauseActiveMediaSessions();
+  const originalVolume = await getSystemOutputVolume();
+  if (originalVolume === null) {
+    return;
+  }
+
+  const loweredVolume = Math.max(
+    0,
+    Math.min(100, Math.round(currentSettings.transcriptionReducedVolume))
+  );
+
+  if (await setSystemOutputVolume(loweredVolume)) {
+    volumeDuckSession = {
+      originalVolume,
+      loweredVolume
+    };
+  }
+}
+
+async function restoreVolumeAfterDictationIfNeeded() {
+  if (!volumeDuckSession || process.platform !== "win32") {
+    return;
+  }
+
+  const session = volumeDuckSession;
+  volumeDuckSession = null;
+  const currentVolume = await getSystemOutputVolume();
+
+  if (currentVolume !== null && currentVolume !== session.loweredVolume) {
+    return;
+  }
+
+  await setSystemOutputVolume(session.originalVolume);
 }
 
 function runPowerShell(script: string, envOverrides: Record<string, string> = {}) {
@@ -1319,6 +1408,10 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  if (volumeDuckSession) {
+    void setSystemOutputVolume(volumeDuckSession.originalVolume);
+    volumeDuckSession = null;
+  }
   pressedKeys.clear();
   globalShortcut.unregisterAll();
   uIOhook.stop();

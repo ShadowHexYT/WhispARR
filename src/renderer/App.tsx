@@ -149,7 +149,8 @@ const defaultSettings: AppSettings = {
   achievementSoundVolume: 50,
   dictionarySoundPath: "",
   dictionarySoundVolume: 50,
-  muteMusicWhileDictating: false,
+  lowerVolumeOnTranscription: false,
+  transcriptionReducedVolume: 25,
   saveDictationToClipboardHistory: false,
   codingLanguageMode: false,
   smartFormatting: true,
@@ -712,6 +713,10 @@ function shortcutFromKeyboardEvent(event: KeyboardEvent): ActivationShortcut {
 }
 
 function clampSoundVolume(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
@@ -4531,20 +4536,23 @@ export default function App() {
                   </div>
                   <div className="settings-switch-row">
                     <div className="settings-switch-copy">
-                      <strong>Auto mute music when speaking</strong>
-                      <p>Pauses media that is actively playing when dictation starts and never resumes anything automatically.</p>
+                      <strong>Lower Volume on Transcription</strong>
+                      <p>
+                        Lowers your computer's current output volume while you are dictating, then restores the
+                        previous volume when transcription ends.
+                      </p>
                     </div>
                     <button
-                      className={settings.muteMusicWhileDictating ? "settings-switch active" : "settings-switch"}
+                      className={settings.lowerVolumeOnTranscription ? "settings-switch active" : "settings-switch"}
                       onClick={() =>
                         void patchSettings({
-                          muteMusicWhileDictating: !settings.muteMusicWhileDictating
+                          lowerVolumeOnTranscription: !settings.lowerVolumeOnTranscription
                         })
                       }
                       type="button"
                       role="switch"
-                      aria-checked={settings.muteMusicWhileDictating}
-                      aria-label="Toggle auto mute music when speaking"
+                      aria-checked={settings.lowerVolumeOnTranscription}
+                      aria-label="Toggle lower volume on transcription"
                     >
                       <span className="settings-switch-thumb" aria-hidden="true" />
                     </button>
@@ -4957,6 +4965,32 @@ export default function App() {
                 </>
               ) : null}
               <div className="settings-column-footer">
+                <div
+                  className={settings.lowerVolumeOnTranscription ? "settings-slider-card active" : "settings-slider-card"}
+                  aria-disabled={!settings.lowerVolumeOnTranscription}
+                >
+                  <div className="settings-slider-copy">
+                    <strong>Reduced volume while transcribing</strong>
+                    <p>Choose how low system output volume should drop while you are actively dictating.</p>
+                  </div>
+                  <div className="bounce-slider-shell">
+                    <div className="bounce-slider-readout">
+                      <span>Lower</span>
+                      <strong>{clampSoundVolume(settings.transcriptionReducedVolume)}%</strong>
+                      <span>Higher</span>
+                    </div>
+                    <ElasticSettingSlider
+                      ariaLabel="Reduced volume while transcribing"
+                      value={clampSoundVolume(settings.transcriptionReducedVolume)}
+                      disabled={!settings.lowerVolumeOnTranscription}
+                      onChange={(nextValue) =>
+                        void patchSettings({
+                          transcriptionReducedVolume: clampSoundVolume(nextValue)
+                        })
+                      }
+                    />
+                  </div>
+                </div>
                 <div
                   className={!settings.muteDictationSounds ? "settings-slider-card active" : "settings-slider-card"}
                   aria-disabled={settings.muteDictationSounds}

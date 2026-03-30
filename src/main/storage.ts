@@ -57,7 +57,8 @@ const defaultSettings: AppSettings = {
   achievementSoundVolume: 50,
   dictionarySoundPath: "",
   dictionarySoundVolume: 50,
-  muteMusicWhileDictating: false,
+  lowerVolumeOnTranscription: false,
+  transcriptionReducedVolume: 25,
   saveDictationToClipboardHistory: false,
   codingLanguageMode: false,
   smartFormatting: true,
@@ -788,6 +789,10 @@ function ensureDataFile() {
 function parseDataContent(content: string): LocalData | null {
   try {
     const parsed = JSON.parse(content) as Partial<LocalData>;
+    const parsedSettings =
+      parsed.settings && typeof parsed.settings === "object"
+        ? (parsed.settings as Partial<AppSettings> & { muteMusicWhileDictating?: unknown })
+        : {};
     const installRegistrationKey =
       typeof parsed.installRegistrationKey === "string" && parsed.installRegistrationKey.trim()
         ? parsed.installRegistrationKey
@@ -844,7 +849,22 @@ function parseDataContent(content: string): LocalData | null {
         : [],
       settings: {
         ...defaultSettings,
-        ...parsed.settings
+        ...parsedSettings,
+        lowerVolumeOnTranscription:
+          typeof parsedSettings.lowerVolumeOnTranscription === "boolean"
+            ? parsedSettings.lowerVolumeOnTranscription
+            : Boolean(parsedSettings.muteMusicWhileDictating),
+        transcriptionReducedVolume: Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              typeof parsedSettings.transcriptionReducedVolume === "number"
+                ? parsedSettings.transcriptionReducedVolume
+                : defaultSettings.transcriptionReducedVolume
+            )
+          )
+        )
       },
       stats: normalizeUserStats(parsed.stats),
       dailyChallenges: normalizeDailyChallenges(parsed.dailyChallenges, installRegistrationKey),

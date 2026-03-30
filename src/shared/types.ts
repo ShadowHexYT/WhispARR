@@ -50,7 +50,8 @@ export type AppSettings = {
   achievementSoundVolume: number;
   dictionarySoundPath: string;
   dictionarySoundVolume: number;
-  muteMusicWhileDictating: boolean;
+  lowerVolumeOnTranscription: boolean;
+  transcriptionReducedVolume: number;
   saveDictationToClipboardHistory: boolean;
   codingLanguageMode: boolean;
   smartFormatting: boolean;

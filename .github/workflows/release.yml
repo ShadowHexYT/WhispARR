@@ -27,7 +27,9 @@ jobs:
             label: macOS
             build_command: npx electron-builder --mac dmg --publish never
             release_files: |
+              release/latest-mac.yml
               release/*-mac-*.dmg
+              release/*-mac-*.dmg.blockmap
 
     steps:
       - name: Check out repository

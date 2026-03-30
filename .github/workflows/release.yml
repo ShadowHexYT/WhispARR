@@ -25,11 +25,13 @@ jobs:
               release/latest.yml
           - os: macos-latest
             label: macOS
-            build_command: npx electron-builder --mac dmg --publish never
+            build_command: npx electron-builder --mac dmg zip --publish never
             release_files: |
               release/latest-mac.yml
               release/*-mac-*.dmg
               release/*-mac-*.dmg.blockmap
+              release/*-mac-*.zip
+              release/*-mac-*.zip.blockmap
 
     steps:
       - name: Check out repository

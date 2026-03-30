@@ -81,19 +81,35 @@ function decodeHtmlEntities(value: string) {
   return textarea.value;
 }
 
+function decodeHtmlEntitiesDeep(value: string) {
+  let current = value;
+
+  for (let index = 0; index < 3; index += 1) {
+    const decoded = decodeHtmlEntities(current);
+    if (decoded === current) {
+      break;
+    }
+    current = decoded;
+  }
+
+  return current;
+}
+
 function formatReleaseNotesAsBullets(releaseNotes: string | null | undefined) {
   if (!releaseNotes?.trim()) {
     return [];
   }
 
-  const normalized = decodeHtmlEntities(
-    releaseNotes
-      .replace(/<li\b[^>]*>/gi, "\n- ")
-      .replace(/<\/li>/gi, "")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-  )
+  const decoded = decodeHtmlEntitiesDeep(releaseNotes.trim());
+
+  const normalized = decoded
+    .replace(/<li\b[^>]*>/gi, "\n- ")
+    .replace(/<\/li>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/ul>/gi, "\n")
+    .replace(/<\/ol>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
     .replace(/\r/g, "")
     .replace(/^[ \t]*[#*_>`]+[ \t]*/gm, "")
     .replace(/^[ \t]*[-*•][ \t]*/gm, "- ")

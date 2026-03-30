@@ -1,6 +1,11 @@
-import { app } from "electron";
+import { app, shell } from "electron";
 import { autoUpdater, type UpdateInfo } from "electron-updater";
 import { AppUpdateInfo, AppUpdateState } from "../shared/types";
+
+const GITHUB_RELEASE_OWNER = "ShadowHexYT";
+const GITHUB_RELEASE_REPO = "WhispARR";
+const MAC_DOWNLOAD_INSTRUCTIONS =
+  "Opened the mac update in your browser. Download it, then replace WhispARR in Applications.";
 
 type UpdateCheckMode = "interactive" | "silent";
 
@@ -57,6 +62,41 @@ function normalizeReleaseNotes(releaseNotes: UpdateInfo["releaseNotes"]) {
   return combined || null;
 }
 
+function buildReleasePageUrl(version: string | null | undefined) {
+  const normalized = normalizeVersion(version);
+  if (!normalized) {
+    return `https://github.com/${GITHUB_RELEASE_OWNER}/${GITHUB_RELEASE_REPO}/releases`;
+  }
+
+  return `https://github.com/${GITHUB_RELEASE_OWNER}/${GITHUB_RELEASE_REPO}/releases/tag/v${normalized}`;
+}
+
+function buildReleaseAssetName(version: string | null | undefined) {
+  const normalized = normalizeVersion(version);
+  if (!normalized) {
+    return null;
+  }
+
+  if (process.platform === "darwin") {
+    return `WhispARR-${normalized}-mac-${process.arch}.zip`;
+  }
+
+  if (process.platform === "win32") {
+    return `WhispARR-${normalized}-windows-${process.arch}.exe`;
+  }
+
+  return null;
+}
+
+function buildReleaseDownloadUrl(version: string | null | undefined) {
+  const assetName = buildReleaseAssetName(version);
+  if (!assetName) {
+    return null;
+  }
+
+  return `https://github.com/${GITHUB_RELEASE_OWNER}/${GITHUB_RELEASE_REPO}/releases/download/v${normalizeVersion(version)}/${assetName}`;
+}
+
 function buildUpdateInfo(updateInfo: UpdateInfo | null, message: string): AppUpdateInfo {
   const currentVersion = app.getVersion();
   const latestVersion = updateInfo?.version?.trim() || null;
@@ -70,9 +110,9 @@ function buildUpdateInfo(updateInfo: UpdateInfo | null, message: string): AppUpd
     hasUpdate,
     releaseName: latestVersion,
     releaseNotes: normalizeReleaseNotes(updateInfo?.releaseNotes),
-    downloadUrl: null,
-    assetName: null,
-    htmlUrl: null,
+    downloadUrl: buildReleaseDownloadUrl(latestVersion),
+    assetName: buildReleaseAssetName(latestVersion),
+    htmlUrl: buildReleasePageUrl(latestVersion),
     message
   };
 }
@@ -254,6 +294,33 @@ export async function downloadAppUpdate(): Promise<{ message: string; filePath: 
 
   ensureUpdaterReady();
   shouldInstallWhenDownloaded = true;
+
+  if (process.platform === "darwin") {
+    const macDownloadUrl = lastKnownInfo?.downloadUrl ?? lastKnownInfo?.htmlUrl;
+    if (!macDownloadUrl) {
+      throw new Error("Could not determine the mac update download link.");
+    }
+
+    await shell.openExternal(macDownloadUrl);
+    const info = lastKnownInfo == null
+      ? null
+      : {
+          ...lastKnownInfo,
+          message: MAC_DOWNLOAD_INSTRUCTIONS
+        };
+    emitState({
+      stage: "available",
+      message: MAC_DOWNLOAD_INSTRUCTIONS,
+      progress: null,
+      info
+    });
+
+    shouldInstallWhenDownloaded = false;
+    return {
+      message: MAC_DOWNLOAD_INSTRUCTIONS,
+      filePath: null
+    };
+  }
 
   if (currentState.stage === "downloaded" && lastKnownInfo?.hasUpdate) {
     emitState({

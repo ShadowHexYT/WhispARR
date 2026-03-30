@@ -11,6 +11,11 @@ the app UI directly.
 - Group changes by user-facing impact when possible.
 - Prefer concise bullet points over implementation details.
 
+## 1.1.8
+
+- Fixed the macOS updater flow so WhispARR stops attempting the failing in-place auto-install path and instead opens the correct release download for manual update on Mac.
+- Added the required macOS ZIP release artifacts and updater metadata path for future releases so mac update feeds resolve correctly.
+
 ## 1.1.7
 
 - Added a full macOS local-engine install path so WhispARR can use a bundled runtime, Homebrew `whisper-cpp`, or a local whisper.cpp build instead of failing on Mac installs.

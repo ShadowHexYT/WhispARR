@@ -38,6 +38,7 @@ const defaultCustomTheme: CustomThemeColors = {
 
 const defaultSettings: AppSettings = {
   selectedMicId: null,
+  selectedOutputDeviceId: null,
   whisperBinaryPath: "",
   whisperModelPath: "",
   transcriptHistoryLimit: 3,
@@ -850,6 +851,10 @@ function parseDataContent(content: string): LocalData | null {
       settings: {
         ...defaultSettings,
         ...parsedSettings,
+        selectedOutputDeviceId:
+          typeof parsedSettings.selectedOutputDeviceId === "string" && parsedSettings.selectedOutputDeviceId.trim().length > 0
+            ? parsedSettings.selectedOutputDeviceId.trim()
+            : null,
         lowerVolumeOnTranscription:
           typeof parsedSettings.lowerVolumeOnTranscription === "boolean"
             ? parsedSettings.lowerVolumeOnTranscription

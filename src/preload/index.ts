@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   AchievementSyncResult,
   AchievementUnlockInput,
+  AudioOutputDevice,
   AppDiagnostics,
   AppUpdateInfo,
   AppUpdateState,
@@ -37,6 +38,7 @@ contextBridge.exposeInMainWorld("wisprApi", {
   deleteManualDictionaryEntry: (id: string) =>
     ipcRenderer.invoke("dictionary:delete", id) as Promise<ManualDictionaryEntry[]>,
   getWhisperStatus: () => ipcRenderer.invoke("whisper:status"),
+  listAudioOutputDevices: () => ipcRenderer.invoke("audio:outputs:list") as Promise<AudioOutputDevice[]>,
   discoverRuntime: () => ipcRenderer.invoke("runtime:discover") as Promise<RuntimeDiscoveryResult>,
   refreshRuntime: () => ipcRenderer.invoke("runtime:refresh") as Promise<RuntimeDiscoveryResult>,
   installRuntime: () => ipcRenderer.invoke("runtime:install") as Promise<RuntimeInstallResult>,

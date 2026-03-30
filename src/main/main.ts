@@ -39,6 +39,7 @@ import { checkForAppUpdates, downloadAppUpdate, subscribeToAppUpdateState } from
 import {
   AchievementUnlockInput,
   ActivationShortcut,
+  AudioOutputDevice,
   AppThemeName,
   AppUpdateState,
   AppSettings,
@@ -172,6 +173,7 @@ let hudPressToTalkActive = false;
 let hudMoveModeSource: "manual" | "hotkey" | null = null;
 let volumeDuckSession:
   | {
+      deviceId: string | null;
       originalVolume: number;
       loweredVolume: number;
     }
@@ -420,10 +422,16 @@ function syncHudWindowInteractivity() {
   hudWindow.setMovable(isHudMoveMode);
 }
 
+function shouldHudBeVisible(requestedVisible: boolean) {
+  return requestedVisible || currentSettings.alwaysShowPill || isHudMoveMode;
+}
+
 function getHudPayload(overrides: Partial<HudState> = {}) {
+  const requestedVisible = overrides.visible ?? currentHudState.visible;
   return {
     ...currentHudState,
     ...overrides,
+    visible: shouldHudBeVisible(Boolean(requestedVisible)),
     moveMode: isHudMoveMode
   };
 }
@@ -447,7 +455,7 @@ function updateHud(state: HudState) {
     hudWindow.webContents.send("hud:state", currentHudState);
   }
 
-  const shouldShow = currentHudState.visible || currentSettings.alwaysShowPill || isHudMoveMode;
+  const shouldShow = shouldHudBeVisible(currentHudState.visible);
 
   if (shouldShow) {
     if (isHudMoveMode) {
@@ -584,10 +592,11 @@ function updateLaunchOnLogin(settings: AppSettings) {
   });
 }
 
-function getWindowsVolumeScript(action: "get" | "set") {
+function getWindowsVolumeScript(action: "list" | "get" | "set") {
   return `
 Add-Type -TypeDefinition @"
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), ComImport]
@@ -595,13 +604,34 @@ public class MMDeviceEnumeratorComObject {}
 
 [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IMMDeviceEnumerator {
-  int NotImpl1();
+  int EnumAudioEndpoints(int dataFlow, int dwStateMask, out IMMDeviceCollection ppDevices);
   int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppDevice);
+  int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string pwstrId, out IMMDevice ppDevice);
+  int RegisterEndpointNotificationCallback(IntPtr pClient);
+  int UnregisterEndpointNotificationCallback(IntPtr pClient);
+}
+
+[Guid("0BD7A1BE-7A1A-44DB-8397-C0A7C1DFAF6B"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceCollection {
+  int GetCount(out uint pcDevices);
+  int Item(uint nDevice, out IMMDevice ppDevice);
 }
 
 [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IMMDevice {
   int Activate(ref Guid iid, int dwClsCtx, IntPtr pActivationParams, [MarshalAs(UnmanagedType.IUnknown)] out object ppInterface);
+  int OpenPropertyStore(int stgmAccess, out IPropertyStore ppProperties);
+  int GetId([MarshalAs(UnmanagedType.LPWStr)] out string ppstrId);
+  int GetState(out int pdwState);
+}
+
+[Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPropertyStore {
+  int GetCount(out uint cProps);
+  int GetAt(uint iProp, out PROPERTYKEY pkey);
+  int GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
+  int SetValue(ref PROPERTYKEY key, ref PROPVARIANT propvar);
+  int Commit();
 }
 
 [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -626,69 +656,269 @@ interface IAudioEndpointVolume {
   int GetVolumeRange(out float pflVolumeMindB, out float pflVolumeMaxdB, out float pflVolumeIncrementdB);
 }
 
+[StructLayout(LayoutKind.Sequential)]
+struct PROPERTYKEY {
+  public Guid fmtid;
+  public int pid;
+}
+
+[StructLayout(LayoutKind.Explicit)]
+struct PROPVARIANT {
+  [FieldOffset(0)]
+  public ushort vt;
+
+  [FieldOffset(8)]
+  public IntPtr pointerValue;
+
+  public string GetValue() {
+    return pointerValue == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUni(pointerValue) ?? string.Empty;
+  }
+}
+
+public class WhispARRAudioDeviceInfo {
+  public string Id { get; set; } = string.Empty;
+  public string Name { get; set; } = string.Empty;
+  public bool IsDefault { get; set; }
+}
+
 public static class WhispARRSystemVolume {
-  public static IAudioEndpointVolume GetEndpointVolume() {
-    var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+  [DllImport("Ole32.dll")]
+  private static extern int PropVariantClear(ref PROPVARIANT pvar);
+
+  private static readonly PROPERTYKEY PKEY_Device_FriendlyName = new PROPERTYKEY {
+    fmtid = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"),
+    pid = 14
+  };
+
+  private static IMMDeviceEnumerator GetEnumerator() {
+    return (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+  }
+
+  private static IMMDevice GetDefaultDevice() {
+    var enumerator = GetEnumerator();
     IMMDevice device;
     Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(0, 1, out device));
+    return device;
+  }
+
+  private static IMMDevice GetDevice(string deviceId) {
+    if (string.IsNullOrWhiteSpace(deviceId)) {
+      return GetDefaultDevice();
+    }
+
+    var enumerator = GetEnumerator();
+    IMMDevice device;
+    Marshal.ThrowExceptionForHR(enumerator.GetDevice(deviceId, out device));
+    return device;
+  }
+
+  private static string GetFriendlyName(IMMDevice device) {
+    IPropertyStore propertyStore;
+    Marshal.ThrowExceptionForHR(device.OpenPropertyStore(0, out propertyStore));
+    PROPVARIANT value;
+    Marshal.ThrowExceptionForHR(propertyStore.GetValue(ref PKEY_Device_FriendlyName, out value));
+    try {
+      return value.GetValue();
+    } finally {
+      PropVariantClear(ref value);
+    }
+  }
+
+  public static string GetDefaultEndpointId() {
+    string deviceId;
+    Marshal.ThrowExceptionForHR(GetDefaultDevice().GetId(out deviceId));
+    return deviceId;
+  }
+
+  public static WhispARRAudioDeviceInfo[] ListRenderDevices() {
+    var enumerator = GetEnumerator();
+    IMMDeviceCollection collection;
+    Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(0, 1, out collection));
+    uint count;
+    Marshal.ThrowExceptionForHR(collection.GetCount(out count));
+    var defaultId = GetDefaultEndpointId();
+    var devices = new List<WhispARRAudioDeviceInfo>();
+
+    for (uint index = 0; index < count; index++) {
+      IMMDevice device;
+      Marshal.ThrowExceptionForHR(collection.Item(index, out device));
+      string id;
+      Marshal.ThrowExceptionForHR(device.GetId(out id));
+      devices.Add(new WhispARRAudioDeviceInfo {
+        Id = id,
+        Name = GetFriendlyName(device),
+        IsDefault = string.Equals(id, defaultId, StringComparison.OrdinalIgnoreCase)
+      });
+    }
+
+    return devices.ToArray();
+  }
+
+  public static IAudioEndpointVolume GetEndpointVolume(string deviceId) {
+    var device = GetDevice(deviceId);
+    var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
     object endpointVolume;
     var iid = typeof(IAudioEndpointVolume).GUID;
     Marshal.ThrowExceptionForHR(device.Activate(ref iid, 23, IntPtr.Zero, out endpointVolume));
     return (IAudioEndpointVolume)endpointVolume;
   }
+
+  public static int GetVolumePercent(string deviceId) {
+    var volume = GetEndpointVolume(deviceId);
+    float level;
+    Marshal.ThrowExceptionForHR(volume.GetMasterVolumeLevelScalar(out level));
+    return (int)Math.Round(level * 100);
+  }
+
+  public static int SetVolumePercent(string deviceId, int target) {
+    var volume = GetEndpointVolume(deviceId);
+    var context = Guid.Empty;
+    Marshal.ThrowExceptionForHR(volume.SetMasterVolumeLevelScalar(Math.Max(0, Math.Min(100, target)) / 100.0f, ref context));
+    return Math.Max(0, Math.Min(100, target));
+  }
 }
 "@
-$volume = [WhispARRSystemVolume]::GetEndpointVolume()
-${action === "get"
+$deviceId = if ([string]::IsNullOrWhiteSpace($env:WHISPARR_TARGET_DEVICE_ID)) { $null } else { $env:WHISPARR_TARGET_DEVICE_ID }
+${action === "list"
   ? `
-[float]$level = 0
-[void]$volume.GetMasterVolumeLevelScalar([ref]$level)
-[Math]::Round($level * 100)
+[WhispARRSystemVolume]::ListRenderDevices() | ConvertTo-Json -Compress
+`
+  : action === "get"
+  ? `
+[WhispARRSystemVolume]::GetVolumePercent($deviceId)
 `
   : `
 $target = [Math]::Max(0, [Math]::Min(100, [int]$env:WHISPARR_TARGET_VOLUME))
-$context = [Guid]::Empty
-[void]$volume.SetMasterVolumeLevelScalar($target / 100.0, [ref]$context)
-Write-Output $target
+[WhispARRSystemVolume]::SetVolumePercent($deviceId, $target)
 `}
 `;
 }
 
-async function getSystemOutputVolume() {
+function normalizeOutputDeviceId(deviceId: string | null | undefined) {
+  return typeof deviceId === "string" && deviceId.trim().length > 0 ? deviceId.trim() : null;
+}
+
+function getSelectedOutputDeviceId() {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  return normalizeOutputDeviceId(currentSettings.selectedOutputDeviceId);
+}
+
+async function getSystemOutputVolume(deviceId?: string | null) {
+  if (process.platform === "darwin") {
+    try {
+      const value = await runAppleScript("output volume of (get volume settings)");
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+    } catch (error) {
+      console.warn("WhispARR: failed to read macOS output volume", error);
+      return null;
+    }
+  }
+
   if (process.platform !== "win32") {
     return null;
   }
 
   try {
-    const value = await runPowerShell(getWindowsVolumeScript("get"));
+    const value = await runPowerShell(getWindowsVolumeScript("get"), {
+      ...(normalizeOutputDeviceId(deviceId) ? { WHISPARR_TARGET_DEVICE_ID: normalizeOutputDeviceId(deviceId) as string } : {})
+    });
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
-  } catch {
+  } catch (error) {
+    console.warn("WhispARR: failed to read Windows output volume", error);
     return null;
   }
 }
 
-async function setSystemOutputVolume(volume: number) {
+async function setSystemOutputVolume(volume: number, deviceId?: string | null) {
+  if (process.platform === "darwin") {
+    try {
+      await runAppleScript(`set volume output volume ${Math.max(0, Math.min(100, Math.round(volume)))}`);
+      return true;
+    } catch (error) {
+      console.warn("WhispARR: failed to set macOS output volume", error);
+      return false;
+    }
+  }
+
   if (process.platform !== "win32") {
     return false;
   }
 
   try {
     await runPowerShell(getWindowsVolumeScript("set"), {
-      WHISPARR_TARGET_VOLUME: String(Math.max(0, Math.min(100, Math.round(volume))))
+      WHISPARR_TARGET_VOLUME: String(Math.max(0, Math.min(100, Math.round(volume)))),
+      ...(normalizeOutputDeviceId(deviceId) ? { WHISPARR_TARGET_DEVICE_ID: normalizeOutputDeviceId(deviceId) as string } : {})
     });
     return true;
-  } catch {
+  } catch (error) {
+    console.warn("WhispARR: failed to set Windows output volume", error);
     return false;
   }
 }
 
+async function listAudioOutputDevices(): Promise<AudioOutputDevice[]> {
+  if (process.platform === "win32") {
+    try {
+      const output = await runPowerShell(getWindowsVolumeScript("list"));
+      const parsed = JSON.parse(output) as Array<{ Id?: unknown; Name?: unknown; IsDefault?: unknown }> | { Id?: unknown; Name?: unknown; IsDefault?: unknown };
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      return list
+        .filter((entry) => typeof entry?.Id === "string" && typeof entry?.Name === "string")
+        .map((entry) => ({
+          id: entry.Id as string,
+          label: entry.Name as string,
+          isDefault: entry.IsDefault === true
+        }))
+        .sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.label.localeCompare(right.label));
+    } catch (error) {
+      console.warn("WhispARR: failed to enumerate Windows output devices", error);
+      return [];
+    }
+  }
+
+  if (process.platform === "darwin") {
+    try {
+      const output = await runSystemProfiler(["SPAudioDataType", "-json"]);
+      const parsed = JSON.parse(output) as {
+        SPAudioDataType?: Array<{ _items?: Array<Record<string, unknown>> }>;
+      };
+      const items = (parsed.SPAudioDataType ?? []).flatMap((section) => Array.isArray(section._items) ? section._items : []);
+      const outputs = items
+        .filter((item) =>
+          typeof item._name === "string" &&
+          (typeof item.coreaudio_device_output === "number" ||
+            item.coreaudio_default_audio_output_device === "spaudio_yes")
+        )
+        .map((item) => ({
+          id: String(item._name),
+          label: String(item._name),
+          isDefault:
+            item.coreaudio_default_audio_output_device === "spaudio_yes" ||
+            item.coreaudio_default_audio_system_device === "spaudio_yes"
+        }));
+
+      return outputs.sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.label.localeCompare(right.label));
+    } catch (error) {
+      console.warn("WhispARR: failed to enumerate macOS output devices", error);
+      return [];
+    }
+  }
+
+  return [];
+}
+
 async function duckVolumeForDictationIfNeeded() {
-  if (!currentSettings.lowerVolumeOnTranscription || volumeDuckSession || process.platform !== "win32") {
+  if (!currentSettings.lowerVolumeOnTranscription || volumeDuckSession) {
     return;
   }
 
-  const originalVolume = await getSystemOutputVolume();
+  const selectedDeviceId = getSelectedOutputDeviceId();
+  const originalVolume = await getSystemOutputVolume(selectedDeviceId);
   if (originalVolume === null) {
     return;
   }
@@ -698,8 +928,9 @@ async function duckVolumeForDictationIfNeeded() {
     Math.min(100, Math.round(currentSettings.transcriptionReducedVolume))
   );
 
-  if (await setSystemOutputVolume(loweredVolume)) {
+  if (await setSystemOutputVolume(loweredVolume, selectedDeviceId)) {
     volumeDuckSession = {
+      deviceId: selectedDeviceId,
       originalVolume,
       loweredVolume
     };
@@ -707,41 +938,67 @@ async function duckVolumeForDictationIfNeeded() {
 }
 
 async function restoreVolumeAfterDictationIfNeeded() {
-  if (!volumeDuckSession || process.platform !== "win32") {
+  if (!volumeDuckSession) {
     return;
   }
 
   const session = volumeDuckSession;
   volumeDuckSession = null;
-  const currentVolume = await getSystemOutputVolume();
+  const currentVolume = await getSystemOutputVolume(session.deviceId);
 
   if (currentVolume !== null && currentVolume !== session.loweredVolume) {
     return;
   }
 
-  await setSystemOutputVolume(session.originalVolume);
+  await setSystemOutputVolume(session.originalVolume, session.deviceId);
 }
 
 function runPowerShell(script: string, envOverrides: Record<string, string> = {}) {
   return new Promise<string>((resolve, reject) => {
     execFile(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-STA", "-Command", script],
       {
         env: {
           ...process.env,
           ...envOverrides
         }
       },
-      (error, stdout) => {
+      (error, stdout, stderr) => {
         if (error) {
-          reject(error);
+          reject(new Error(stderr?.trim() || error.message));
           return;
         }
 
         resolve(stdout.trim());
       }
     );
+  });
+}
+
+function runAppleScript(script: string) {
+  return new Promise<string>((resolve, reject) => {
+    execFile("osascript", ["-e", script], (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr?.trim() || error.message));
+        return;
+      }
+
+      resolve(stdout.trim());
+    });
+  });
+}
+
+function runSystemProfiler(args: string[]) {
+  return new Promise<string>((resolve, reject) => {
+    execFile("system_profiler", args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr?.trim() || error.message));
+        return;
+      }
+
+      resolve(stdout);
+    });
   });
 }
 
@@ -951,7 +1208,7 @@ function applySettingsPatch(patch: Partial<AppSettings>) {
   updateLaunchOnLogin(next);
   syncWindowTheme(next);
   updateHud({
-    visible: currentHudState.visible || pushToTalkActive || next.alwaysShowPill,
+    visible: pushToTalkActive,
     level: 0,
     label: pushToTalkActive ? "Listening" : "Ready",
     soundEnabled: !next.muteDictationSounds,
@@ -1286,7 +1543,7 @@ app.whenReady().then(() => {
 
     currentSettings = updateSettings(nextPatch);
     updateHud({
-      visible: currentHudState.visible || pushToTalkActive || currentSettings.alwaysShowPill,
+      visible: pushToTalkActive,
       level: 0,
       label: pushToTalkActive ? "Listening" : "Ready",
       soundEnabled: !currentSettings.muteDictationSounds,
@@ -1305,6 +1562,9 @@ app.whenReady().then(() => {
       });
     }
     return installResult;
+  });
+  ipcMain.handle("audio:outputs:list", async () => {
+    return listAudioOutputDevices();
   });
   ipcMain.handle("app:update:check", async (_event, options?: { silent?: boolean }) => {
     return checkForAppUpdates(options);
@@ -1409,7 +1669,7 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   isQuitting = true;
   if (volumeDuckSession) {
-    void setSystemOutputVolume(volumeDuckSession.originalVolume);
+    void setSystemOutputVolume(volumeDuckSession.originalVolume, volumeDuckSession.deviceId);
     volumeDuckSession = null;
   }
   pressedKeys.clear();

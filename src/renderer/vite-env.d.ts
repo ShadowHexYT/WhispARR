@@ -3,6 +3,7 @@
 import {
   AchievementSyncResult,
   AchievementUnlockInput,
+  AudioOutputDevice,
   AppDiagnostics,
   AppUpdateInfo,
   AppUpdateState,
@@ -39,6 +40,7 @@ declare global {
       }) => Promise<ManualDictionaryEntry>;
       deleteManualDictionaryEntry: (id: string) => Promise<ManualDictionaryEntry[]>;
       getWhisperStatus: () => Promise<WhisperConfigStatus>;
+      listAudioOutputDevices: () => Promise<AudioOutputDevice[]>;
       discoverRuntime: () => Promise<RuntimeDiscoveryResult>;
       refreshRuntime: () => Promise<RuntimeDiscoveryResult>;
       installRuntime: () => Promise<RuntimeInstallResult>;

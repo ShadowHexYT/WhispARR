@@ -23,6 +23,7 @@ import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import {
   AchievementUnlockInput,
   ActivationShortcut,
+  AudioOutputDevice,
   AppDiagnostics,
   AppUpdateInfo,
   AppUpdateState,
@@ -130,6 +131,7 @@ function formatReleaseNotesAsBullets(releaseNotes: string | null | undefined) {
 
 const defaultSettings: AppSettings = {
   selectedMicId: null,
+  selectedOutputDeviceId: null,
   whisperBinaryPath: "",
   whisperModelPath: "",
   transcriptHistoryLimit: 3,
@@ -1294,6 +1296,7 @@ export default function App() {
   const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
   const [manualDictionary, setManualDictionary] = useState<ManualDictionaryEntry[]>([]);
   const [devices, setDevices] = useState<MicDevice[]>([]);
+  const [outputDevices, setOutputDevices] = useState<AudioOutputDevice[]>([]);
   const [profileName, setProfileName] = useState("");
   const [profileEmoji, setProfileEmoji] = useState(DEFAULT_PROFILE_EMOJI);
   const [openProfileEmojiPickerId, setOpenProfileEmojiPickerId] = useState<string | null>(null);
@@ -1400,6 +1403,7 @@ export default function App() {
     () => profiles.find((profile) => profile.id === settings.activeProfileId) ?? null,
     [profiles, settings.activeProfileId]
   );
+  const isWindowsPlatform = (appDiagnostics?.platform ?? "").toLowerCase() === "win32";
   const currentTheme = useMemo(
     () => (settings.appTheme === "custom"
       ? buildCustomTheme(settings.customTheme)
@@ -2132,6 +2136,12 @@ export default function App() {
   }
 
   async function refreshDevices() {
+    try {
+      setOutputDevices(await window.wisprApi.listAudioOutputDevices());
+    } catch {
+      setOutputDevices([]);
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((track) => track.stop());
     const items = await navigator.mediaDevices.enumerateDevices();
@@ -2444,6 +2454,9 @@ export default function App() {
       const message = await window.wisprApi.downloadAndInstallAppUpdate();
       setStatus(message);
       setUpdateDialogMessage(message);
+      if ((appDiagnostics?.platform ?? "").toLowerCase() === "darwin") {
+        setUpdateDialogState("available");
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Update install failed.";
       setStatus(message);
@@ -3539,7 +3552,11 @@ export default function App() {
               onClick={() => void downloadAndInstallUpdate()}
               disabled={isInstallingAppUpdate}
             >
-              {isInstallingAppUpdate ? "Preparing installer..." : "Download and install update"}
+              {isInstallingAppUpdate
+                ? "Preparing installer..."
+                : (appDiagnostics?.platform ?? "").toLowerCase() === "darwin"
+                  ? "Download mac update"
+                  : "Download and install update"}
             </button>
           )}
           {developerNavItem && (
@@ -4965,13 +4982,71 @@ export default function App() {
                 </>
               ) : null}
               <div className="settings-column-footer">
+                {isWindowsPlatform && (
+                  <div
+                    className={settings.lowerVolumeOnTranscription ? "settings-slider-card active" : "settings-slider-card"}
+                    aria-disabled={!settings.lowerVolumeOnTranscription}
+                  >
+                    <div className="settings-slider-copy">
+                      <strong>Transcription output device</strong>
+                      <p>Pick which Windows output device WhispARR should lower while you are dictating.</p>
+                    </div>
+                    <div className="path-field">
+                      <select
+                        value={settings.selectedOutputDeviceId ?? ""}
+                        onChange={(event) =>
+                          void patchSettings({ selectedOutputDeviceId: event.target.value || null })
+                        }
+                        disabled={!settings.lowerVolumeOnTranscription}
+                      >
+                        <option value="">System default output device</option>
+                        {outputDevices.map((device) => (
+                          <option key={device.id} value={device.id}>
+                            {device.isDefault ? `${device.label} (Default)` : device.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="icon-button device-refresh-button"
+                        onClick={() => void refreshDevices()}
+                        type="button"
+                        aria-label="Refresh output devices"
+                        title="Refresh output devices"
+                        disabled={!settings.lowerVolumeOnTranscription}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path
+                            d="M20 12a8 8 0 1 1-2.34-5.66"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M20 4v5h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div
                   className={settings.lowerVolumeOnTranscription ? "settings-slider-card active" : "settings-slider-card"}
                   aria-disabled={!settings.lowerVolumeOnTranscription}
                 >
                   <div className="settings-slider-copy">
                     <strong>Reduced volume while transcribing</strong>
-                    <p>Choose how low system output volume should drop while you are actively dictating.</p>
+                    <p>
+                      Choose how low system output volume should drop while you are actively dictating.
+                      {isWindowsPlatform
+                        ? " WhispARR restores the previous level on the same selected device when dictation ends."
+                        : " On macOS this follows the current system output volume."}
+                    </p>
                   </div>
                   <div className="bounce-slider-shell">
                     <div className="bounce-slider-readout">
@@ -5696,6 +5771,11 @@ export default function App() {
                 ? `You already have the latest version installed. Current version: ${appDiagnostics?.version ?? appUpdateInfo?.currentVersion ?? "Loading..."}`
                 : updateDialogMessage}
             </p>
+            {updateDialogState === "available" && (appDiagnostics?.platform ?? "").toLowerCase() === "darwin" && (
+              <p className="supporting">
+                mac updates download in your browser, then you replace the app in Applications.
+              </p>
+            )}
             {appUpdateInfo?.latestVersion && updateDialogState !== "none" && (
               <p className="supporting">
                 Latest version: <strong>{appUpdateInfo.latestVersion}</strong>
@@ -5762,7 +5842,9 @@ export default function App() {
                         ? "Installing update..."
                         : isInstallingAppUpdate
                           ? "Preparing update..."
-                          : "Download and install update"}
+                          : (appDiagnostics?.platform ?? "").toLowerCase() === "darwin"
+                            ? "Download mac update"
+                            : "Download and install update"}
                   </button>
                 </>
               ) : (

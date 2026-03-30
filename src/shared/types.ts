@@ -31,6 +31,7 @@ export type HudPosition = {
 
 export type AppSettings = {
   selectedMicId: string | null;
+  selectedOutputDeviceId: string | null;
   whisperBinaryPath: string;
   whisperModelPath: string;
   transcriptHistoryLimit: number;
@@ -277,6 +278,12 @@ export type AppDiagnostics = {
   exePath: string;
   userDataPath: string;
   appPath: string;
+};
+
+export type AudioOutputDevice = {
+  id: string;
+  label: string;
+  isDefault: boolean;
 };
 
 export type HudState = {

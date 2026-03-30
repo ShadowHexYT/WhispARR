@@ -981,6 +981,10 @@ function clearManagedClipboardSession() {
   managedClipboardSession = null;
 }
 
+function shouldPersistClipboardEntry() {
+  return currentSettings.saveDictationToClipboardHistory;
+}
+
 function restoreManagedClipboardIfNeeded(expectedText?: string) {
   if (!managedClipboardSession) {
     return false;
@@ -1008,6 +1012,12 @@ function restoreManagedClipboardIfNeeded(expectedText?: string) {
 
 async function stageClipboardText(text: string, mode: "auto" | "manual") {
   clearManagedClipboardSession();
+
+  if (shouldPersistClipboardEntry()) {
+    await writeClipboardText(text, { allowHistory: true });
+    return;
+  }
+
   const originalText = clipboard.readText();
   managedClipboardSession = {
     originalText,
@@ -1035,7 +1045,7 @@ async function pasteText(text: string): Promise<PasteTextResult> {
   await stageClipboardText(text, "auto");
   await new Promise((resolve) => setTimeout(resolve, 20));
   uIOhook.keyTap(UiohookKey.V, [getPasteModifier()]);
-  if (managedClipboardSession) {
+  if (managedClipboardSession && !shouldPersistClipboardEntry()) {
     managedClipboardSession.cleanupTimeout = setTimeout(() => {
       restoreManagedClipboardIfNeeded(text);
     }, 250);
@@ -1048,7 +1058,8 @@ async function pasteText(text: string): Promise<PasteTextResult> {
 
 async function prepareClipboardForSinglePaste(text: string) {
   await stageClipboardText(text, "manual");
-  if (managedClipboardSession) {
+
+  if (managedClipboardSession && !shouldPersistClipboardEntry()) {
     managedClipboardSession.cleanupTimeout = setTimeout(() => {
       restoreManagedClipboardIfNeeded(text);
     }, 20000);

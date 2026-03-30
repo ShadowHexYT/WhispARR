@@ -3064,17 +3064,23 @@ export default function App() {
         const pasteResult = await window.wisprApi.pasteText(transcript);
         if (pasteResult.autoPasted) {
           setStatus(
-            "Transcribed locally and pasted into the active app."
+            currentSettings.saveDictationToClipboardHistory
+              ? "Transcribed locally, pasted into the active app, and kept on your clipboard for reuse."
+              : "Transcribed locally and pasted into the active app."
           );
         } else {
           setStatus(
-            "Local dictation completed. Auto-paste was skipped because focus changed. Transcript is ready for one manual paste, then your clipboard will be restored."
+            currentSettings.saveDictationToClipboardHistory
+              ? "Local dictation completed. Auto-paste was skipped because focus changed. Transcript is on your clipboard and can be pasted again whenever you need it."
+              : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
           );
         }
       } else {
         await window.wisprApi.prepareClipboardForSinglePaste(transcript);
         setStatus(
-          "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
+          currentSettings.saveDictationToClipboardHistory
+            ? "Local dictation completed. Transcript is on your clipboard and can be pasted again whenever you need it."
+            : "Local dictation completed. Transcript is ready for one manual paste, then your clipboard will be restored."
         );
       }
 
@@ -4519,8 +4525,9 @@ export default function App() {
                     <div className="settings-switch-copy">
                       <strong>Save dictated text to clipboard history</strong>
                       <p>
-                        Lets auto-paste and one-time manual paste staging appear in supported clipboard history tools,
-                        including Windows Clipboard History. Off by default.
+                        Keeps dictated text on the clipboard for repeated pasting instead of restoring the previous
+                        clipboard right away. On Windows, it also allows the entry to appear in Clipboard History.
+                        Off by default.
                       </p>
                     </div>
                     <button

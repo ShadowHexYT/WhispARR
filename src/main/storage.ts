@@ -646,9 +646,7 @@ function getActiveProfile(current: LocalData) {
 }
 
 function getOnboardingScopeKey(current: Pick<LocalData, "installRegistrationKey" | "settings">) {
-  return current.settings.activeProfileId
-    ? `profile:${current.settings.activeProfileId}`
-    : `install:${current.installRegistrationKey}`;
+  return `install:${current.installRegistrationKey}`;
 }
 
 function normalizeOnboardingCompletedKeys(
@@ -657,6 +655,7 @@ function normalizeOnboardingCompletedKeys(
 ) {
   const knownProfileIds = new Set(current.voiceProfiles.map((profile) => profile.id));
   const normalized = new Set<string>();
+  let hasCompletedOnboarding = false;
 
   for (const entry of Array.isArray(keys) ? keys : []) {
     if (typeof entry !== "string") {
@@ -669,21 +668,25 @@ function normalizeOnboardingCompletedKeys(
     }
 
     if (trimmed === current.installRegistrationKey) {
-      normalized.add(`install:${current.installRegistrationKey}`);
+      hasCompletedOnboarding = true;
       continue;
     }
 
     if (knownProfileIds.has(trimmed)) {
-      normalized.add(`profile:${trimmed}`);
+      hasCompletedOnboarding = true;
       continue;
     }
 
     if (trimmed === `install:${current.installRegistrationKey}` || trimmed.startsWith("profile:")) {
-      normalized.add(trimmed);
+      hasCompletedOnboarding = true;
     }
   }
 
   if (current.settings.onboardingCompleted) {
+    hasCompletedOnboarding = true;
+  }
+
+  if (hasCompletedOnboarding) {
     normalized.add(getOnboardingScopeKey(current));
   }
 
@@ -716,7 +719,6 @@ function getInstallIntegrityPayload(current: LocalData) {
   return {
     installRegistrationKey: current.installRegistrationKey,
     stats: current.stats,
-    dailyChallenges: current.dailyChallenges,
     unlockedAchievements: current.unlockedAchievements
   };
 }
@@ -731,7 +733,6 @@ function getProfileIntegrityPayload(profile: VoiceProfile) {
     sampleCount: profile.sampleCount,
     averageEmbedding: profile.averageEmbedding,
     stats: profile.stats,
-    dailyChallenges: profile.dailyChallenges,
     unlockedAchievements: profile.unlockedAchievements
   };
 }

@@ -2089,10 +2089,14 @@ export default function App() {
     if (data.pendingPatchNotes) {
       if (
         !data.neverShowPatchNotes &&
+        data.pendingPatchNotes.version !== data.skippedPatchNotesVersion &&
         data.pendingPatchNotes.version === diagnostics.version
       ) {
         setPostInstallPatchNotes(data.pendingPatchNotes);
-      } else if (data.pendingPatchNotes.version !== diagnostics.version) {
+      } else if (
+        data.pendingPatchNotes.version !== diagnostics.version ||
+        data.pendingPatchNotes.version === data.skippedPatchNotesVersion
+      ) {
         await window.wisprApi.clearPendingPatchNotes();
       }
     }
@@ -2457,7 +2461,11 @@ export default function App() {
   }
 
   async function dismissPostInstallPatchNotes() {
-    await window.wisprApi.clearPendingPatchNotes();
+    if (postInstallPatchNotes?.version) {
+      await window.wisprApi.skipPatchNotesVersion(postInstallPatchNotes.version);
+    } else {
+      await window.wisprApi.clearPendingPatchNotes();
+    }
     setPostInstallPatchNotes(null);
   }
 
